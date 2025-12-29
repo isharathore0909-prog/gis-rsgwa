@@ -12,15 +12,33 @@ function App() {
         quality: false,
         satellite: false
     });
-    const [timePeriod, setTimePeriod] = useState('2024');
-    const [parameter, setParameter] = useState('water-level');
     const [selectedWell, setSelectedWell] = useState(null);
+    const [filters, setFilters] = useState(null);
+    const [basemap, setBasemap] = useState('osm');
+    const [clickedLocation, setClickedLocation] = useState(null);
+    const [neighbors, setNeighbors] = useState([]);
 
     const handleLayerChange = (layerName, checked) => {
         setLayers(prev => ({
             ...prev,
             [layerName]: checked
         }));
+    };
+
+    const handleFiltersApply = (appliedFilters) => {
+        setFilters(appliedFilters);
+        // Here you would typically filter the data based on filters
+        console.log('Filters applied:', appliedFilters);
+    };
+
+    const handleBasemapChange = (selectedBasemap) => {
+        setBasemap(selectedBasemap);
+        // Update layers state for satellite basemap
+        if (selectedBasemap === 'satellite') {
+            setLayers(prev => ({ ...prev, satellite: true }));
+        } else {
+            setLayers(prev => ({ ...prev, satellite: false }));
+        }
     };
 
     return (
@@ -31,20 +49,26 @@ function App() {
                 <ControlsSidebar
                     layers={layers}
                     onLayerChange={handleLayerChange}
-                    timePeriod={timePeriod}
-                    onTimePeriodChange={setTimePeriod}
-                    parameter={parameter}
-                    onParameterChange={setParameter}
+                    onFiltersApply={handleFiltersApply}
+                    onBasemapChange={handleBasemapChange}
                 />
                 
                 <MapView
                     layers={layers}
-                    basemap={layers.satellite ? 'satellite' : 'osm'}
+                    basemap={basemap}
+                    filters={filters}
                     onWellSelect={setSelectedWell}
                     selectedWell={selectedWell}
+                    onLocationClick={(location, neighbors) => {
+                        setClickedLocation(location);
+                        setNeighbors(neighbors);
+                    }}
                 />
                 
-                <DataAnalysisSidebar />
+                <DataAnalysisSidebar 
+                    clickedLocation={clickedLocation}
+                    neighbors={neighbors}
+                />
             </div>
         </div>
     );

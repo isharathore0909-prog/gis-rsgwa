@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import './MapView.css';
 import { groundwaterData, getWaterLevelColor, getWellStatus } from '../data/groundwaterData';
+import { findNearestNeighbors } from '../utils/distanceUtils';
 
 // Fix for default marker icon issue in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -37,6 +38,11 @@ function MapUpdater({ center, zoom, basemap, onMapReady }) {
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                 attribution: '© OpenStreetMap contributors, © CARTO',
                 maxZoom: 19
+            }).addTo(map);
+        } else if (basemap === 'terrain') {
+            L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors, © OpenTopoMap',
+                maxZoom: 17
             }).addTo(map);
         } else {
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -81,11 +87,31 @@ const WellMarker = ({ well, onMarkerClick }) => {
     );
 };
 
-const MapView = ({ layers, basemap, onWellSelect, selectedWell }) => {
+// Component to handle map clicks
+function MapClickHandler({ onMapClick }) {
+    useMapEvents({
+        click: (e) => {
+            onMapClick(e.latlng);
+        }
+    });
+    return null;
+}
+
+const MapView = ({ layers, basemap, filters, onWellSelect, selectedWell, onLocationClick }) => {
     const mapRef = useRef(null);
 
     const handleMapReady = (map) => {
         mapRef.current = map;
+    };
+
+    const handleMapClick = (latlng) => {
+        // Use groundwater data for finding neighbors (they have lat/lng)
+        const nearest = findNearestNeighbors(latlng.lat, latlng.lng, groundwaterData, 5, 10);
+        
+        // Pass to parent component
+        if (onLocationClick) {
+            onLocationClick(latlng, nearest);
+        }
     };
 
     const handleZoomIn = () => {
@@ -134,14 +160,35 @@ const MapView = ({ layers, basemap, onWellSelect, selectedWell }) => {
                     basemap={basemap}
                     onMapReady={handleMapReady}
                 />
+                <MapClickHandler onMapClick={handleMapClick} />
                 
-                {layers.wells && groundwaterData.map(well => (
-                    <WellMarker 
-                        key={well.id} 
-                        well={well} 
-                        onMarkerClick={onWellSelect}
-                    />
-                ))}
+                {layers.wells && (() => {
+                    // Filter data based on filters
+                    let filteredData = groundwaterData;
+                    if (filters) {
+                        filteredData = groundwaterData.filter(well => {
+                            // Apply filters
+                            if (filters.state && filters.state !== 'All' && !well.location.toLowerCase().includes(filters.state.toLowerCase())) {
+                                return false;
+                            }
+                            if (filters.district && filters.district !== 'All' && well.location !== filters.district) {
+                                return false;
+                            }
+                            if (filters.stationType && filters.stationType !== 'All') {
+                                // Add station type filtering logic if needed
+                            }
+                            // Add more filter logic as needed
+                            return true;
+                        });
+                    }
+                    return filteredData.map(well => (
+                        <WellMarker 
+                            key={well.id} 
+                            well={well} 
+                            onMarkerClick={onWellSelect}
+                        />
+                    ));
+                })()}
 
                 {layers.contours && (
                     <Polyline
@@ -220,6 +267,7 @@ const MapView = ({ layers, basemap, onWellSelect, selectedWell }) => {
                     </div>
                 </div>
             </div>
+
         </div>
     );
 };
