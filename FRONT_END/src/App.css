@@ -1,0 +1,183 @@
+:root {
+    /* Core Color Palette - Professional GIS Design System */
+    --primary-blue: #005a9e;
+    /* Modern Microsoft/GIS Blue */
+    --secondary-blue: #0078d4;
+    --dark-blue: #004578;
+    --accent-cyan: #00e5ff;
+
+    --bg-main: #f0f2f5;
+    --bg-surface: #ffffff;
+    --bg-muted: #f8fafc;
+    --bg-active: #eff6ff;
+
+    --text-main: #111827;
+    /* High contrast gray-900 */
+    --text-secondary: #4b5563;
+    /* gray-600 */
+    --text-muted: #9ca3af;
+    /* gray-400 */
+    --text-on-blue: #ffffff;
+
+    --border-light: #e5e7eb;
+    /* gray-200 */
+    --border-strong: #d1d5db;
+    /* gray-300 */
+    --border-focus: var(--secondary-blue);
+
+    /* Layout Constants */
+    --header-height: 64px;
+    --sidebar-left-width: 420px;
+    --sidebar-right-width: 420px;
+
+    /* Effects */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --border-radius-sm: 4px;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+}
+
+.main-layout {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    height: calc(100vh - var(--header-height));
+    width: 100%;
+    overflow: hidden;
+    background: var(--bg-main);
+}
+
+.workspace-container {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    /* Workspace Main gets the remaining space */
+    height: 100%;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.workspace-main {
+    display: flex;
+    flex-direction: row;
+    /* Remove fixed 100% to allow grid to control height */
+    overflow: hidden;
+    min-height: 500px;
+    /* Ensure an initial decent height */
+}
+
+.workspace-bottom {
+    background: white;
+    border-top: 3px solid var(--border-strong);
+    z-index: 10;
+    /* Remove fixed height to allow it to collapse */
+    height: auto;
+    max-height: 320px;
+    overflow-y: hidden;
+}
+
+/* Data Analysis Sidebar */
+.data-analysis-sidebar {
+    height: 100%;
+    width: var(--sidebar-right-width);
+    background: white;
+    border-left: 2px solid var(--border-strong);
+    z-index: 20;
+}
+
+/* Professional Scrollbar Interaction */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 20px;
+    border: 2px solid transparent;
+    /* Gives it a bit of padding */
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+    background-clip: content-box;
+}
+
+/* Status Indicators - Professional Semi-Bold */
+.status-safe {
+    color: #10b981;
+    font-weight: 600;
+}
+
+.status-semi-critical {
+    color: #f59e0b;
+    font-weight: 600;
+}
+
+.status-critical {
+    color: #f97316;
+    font-weight: 600;
+}
+
+.status-over-exploited {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+/* Global Map Overrides */
+.leaflet-container {
+    flex: 1;
+    z-index: 1;
+    background: #f1f1f1 !important;
+}
+
+/* Animations */
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

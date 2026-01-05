@@ -1,0 +1,37 @@
+[
+    {
+        "type_id": "1",
+        "category": "Layer Viewer",
+        "description": "User intended to view specific map layers.",
+        "uiConfig": {
+            "defaultLayers": [
+                "wells",
+                "blockBoundary"
+            ],
+            "showAnalysisSidebar": false,
+            "showControlsSidebar": true
+        }
+    },
+    {
+        "type_id": "2",
+        "category": "Data Analysis",
+        "description": "User intended to perform data analysis.",
+        "uiConfig": {
+            "defaultLayers": [
+                "wells"
+            ],
+            "showAnalysisSidebar": true,
+            "showControlsSidebar": true
+        }
+    },
+    {
+        "type_id": "3",
+        "category": "Report Generation",
+        "description": "User intended to generate or view reports.",
+        "uiConfig": {
+            "defaultLayers": [],
+            "showAnalysisSidebar": true,
+            "showControlsSidebar": false
+        }
+    }
+]

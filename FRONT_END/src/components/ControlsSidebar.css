@@ -1,0 +1,375 @@
+/* Controls Sidebar - Refactored Layout */
+:root {
+    --nav-width: 60px;
+    --panel-width: 380px;
+    --nav-bg: #2d3436;
+    --nav-item-hover: #3d4648;
+    --active-green: #2ecc71;
+    --sidebar-text-dark: #ecf0f1;
+}
+
+.controls-sidebar {
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    z-index: 1000;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
+    background: transparent;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Width is dynamic based on collapsed state */
+    width: calc(var(--nav-width) + var(--panel-width));
+}
+
+.controls-sidebar.collapsed {
+    width: var(--nav-width);
+}
+
+/* Navigation Strip */
+.sidebar-nav {
+    width: var(--nav-width);
+    height: 100%;
+    background-color: var(--nav-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    z-index: 1002;
+    flex-shrink: 0;
+}
+
+.nav-item {
+    width: 100%;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.6);
+    transition: all 0.2s ease;
+    border-left: 4px solid transparent;
+}
+
+.nav-item:hover {
+    background-color: var(--nav-item-hover);
+    color: #ffffff;
+}
+
+.nav-item.active {
+    background-color: var(--active-green);
+    color: #ffffff;
+    /* border-left-color: #ffffff; */
+}
+
+/* Specific styling for the toggle button at the top */
+.nav-item.toggle-btn {
+    height: 60px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 10px;
+}
+
+.nav-divider {
+    width: 60%;
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: 5px 0;
+}
+
+.nav-icon {
+    /* SVGs are already sized */
+}
+
+/* Content Panel */
+.sidebar-panel {
+    flex: 1;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--border-light);
+    transition: opacity 0.2s, transform 0.3s;
+    width: var(--panel-width);
+    /* Fixed width for inner content context */
+}
+
+.controls-sidebar.collapsed .sidebar-panel {
+    display: none;
+    /* Hide panel content when collapsed */
+}
+
+.panel-header {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    border-bottom: 1px solid #edf2f7;
+    background: #ffffff;
+    flex-shrink: 0;
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #2d3436;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+/* Scrollbar styling for panel */
+.panel-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+/* --- Keeping existing styles for inner components --- */
+
+/* Layer Selection Styles */
+.layer-checkbox-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 0.5rem;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #475569;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.checkbox-container:hover {
+    color: var(--secondary-blue);
+}
+
+.checkbox-container input {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--secondary-blue);
+}
+
+/* Selection Mode - Premium Segmented Control */
+.selection-mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-bottom: 2rem;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+.mode-label {
+    text-align: center;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    border-radius: 7px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mode-label.selected {
+    background: #ffffff;
+    color: var(--primary-blue);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.mode-label input {
+    display: none;
+}
+
+/* Form Grouping */
+.form-group {
+    margin-bottom: 1.75rem;
+}
+
+.form-group>label {
+    display: block;
+    margin-bottom: 1rem;
+    font-size: 0.75rem;
+    color: #475569;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 0.5rem;
+}
+
+/* Cascading Dropdowns - Grid Alignment */
+.cascading-dropdowns {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.field-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    align-items: center;
+    gap: 1rem;
+}
+
+.field-label {
+    font-size: 0.8rem;
+    color: #475569;
+    font-weight: 600;
+    text-align: right;
+}
+
+.select-input,
+.date-input {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: #1e293b;
+    transition: all 0.2s;
+}
+
+.select-input:hover {
+    border-color: var(--primary-blue);
+}
+
+.select-input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+}
+
+/* Date Inputs Grid */
+.date-inputs-horizontal {
+    display: grid;
+    grid-template-columns: 1fr 20px 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+/* Primary Action Button */
+.proceed-btn {
+    width: 100%;
+    padding: 1.1rem;
+    background: linear-gradient(135deg, #0078d4 0%, #106ebe 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 1rem;
+    box-shadow: 0 10px 20px rgba(0, 120, 212, 0.2);
+}
+
+.proceed-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 25px rgba(0, 120, 212, 0.3);
+    background: linear-gradient(135deg, #106ebe 0%, #005a9e 100%);
+}
+
+/* Basemap Modern Cards */
+.basemap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+
+.basemap-option {
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid #f1f5f9;
+    transition: all 0.25s;
+    cursor: pointer;
+}
+
+.basemap-option:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+    border-color: #cbd5e1;
+}
+
+.basemap-option.active {
+    border-color: var(--primary-blue);
+    box-shadow: 0 10px 25px rgba(0, 120, 212, 0.15);
+}
+
+.basemap-thumbnail {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    display: block;
+}
+
+.basemap-name {
+    padding: 0.75rem;
+    display: block;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+}
+
+.basemap-option.active .basemap-name {
+    color: var(--primary-blue);
+    background: #f0f9ff;
+}
+
+/* Secondary Buttons */
+.download-btn {
+    width: 100%;
+    padding: 0.85rem;
+    background: #ffffff;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.download-btn:hover {
+    background: #f8fafc;
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+}

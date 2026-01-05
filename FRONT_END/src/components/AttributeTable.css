@@ -1,0 +1,157 @@
+/* Attribute Table - High-Density Analytical View */
+.attribute-table-container {
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.05);
+    z-index: 1000;
+    transition: var(--transition-smooth);
+    max-height: 320px;
+    height: 100%;
+    position: relative;
+}
+
+.attribute-table-container.collapsed {
+    height: 48px;
+}
+
+.attribute-table-header {
+    padding: 0 1.5rem;
+    height: 48px;
+    background: var(--bg-surface);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 2px solid transparent;
+    transition: border-color 0.2s;
+}
+
+.attribute-table-container:not(.collapsed) .attribute-table-header {
+    border-bottom-color: var(--secondary-blue);
+}
+
+.attribute-table-header:hover {
+    background: var(--bg-muted);
+}
+
+.header-title-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.header-icon {
+    color: var(--secondary-blue);
+}
+
+.attribute-table-header h4 {
+    margin: 0;
+    color: var(--dark-blue);
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.record-count {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    background: var(--bg-muted);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.toggle-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.toggle-icon {
+    color: var(--text-muted);
+    transition: transform 0.3s var(--transition-smooth);
+}
+
+.toggle-icon.rotated {
+    transform: rotate(180deg);
+}
+
+.collapsible-content {
+    transition: var(--transition-smooth);
+    overflow: hidden;
+    max-height: 272px;
+    /* 320 - 48 */
+}
+
+.collapsible-content.hidden {
+    max-height: 0;
+}
+
+.table-wrapper {
+    overflow: auto;
+    height: 272px;
+    /* Fixed height for scrollable area */
+    background: white;
+}
+
+.attribute-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8rem;
+}
+
+.attribute-table th {
+    background: var(--bg-muted);
+    padding: 0.85rem 1rem;
+    text-align: left;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    position: sticky;
+    top: 0;
+    border-bottom: 2px solid var(--border-light);
+    z-index: 5;
+    white-space: nowrap;
+}
+
+.attribute-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--bg-muted);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    transition: background 0.1s;
+}
+
+.attribute-table tbody tr:hover td {
+    background-color: var(--bg-active);
+    color: var(--primary-blue);
+    cursor: pointer;
+}
+
+/* Custom Scrollbar for the table */
+.table-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 10px;
+}

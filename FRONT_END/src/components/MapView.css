@@ -1,0 +1,429 @@
+/* Map View - Geospatial Professional Design */
+.map-container {
+    flex: 1;
+    position: relative;
+    background: #eef2f7;
+    min-width: 0;
+}
+
+/* Map Action Controls */
+.map-controls {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    z-index: 1000;
+}
+
+.map-control-btn {
+    width: 40px;
+    height: 40px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    box-shadow: var(--shadow-md);
+    transition: var(--transition-smooth);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.map-control-btn:hover {
+    background: var(--bg-active);
+    color: var(--secondary-blue);
+    transform: scale(1.05);
+    border-color: var(--secondary-blue);
+}
+
+/* Info Panel / Popup Simulation */
+.info-panel {
+    position: absolute;
+    bottom: 2rem;
+    left: 2rem;
+    width: 340px;
+    background: var(--bg-surface);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    display: none;
+    border: 1px solid var(--border-light);
+    overflow: hidden;
+    animation: slideUp 0.3s ease-out;
+}
+
+.info-panel.active {
+    display: block;
+}
+
+.info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1.25rem;
+    background: var(--dark-blue);
+    color: white;
+}
+
+.info-header h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.2s;
+}
+
+.close-btn:hover {
+    opacity: 1;
+}
+
+.info-content {
+    padding: 1.5rem;
+}
+
+.info-content p {
+    margin: 0.6rem 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.info-content strong {
+    color: var(--secondary-blue);
+}
+
+/* Professional Legend Widget */
+.legend-widget {
+    position: absolute;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--bg-surface);
+    padding: 1.5rem;
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+    z-index: 1000;
+    width: 340px;
+    border: 1px solid var(--border-light);
+}
+
+.legend-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.legend-header .header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.legend-header .header-icon {
+    color: var(--secondary-blue);
+}
+
+.legend-header h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--dark-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.legend-hide-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: color 0.2s;
+}
+
+.legend-hide-btn:hover {
+    color: var(--secondary-blue);
+}
+
+.legend-context {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 1rem;
+}
+
+.legend-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.legend-select {
+    flex: 1;
+    min-width: 0;
+    /* Allows the select to shrink below its content width */
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.8rem;
+    background: var(--bg-muted);
+    color: var(--text-secondary);
+    text-overflow: ellipsis;
+}
+
+.classes-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    /* Prevents the classes selector from being squished or pushed out */
+}
+
+.classes-selector label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.tiny-select {
+    padding: 0.25rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-strong);
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.legend-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.legend-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.legend-swatch {
+    width: 32px;
+    height: 12px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.legend-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* Animations */
+.animated-entry {
+    animation: slideUp 0.3s ease-out;
+}
+
+@media (max-width: 768px) {
+
+    .info-panel,
+    .legend-widget {
+        width: calc(100% - 4rem);
+        left: 2rem;
+        right: 2rem;
+    }
+}
+
+/* =========================================
+   Dam Marker & Popup Styling
+   ========================================= */
+
+/* Use a droplet shape or custom SVG background */
+.custom-marker-dam {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.dam-icon-svg {
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.dam-icon-svg:hover {
+    transform: scale(1.2) translateY(-5px);
+    z-index: 1000;
+}
+
+/* Dam Popup Styling */
+.dam-popup-container {
+    min-width: 280px;
+    font-family: 'Inter', sans-serif;
+    color: #334155;
+}
+
+.dam-popup-header {
+    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
+    padding: 12px 16px;
+    border-radius: 8px 8px 0 0;
+    margin: -13px -20px 0 -20px;
+    /* Counteract Leaflet's default popup padding */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.dam-popup-header h3 {
+    margin: 0;
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.025em;
+    flex: 1;
+}
+
+.dam-type-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-left: 8px;
+    white-space: nowrap;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dam-popup-body {
+    padding: 12px 0 0 0;
+}
+
+.dam-popup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+}
+
+.dam-info-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.dam-info-item.full-width {
+    grid-column: span 2;
+}
+
+.dam-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+
+.dam-value {
+    font-size: 13px;
+    color: #0f172a;
+    font-weight: 500;
+}
+
+.dam-popup-footer {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 16px;
+}
+
+.dam-spec {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.dam-spec svg {
+    color: #0284c7;
+}
+
+/* Override standard leaflet popup visuals for sharper look */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    padding: 0;
+    /* Let our internal padding handle it */
+}
+
+.leaflet-popup-content {
+    margin: 13px 20px;
+    /* Standard leaflet margin, simplified by our negative margin header technique */
+}
+
+.leaflet-popup-tip {
+    background: white;
+}
+
+/* Basin Flow Visualization Animations */
+.animated-flow-line {
+    animation: dash 20s linear infinite;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -1000;
+    }
+}
+
+.flow-arrow-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+.basin-info-label {
+    background: transparent !important;
+    border: none !important;
+}
+
+.flow-indicator {
+    background: transparent !important;
+    border: none !important;
+}
+
+
+/* Pulsing effect for flow lines */
+@keyframes pulse-flow {
+
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}

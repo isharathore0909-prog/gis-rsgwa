@@ -1,0 +1,110 @@
+[
+    {
+        "id": 1,
+        "layer_name": "Ground Water Layers",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Ground Water Layers.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 2,
+        "layer_name": "Ground Water Resource Estimation",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Ground Water Resource Estimation.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 3,
+        "layer_name": "Aquifer & Litholog",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Aquifer & Litholog.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 4,
+        "layer_name": "Artificial Recharge Structure",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Artificial Recharge Structure.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 5,
+        "layer_name": "District Water Body Atlas",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/District Water Body Atlas.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 6,
+        "layer_name": "Drought Affected Areas (2002)",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Drought Affected Areas (2002).jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 7,
+        "layer_name": "Ecology & Climate Zone",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Ecology & Climate Zone.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 8,
+        "layer_name": "Extreme Events",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Extreme Events.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 9,
+        "layer_name": "Flood Inundation 2008-2010",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Flood Inundation 2008-2010.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 10,
+        "layer_name": "Forest Cover of Rajasthan",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Forest Cover of India.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 11,
+        "layer_name": "Hillshade",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Hillshade.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 12,
+        "layer_name": "Hydrological Layers",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Hydrological Layers.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 13,
+        "layer_name": "Land Use Land Cover",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Land Use Land Cover.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 14,
+        "layer_name": "Settlement Extent and Location",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Settlement Extent and Location.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 15,
+        "layer_name": "Soil Type",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Soil Type.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 16,
+        "layer_name": "Telemetry Stations",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Telemetry Stations.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 17,
+        "layer_name": "Water Resource Project",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Water Resource Project.jpg",
+        "layer_data_link": ""
+    },
+    {
+        "id": 18,
+        "layer_name": "Administrative Boundary",
+        "image_link": "https://indiawris.gov.in/geoJSON/assets/img/Administrative Boundary.jpg",
+        "layer_data_link": ""
+    }
+]
