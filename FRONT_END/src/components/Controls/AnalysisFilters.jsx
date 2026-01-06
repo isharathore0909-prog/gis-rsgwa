@@ -97,17 +97,22 @@ const AnalysisFilters = ({
 
             {(showAll || section === 'time') && (
                 <>
-                    <div className="form-group">
-                        <label>Temporal Resolution</label>
-                        <select
-                            className="select-input"
-                            value={filters.timestep}
-                            onChange={e => handleFilterChange('timestep', e.target.value)}
-                        >
-                            {TIMESTEPS.map(t => (
-                                <option key={t} value={t}>{t}</option>
+                    <div className="analysis-mode-card">
+                        <div className="analysis-mode-title">
+                            <div className="title-bar"></div>
+                            ANALYSIS MODE
+                        </div>
+                        <div className="analysis-buttons">
+                            {['Daily', 'Monthly', 'Yearly'].map(mode => (
+                                <button
+                                    key={mode}
+                                    className={`analysis-btn ${filters.timestep === mode ? 'active' : ''}`}
+                                    onClick={() => handleFilterChange('timestep', mode)}
+                                >
+                                    {mode}
+                                </button>
                             ))}
-                        </select>
+                        </div>
                     </div>
 
                     <div className="form-group">

@@ -249,16 +249,19 @@ const DataAnalysisSidebar = ({
     const rainfallStats = useMemo(() => {
         if (!isRainfall || !rainfallPoints.length) return null;
 
-        const total = rainfallPoints.reduce((acc, curr) => acc + (curr.rainfall_mm || 0), 0);
+        const getRain = (r) => r.rainfall_mm || r.rainfall_in_mm || 0;
+        const getDate = (r) => r.date || r.rainfall_date;
+
+        const total = rainfallPoints.reduce((acc, curr) => acc + getRain(curr), 0);
         const avg = total / rainfallPoints.length;
-        const maxRecord = [...rainfallPoints].sort((a, b) => b.rainfall_mm - a.rainfall_mm)[0];
+        const maxRecord = [...rainfallPoints].sort((a, b) => getRain(b) - getRain(a))[0];
 
         // Group by date for chart
         const groupedByDate = rainfallPoints.reduce((acc, curr) => {
-            const date = curr.date;
-            if (!acc[date]) acc[date] = { date, total: 0, count: 0 };
-            acc[date].total += curr.rainfall_mm;
-            acc[date].count += 1;
+            const d = getDate(curr);
+            if (!acc[d]) acc[d] = { date: d, total: 0, count: 0 };
+            acc[d].total += getRain(curr);
+            acc[d].count += 1;
             return acc;
         }, {});
 
@@ -267,9 +270,9 @@ const DataAnalysisSidebar = ({
         return {
             total: total.toFixed(2),
             avg: avg.toFixed(2),
-            max: maxRecord.rainfall_mm,
-            maxVillage: maxRecord.village_name,
-            maxDate: maxRecord.date,
+            max: getRain(maxRecord),
+            maxVillage: maxRecord.village || maxRecord.village_name,
+            maxDate: getDate(maxRecord),
             count: rainfallPoints.length,
             chartData: dailyChartData
         };
@@ -293,6 +296,7 @@ const DataAnalysisSidebar = ({
                         displayRegion={displayRegion}
                         rainfallStats={rainfallStats}
                         rainfallPoints={rainfallPoints}
+                        viewType={globalFilters?.timestep}
                     />
                 )}
 

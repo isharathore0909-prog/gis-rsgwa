@@ -75,17 +75,22 @@ const ControlsSidebar = ({
         fetchDistricts();
     }, []);
 
+    // Helper for Title Case
+    const toTitleCase = (str) => {
+        if (!str) return '';
+        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    };
+
     // Fetch blocks when district changes
     useEffect(() => {
         const fetchBlocks = async () => {
             if (!filters.district) {
-                setBlocks([]);
+                setApiBlocks([]);
                 return;
             }
 
             try {
-                // Find district ID by name
-                const district = apiDistricts.find(d => d.name === filters.district);
+                const district = apiDistricts.find(d => d.name.toUpperCase() === filters.district.toUpperCase());
                 if (district) {
                     const blockData = await api.location.getBlocks({ district: district.id });
                     setApiBlocks(blockData);
@@ -99,26 +104,32 @@ const ControlsSidebar = ({
 
     // List of districts to show in dropdown
     const memoDistricts = useMemo(() => {
-        if (filters.type === 'Rainfall') return apiDistricts;
+        if (blockBoundaryData && blockBoundaryData.features) {
+            const geoDistricts = blockBoundaryData.features
+                .map(f => f.properties.DIST_NAME || f.properties.District)
+                .filter(Boolean)
+                .map(d => toTitleCase(d));
+            return [...new Set(geoDistricts)].sort();
+        }
         return DISTRICTS;
-    }, [filters.type, apiDistricts]);
+    }, [blockBoundaryData]);
 
     // List of blocks to show in dropdown
     const availableBlocks = useMemo(() => {
-        // Source from database for Rainfall
-        if (filters.type === 'Rainfall') {
-            return apiBlocks.map(b => b.name);
-        }
-
-        // Otherwise fallback to GeoJSON/Static derivation
         if (!blockBoundaryData || !filters.district) return [];
+
         const geoBlocks = blockBoundaryData.features
-            .filter(f => (f.properties.DIST_NAME || f.properties.District)?.toUpperCase() === filters.district.toUpperCase())
+            .filter(f => {
+                const dName = (f.properties.DIST_NAME || f.properties.District || '');
+                return dName.toUpperCase() === filters.district.toUpperCase();
+            })
             .map(f => f.properties.BLOCK_NAME || f.properties.Block)
             .filter(Boolean)
+            .map(b => toTitleCase(b))
             .sort();
+
         return [...new Set(geoBlocks)];
-    }, [filters.type, apiBlocks, blockBoundaryData, filters.district]);
+    }, [blockBoundaryData, filters.district]);
 
     const handleFilterChange = (field, value) => {
         const newFilters = { ...filters, [field]: value };
@@ -139,7 +150,7 @@ const ControlsSidebar = ({
 
         setFilters(newFilters);
 
-        // Immediate map update for all layer types to show warnings or valid layers instantly
+        // Immediate map update for specific fields
         if (field === 'type') {
             if (onFiltersApply) {
                 onFiltersApply(newFilters);

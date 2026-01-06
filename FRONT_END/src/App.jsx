@@ -170,7 +170,7 @@ function App() {
     // Fetch rainfall points when Rainfall type is selected and date range changes
     useEffect(() => {
         const fetchRainfallData = async () => {
-            if (filters?.type === 'Rainfall' && (filters.dataRangeStart || filters.dataRangeEnd)) {
+            if (filters?.type === 'Rainfall') {
                 try {
                     const params = {};
                     if (filters.dataRangeStart) params.start_date = filters.dataRangeStart;
@@ -178,13 +178,35 @@ function App() {
                     if (filters.district) params.district = filters.district;
                     if (filters.block) params.block = filters.block;
 
-                    // Also filter by district/block if selected
-                    // We need to handle how the backend filters these.
-                    // Assuming rainfall records endpoint supports basic date filtering.
-                    const data = await api.rainfall.getRecords(params);
+                    // Try API first
+                    let data = [];
+                    try {
+                        data = await api.rainfall.getRecords(params);
+                        console.log("Rainfall data from API:", data);
+                    } catch (apiError) {
+                        console.warn("API failed, falling back to local JSON:", apiError);
+                        const response = await fetch('/rainfall_data.json');
+                        data = await response.json();
+
+                        // Filter local data manually to simulate backend behavior
+                        if (filters.district) {
+                            data = data.filter(d => (d.district || d.DIST_NAME)?.toUpperCase() === filters.district.toUpperCase());
+                        }
+                        if (filters.block) {
+                            data = data.filter(d => (d.block || d.BLOCK_NAME)?.toUpperCase() === filters.block.toUpperCase());
+                        }
+                        if (filters.dataRangeStart) {
+                            data = data.filter(d => (d.date || d.rainfall_date) >= filters.dataRangeStart);
+                        }
+                        if (filters.dataRangeEnd) {
+                            data = data.filter(d => (d.date || d.rainfall_date) <= filters.dataRangeEnd);
+                        }
+                    }
+
                     setRainfallPoints(data);
                 } catch (error) {
                     console.error("Error fetching rainfall data:", error);
+                    setRainfallPoints([]);
                 }
             } else {
                 setRainfallPoints([]);
