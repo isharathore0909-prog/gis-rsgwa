@@ -30,13 +30,6 @@ import {
 } from '../data/districtAquiferData';
 
 import {
-    getRainfallByDistrict,
-    getMaxRainfallByDistrict,
-    MONSOON_SUMMARY_2024,
-    DIVISION_RAINFALL_DATA
-} from '../data/rainfallData';
-
-import {
     getBlockWaterQuality,
     getDistrictWaterQuality,
     checkWaterQualityStatus,
@@ -58,6 +51,7 @@ const DataAnalysisSidebar = ({
     neighbors,
     filters: globalFilters,
     blockData,
+    rainfallPoints = [],
     isControlsSidebarCollapsed
 }) => {
     // =================================================================================
@@ -67,7 +61,7 @@ const DataAnalysisSidebar = ({
     const isRainfall = globalFilters?.type === 'Rainfall';
     const isWaterQuality = globalFilters?.type === 'Water Quality';
     const isAquifer = globalFilters?.type === 'Aquifer';
-    const isDistrictOnly = isGWRE || isRainfall || isWaterQuality; // Removed isAquifer here because we want block support
+    const isDistrictOnly = isGWRE || isRainfall; // Removed isWaterQuality to allow block support
 
     const filterDistrict = globalFilters?.district;
     const filterBlock = globalFilters?.block;
@@ -77,9 +71,6 @@ const DataAnalysisSidebar = ({
 
     const displayRegion = clickedDistrict || filterDistrict || neighbor?.location || null;
     const displayBlock = clickedBlock || filterBlock;
-
-    // View State (Rainfall specifics)
-    const [rainfallView, setRainfallView] = useState('state');
 
     // =================================================================================
     // 2. Data Processing (GWRE)
@@ -227,9 +218,14 @@ const DataAnalysisSidebar = ({
     }, [displayRegion]);
 
     const blockWaterQualityData = useMemo(() => {
-        const selectedBlock = globalFilters?.block;
-        if (displayRegion && selectedBlock) {
-            const blockData = getBlockWaterQuality(displayRegion, selectedBlock);
+        if (!displayRegion) return null;
+
+        // Handle District Name Aliases (e.g., Ganganagar)
+        let normalizedRegion = displayRegion;
+        if (normalizedRegion.includes('Ganganagar')) normalizedRegion = 'Ganganagar';
+
+        if (displayBlock) {
+            const blockData = getBlockWaterQuality(normalizedRegion, displayBlock);
             if (blockData) {
                 return {
                     ...blockData,
@@ -237,55 +233,47 @@ const DataAnalysisSidebar = ({
                     wqi: calculateWQI(blockData)
                 };
             }
-            return { isNoData: true, block: selectedBlock };
-        } else if (displayRegion) {
-            return getDistrictWaterQuality(displayRegion);
+            return { isNoData: true, block: displayBlock };
+        } else {
+            return getDistrictWaterQuality(normalizedRegion);
         }
-        return null;
-    }, [displayRegion, globalFilters]);
+    }, [displayRegion, displayBlock]);
 
     // =================================================================================
     // 3. Data Processing (Rainfall)
     // =================================================================================
 
-    const rainfallChartData = useMemo(() => {
-        if (!isRainfall || !displayRegion) return [];
-        const data = getRainfallByDistrict(displayRegion);
-        return Object.keys(data)
-            .filter(year => year !== 'DEFAULT')
-            .map(year => ({ year, ...data[year] }));
-    }, [isRainfall, displayRegion]);
+    // =================================================================================
+    // 3. Data Processing (Rainfall - From Database)
+    // =================================================================================
+    const rainfallStats = useMemo(() => {
+        if (!isRainfall || !rainfallPoints.length) return null;
 
-    const rainfall2024Data = useMemo(() => {
-        if (!isRainfall || !displayRegion) return null;
-        const data = getRainfallByDistrict(displayRegion);
-        const year2024 = data["2024"];
-        if (!year2024 || !year2024.normal_monsoon) return null;
+        const total = rainfallPoints.reduce((acc, curr) => acc + (curr.rainfall_mm || 0), 0);
+        const avg = total / rainfallPoints.length;
+        const maxRecord = [...rainfallPoints].sort((a, b) => b.rainfall_mm - a.rainfall_mm)[0];
 
-        return [
-            { name: 'Normal Monsoon', value: year2024.normal_monsoon, color: '#94a3b8' },
-            { name: 'Actual Monsoon', value: year2024.monsoon, color: '#2a9d8f' }
-        ];
-    }, [isRainfall, displayRegion]);
+        // Group by date for chart
+        const groupedByDate = rainfallPoints.reduce((acc, curr) => {
+            const date = curr.date;
+            if (!acc[date]) acc[date] = { date, total: 0, count: 0 };
+            acc[date].total += curr.rainfall_mm;
+            acc[date].count += 1;
+            return acc;
+        }, {});
 
-    const monthlyRainfallData = useMemo(() => {
-        if (!isRainfall || !displayRegion) return [];
-        const data = getRainfallByDistrict(displayRegion);
-        const year2024 = data["2024"];
-        if (!year2024 || !year2024.monthly) return [];
+        const dailyChartData = Object.values(groupedByDate).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        return [
-            { month: 'June', value: year2024.monthly.june },
-            { month: 'July', value: year2024.monthly.july },
-            { month: 'August', value: year2024.monthly.august },
-            { month: 'September', value: year2024.monthly.september }
-        ];
-    }, [isRainfall, displayRegion]);
-
-    const maxOneDayData = useMemo(() => {
-        if (!isRainfall || !displayRegion) return [];
-        return getMaxRainfallByDistrict(displayRegion);
-    }, [isRainfall, displayRegion]);
+        return {
+            total: total.toFixed(2),
+            avg: avg.toFixed(2),
+            max: maxRecord.rainfall_mm,
+            maxVillage: maxRecord.village_name,
+            maxDate: maxRecord.date,
+            count: rainfallPoints.length,
+            chartData: dailyChartData
+        };
+    }, [isRainfall, rainfallPoints]);
 
     // =================================================================================
     // 4. Component Render
@@ -294,26 +282,24 @@ const DataAnalysisSidebar = ({
         <aside className={`data-analysis-sidebar ${isControlsSidebarCollapsed ? 'expanded-layout' : ''}`}>
             <div className="sidebar-content">
 
-                <AnalysisHeader displayRegion={displayRegion} isRainfall={isRainfall} />
+                <AnalysisHeader
+                    displayRegion={displayRegion}
+                    isRainfall={isRainfall}
+                    selectedLayer={globalFilters?.type}
+                />
 
                 {isRainfall && (
                     <RainfallSection
-                        view={rainfallView}
-                        setView={setRainfallView}
                         displayRegion={displayRegion}
-                        monsoonSummary={MONSOON_SUMMARY_2024}
-                        divisionData={DIVISION_RAINFALL_DATA}
-                        chartData={rainfallChartData}
-                        perf2024={rainfall2024Data}
-                        monthlyData={monthlyRainfallData}
-                        maxOneDayData={maxOneDayData}
+                        rainfallStats={rainfallStats}
+                        rainfallPoints={rainfallPoints}
                     />
                 )}
 
                 {isWaterQuality && (
                     <WaterQualitySection
                         displayRegion={displayRegion}
-                        selectedBlock={globalFilters?.block}
+                        selectedBlock={displayBlock}
                         blockWaterQualityData={blockWaterQualityData}
                         qualityData={qualityData}
                         isControlsSidebarCollapsed={isControlsSidebarCollapsed}

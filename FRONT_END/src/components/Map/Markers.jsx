@@ -2,7 +2,7 @@ import React from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
-export const DamMarker = ({ dam, coordinate, onDamClick }) => {
+export const DamMarker = ({ dam, coordinate, onDamClick, onAddToTable }) => {
     const iconHtml = `
         <svg class="dam-icon-svg" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 12 2 12 2C12 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#0ea5e9" stroke="white" stroke-width="2"/>
@@ -50,6 +50,28 @@ export const DamMarker = ({ dam, coordinate, onDamClick }) => {
                                 {dam.completion_year && <div className="dam-spec">Year: <strong>{dam.completion_year}</strong></div>}
                             </div>
                         )}
+
+                        <button
+                            className="add-to-table-btn"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onAddToTable && onAddToTable(dam);
+                            }}
+                            style={{
+                                width: '100%',
+                                marginTop: '12px',
+                                padding: '8px 12px',
+                                backgroundColor: '#0ea5e9',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s'
+                            }}
+                        >
+                            + Add to Table
+                        </button>
                     </div>
                 </div>
             </Popup>
@@ -80,6 +102,43 @@ export const WellMarker = ({ well, color, onMarkerClick }) => {
                     <p style={{ margin: '5px 0' }}><strong>Water Level:</strong> {well.waterLevel} m</p>
                     <p style={{ margin: '5px 0' }}><strong>pH:</strong> {well.ph}</p>
                     <p style={{ margin: '5px 0' }}><strong>TDS:</strong> {well.tds} mg/L</p>
+                </div>
+            </Popup>
+        </Marker>
+    );
+};
+
+export const RainfallMarker = ({ record }) => {
+    // Determine color based on intensity
+    const getRainfallColor = (mm) => {
+        if (mm === 0) return '#cbd5e1'; // No rain
+        if (mm < 2.5) return '#93c5fd'; // Light rain
+        if (mm < 7.6) return '#3b82f6'; // Moderate rain
+        if (mm < 35.6) return '#2563eb'; // Heavy rain
+        return '#1e40af'; // Very heavy rain
+    };
+
+    const color = getRainfallColor(record.rainfall_mm);
+    const size = Math.min(Math.max(15, record.rainfall_mm * 2), 40);
+
+    const customIcon = L.divIcon({
+        className: 'rainfall-marker',
+        html: `<div style="background-color: ${color}; width: 100%; height: 100%; border-radius: 50%; border: 2px solid white; opacity: 0.8; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 10px; box-shadow: 0 0 8px ${color};">${record.rainfall_mm > 0 ? record.rainfall_mm.toFixed(0) : ''}</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -size / 2]
+    });
+
+    return (
+        <Marker position={[record.latitude, record.longitude]} icon={customIcon}>
+            <Popup>
+                <div className="rainfall-popup">
+                    <h3 style={{ margin: '0 0 8px 0', color: '#1e3c72' }}>{record.village_name}</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <p style={{ margin: 0 }}><strong>Rainfall:</strong> <span style={{ color: '#2563eb', fontSize: '1.2rem' }}>{record.rainfall_mm} mm</span></p>
+                        <p style={{ margin: 0 }}><strong>Date:</strong> {record.date}</p>
+                        <p style={{ margin: 0 }}><strong>Gauge Type:</strong> {record.gauge_type}</p>
+                    </div>
                 </div>
             </Popup>
         </Marker>

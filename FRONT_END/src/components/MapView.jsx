@@ -8,7 +8,7 @@ import { groundwaterData } from '../data/groundwaterData';
 import { RAJASTHAN_DAMS_DATA } from '../data/damsData';
 
 // Sub-components
-import { DamMarker, WellMarker } from './Map/Markers';
+import { DamMarker, WellMarker, RainfallMarker } from './Map/Markers';
 import { MapEvents, MapUpdater } from './Map/MapEvents';
 import BasinFlowOverlay from './Map/BasinFlowOverlay';
 
@@ -41,8 +41,10 @@ const MapView = ({
     activeUrlLayers = [],
     blockBoundaryData,
     rajasthanData,
+    rainfallPoints = [],
     activeCategory,
-    initialShowLegend
+    initialShowLegend,
+    onAddToTable
 }) => {
     const mapRef = useRef(null);
     const geoJsonRef = useRef(null);
@@ -56,6 +58,13 @@ const MapView = ({
             setShowLegend(true);
         }
     }, [initialShowLegend]);
+
+    // Clear selected dam when layer changes away from Water Resources
+    useEffect(() => {
+        if (filters?.type !== 'Water Resources') {
+            setSelectedDam(null);
+        }
+    }, [filters?.type]);
 
     // Auto-resize map when container dimensions change
     useEffect(() => {
@@ -180,14 +189,8 @@ const MapView = ({
 
     const showBlockBoundary = useMemo(() => {
         if (!blockBoundaryData) return false;
-        const selectedType = filters?.type || '';
-        const isLayer2Active = activeUrlLayers.some(layer => layer.id === 2);
-
-        if (isLayer2Active) {
-            return (selectedType === 'Ground Water Resource Estimation' || selectedType === 'Ground Water Level') && activeCategory?.type_id !== '3';
-        }
-        return selectedType === 'Ground Water Resource Estimation' || selectedType === 'Aquifer' || activeUrlLayers.some(l => l.id === 1) || layers?.blockBoundary || !!filters?.district;
-    }, [blockBoundaryData, filters, activeUrlLayers, layers, activeCategory]);
+        return filters?.type === 'Ground Water Resource Estimation';
+    }, [blockBoundaryData, filters?.type]);
 
     const damMarkers = useMemo(() => {
         if (filters?.type !== 'Water Resources' || !blockBoundaryData) return [];
@@ -288,11 +291,32 @@ const MapView = ({
                 {/* Well markers removed per user request */}
 
                 {damMarkers.map(dam => (
-                    <DamMarker key={dam.id} dam={dam} coordinate={dam.coordinate} onDamClick={setSelectedDam} />
+                    <DamMarker key={dam.id} dam={dam} coordinate={dam.coordinate} onDamClick={setSelectedDam} onAddToTable={onAddToTable} />
                 ))}
 
-                {selectedDam && <BasinFlowOverlay dam={selectedDam} coordinate={selectedDam.coordinate} />}
+                {filters?.type === 'Rainfall' && rainfallPoints.map((record, idx) => (
+                    record.latitude && record.longitude && (
+                        <RainfallMarker key={`rainfall-${record.id || idx}`} record={record} />
+                    )
+                ))}
+
+                {filters?.type === 'Water Resources' && selectedDam && (
+                    <BasinFlowOverlay dam={selectedDam} coordinate={selectedDam.coordinate} />
+                )}
             </MapContainer>
+
+            {/* Data Availability Warning */}
+            {filters?.type && !['Rainfall', 'Water Resources', 'Ground Water Resource Estimation'].includes(filters.type) && (
+                <div className="map-warning-overlay animated-fade-in">
+                    <div className="warning-content">
+                        <span className="warning-icon">⚠️</span>
+                        <div className="warning-text">
+                            <h3>Map Visualization Not Available</h3>
+                            <p>Spatial data for <strong>{filters.type}</strong> is currently being processed. Please refer to the <strong>Data Analysis Sidebar</strong> for detailed statistics and reports.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Map Controls */}
             <div className="map-controls-overlay">

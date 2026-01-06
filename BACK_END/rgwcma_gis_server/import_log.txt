@@ -1,0 +1,160 @@
+Starting import...
+Starting import...
+Reading file: D:\GIS_RSGWA_ANALYSIS\BACK_END\Rainfall.xlsx
+Created 500 unique entries...
+Columns found: ['rf_meta_id', 'Sl.No', 'State', 'District', 'Block', 'Grampanchyat', 'Village Name', 'Location Details', 'Latitude', 'Longitude', 'Date', 'Type of Rain Gauge', 'Rainfall(in mm)', 'Rainfall Date', 'Image Upload', 'Status', 'Status_dymanic']
+Deleting existing Rainfall and Village records for a fresh start...
+Row 44641 error: database is locked
+Base locations (India, Rajasthan) checked/created. Records cleared.
+Mapped Columns: District='district', Block='block', GP='grampanchyat', Village='village name', Rainfall='rainfall(in mm)', Date='date', GaugeType='type of rain gauge'
+Row 38 error: database is locked
+Row 39 error: database is locked
+Row 79 error: database is locked
+Row 80 error: database is locked
+Row 81 error: database is locked
+Row 82 error: database is locked
+Row 83 error: database is locked
+Row 84 error: database is locked
+Row 85 error: database is locked
+Row 44715 error: database is locked
+Row 115 error: database is locked
+Row 116 error: database is locked
+Row 133 error: database is locked
+Row 141 error: database is locked
+Created 600 unique entries...
+Row 149 error: database is locked
+Row 150 error: database is locked
+Row 151 error: database is locked
+Row 152 error: database is locked
+Row 209 error: database is locked
+Row 210 error: database is locked
+Row 226 error: database is locked
+Row 227 error: database is locked
+Row 228 error: database is locked
+Row 229 error: database is locked
+Row 230 error: database is locked
+Row 236 error: database is locked
+Row 237 error: database is locked
+Row 238 error: database is locked
+Row 258 error: database is locked
+Row 259 error: database is locked
+Row 338 error: database is locked
+Row 342 error: database is locked
+Row 343 error: database is locked
+Row 344 error: database is locked
+Row 345 error: database is locked
+Row 386 error: database is locked
+Row 401 error: database is locked
+Row 402 error: database is locked
+Row 403 error: database is locked
+Row 417 error: database is locked
+Row 418 error: database is locked
+Created 700 unique entries...
+Row 463 error: database is locked
+Row 464 error: database is locked
+Row 465 error: database is locked
+Row 466 error: database is locked
+Row 468 error: database is locked
+Row 469 error: database is locked
+Row 470 error: database is locked
+Row 471 error: database is locked
+Row 497 error: database is locked
+Row 498 error: database is locked
+Row 499 error: database is locked
+Row 44866 error: database is locked
+Row 515 error: database is locked
+Row 44867 error: database is locked
+Row 585 error: database is locked
+Row 44868 error: database is locked
+Row 607 error: database is locked
+Row 608 error: database is locked
+Row 612 error: database is locked
+Row 613 error: database is locked
+Row 44874 error: database is locked
+Row 647 error: database is locked
+Row 659 error: database is locked
+Row 44882 error: database is locked
+Row 698 error: database is locked
+Row 699 error: database is locked
+Row 700 error: database is locked
+Row 701 error: database is locked
+Row 702 error: database is locked
+Row 712 error: database is locked
+Row 713 error: database is locked
+Row 714 error: database is locked
+Row 715 error: database is locked
+Row 716 error: database is locked
+Row 717 error: database is locked
+Row 718 error: database is locked
+Row 719 error: database is locked
+Row 727 error: database is locked
+Row 755 error: database is locked
+Created 800 unique entries...
+Row 761 error: database is locked
+Row 792 error: database is locked
+Row 793 error: database is locked
+Row 794 error: database is locked
+Row 795 error: database is locked
+Row 796 error: database is locked
+Row 797 error: database is locked
+Row 798 error: database is locked
+Row 799 error: database is locked
+Row 800 error: database is locked
+Row 801 error: database is locked
+Row 802 error: database is locked
+Row 803 error: database is locked
+Row 804 error: database is locked
+Row 805 error: database is locked
+Row 806 error: database is locked
+Row 807 error: database is locked
+Row 808 error: database is locked
+Row 809 error: database is locked
+Row 823 error: database is locked
+Row 824 error: database is locked
+Row 825 error: database is locked
+Row 826 error: database is locked
+Row 44997 error: database is locked
+Row 847 error: database is locked
+Row 848 error: database is locked
+Row 45002 error: database is locked
+Row 872 error: database is locked
+Row 873 error: database is locked
+Row 889 error: database is locked
+Row 45009 error: database is locked
+Row 954 error: database is locked
+Row 955 error: database is locked
+Row 962 error: database is locked
+Row 963 error: database is locked
+Row 45023 error: database is locked
+Row 1020 error: database is locked
+Row 1021 error: database is locked
+Row 1043 error: database is locked
+Created 900 unique entries...
+Row 1077 error: database is locked
+Row 1086 error: database is locked
+Row 1100 error: database is locked
+Row 1112 error: database is locked
+Row 1128 error: database is locked
+Row 1177 error: database is locked
+Row 1185 error: database is locked
+Row 1186 error: database is locked
+Row 1187 error: database is locked
+Row 1188 error: database is locked
+Row 1189 error: database is locked
+Row 1190 error: database is locked
+Row 1191 error: database is locked
+Row 1201 error: database is locked
+Row 1245 error: database is locked
+Row 1246 error: database is locked
+Row 1247 error: database is locked
+Row 1248 error: database is locked
+Row 1249 error: database is locked
+Row 1250 error: database is locked
+Row 1260 error: database is locked
+Row 45116 error: database is locked
+Row 1285 error: database is locked
+Row 1320 error: database is locked
+Row 1321 error: database is locked
+Created 1000 unique entries...
+Successfully processed 45126 rows. Created: 1000 UNIQUE entries, Updated: 44126 duplicates.
+Created 100 unique entries...

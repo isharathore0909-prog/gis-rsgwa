@@ -1,10 +1,11 @@
 import React from 'react';
-import { TYPE_OPTIONS, DISTRICTS, TIMESTEPS, STATION_TYPES } from '../../constants/uiOptions';
+import { TYPE_OPTIONS, TIMESTEPS, STATION_TYPES } from '../../constants/uiOptions';
 
 const AnalysisFilters = ({
     filters,
     handleFilterChange,
     availableBlocks,
+    districts = [],
     handleProceed,
     section = 'all' // 'location', 'layers', 'time', 'all'
 }) => {
@@ -66,13 +67,15 @@ const AnalysisFilters = ({
                                 onChange={e => handleFilterChange('district', e.target.value)}
                             >
                                 <option value="">-- All Districts --</option>
-                                {DISTRICTS.map(d => (
-                                    <option key={d} value={d}>{d}</option>
+                                {districts.map(d => (
+                                    <option key={typeof d === 'string' ? d : d.id} value={typeof d === 'string' ? d : d.name}>
+                                        {typeof d === 'string' ? d : d.name}
+                                    </option>
                                 ))}
                             </select>
                         </div>
 
-                        {filters.type !== 'Ground Water Resource Estimation' && filters.type !== 'Rainfall' && (
+                        {filters.type !== 'Ground Water Resource Estimation' && (
                             <div className="field-row">
                                 <span className="field-label">Block</span>
                                 <select

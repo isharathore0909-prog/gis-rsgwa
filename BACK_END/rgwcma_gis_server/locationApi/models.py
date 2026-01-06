@@ -44,9 +44,9 @@ class Block(models.Model):
     def __str__(self):
         return f"{self.name}, {self.district.name}"
 
-class Village(models.Model):
+class Grampanchayat(models.Model):
     name = models.CharField(max_length=255)
-    block = models.ForeignKey(Block, related_name='villages', on_delete=models.CASCADE)
+    block = models.ForeignKey(Block, related_name='grampanchayats', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -55,3 +55,17 @@ class Village(models.Model):
 
     def __str__(self):
         return f"{self.name}, {self.block.name}"
+
+class Village(models.Model):
+    name = models.CharField(max_length=255)
+    grampanchayat = models.ForeignKey(Grampanchayat, related_name='villages', on_delete=models.CASCADE)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('name', 'grampanchayat')
+
+    def __str__(self):
+        return f"{self.name}, {self.grampanchayat.name}"

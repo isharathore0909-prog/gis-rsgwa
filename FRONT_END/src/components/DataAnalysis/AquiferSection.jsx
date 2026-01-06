@@ -20,35 +20,40 @@ const AquiferSection = ({ displayRegion, displayBlock }) => {
 
     // Process data based on selected region
     const aquiferData = useMemo(() => {
+        if (!displayRegion) return [];
+
+        // Helper to normalize names for comparison
+        const normalize = (name) => {
+            if (!name) return "";
+            return name.split(' (')[0].trim().toUpperCase();
+        };
+
+        const targetNorm = normalize(displayRegion);
+
         // Priority 1: Check for Block Data
-        if (displayBlock && displayRegion) {
-            // Clean district name to title case for matching (e.g. 'AJMER' -> 'Ajmer')
-            let cleanDistrict = displayRegion.charAt(0).toUpperCase() + displayRegion.slice(1).toLowerCase();
-            // Manual fixes for known mismatches if any
-            if (cleanDistrict === 'Ganganagar') cleanDistrict = 'Ganganagar';
+        if (displayBlock) {
+            // Find district key in BLOCK_AQUIFER_DATA by normalized match
+            const districtKey = Object.keys(BLOCK_AQUIFER_DATA).find(key => normalize(key) === targetNorm);
 
-            const districtBlocks = BLOCK_AQUIFER_DATA[cleanDistrict];
-
-            if (districtBlocks && districtBlocks[displayBlock]) {
-                const blockData = districtBlocks[displayBlock];
-                if (blockData.length > 0) {
-                    return blockData.map((item, i) => ({
-                        ...item,
-                        area: item.value.toLocaleString(), // already has value, percent, color
-                        color: colors[i % colors.length] // Ensure consistent coloring
-                    }));
+            if (districtKey) {
+                const districtBlocks = BLOCK_AQUIFER_DATA[districtKey];
+                if (districtBlocks && districtBlocks[displayBlock]) {
+                    const blockData = districtBlocks[displayBlock];
+                    if (blockData.length > 0) {
+                        return blockData.map((item, i) => ({
+                            ...item,
+                            area: item.value.toLocaleString(),
+                            color: item.color || colors[i % colors.length]
+                        }));
+                    }
                 }
             }
         }
 
         // Priority 2: Fallback to District Data
-        let filteredAquifers = AQUIFER_DATA;
-
-        if (displayRegion) {
-            filteredAquifers = AQUIFER_DATA.filter(aq =>
-                aq.districts.some(d => d.toUpperCase() === displayRegion.toUpperCase())
-            );
-        }
+        const filteredAquifers = AQUIFER_DATA.filter(aq =>
+            aq.districts.some(d => normalize(d) === targetNorm)
+        );
 
         // Return top 10 by area
         return filteredAquifers
@@ -89,39 +94,58 @@ const AquiferSection = ({ displayRegion, displayBlock }) => {
                         </div>
                     </div>
 
-                    <div className="aquifer-chart-container">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={aquiferData} layout="vertical" margin={{ top: 0, right: 30, left: 100, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                                <XAxis type="number" hide />
-                                <YAxis
-                                    dataKey="name"
-                                    type="category"
-                                    width={90}
-                                    tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <Tooltip
-                                    cursor={{ fill: '#f8fafc' }}
-                                    contentStyle={{
-                                        borderRadius: '12px',
-                                        border: 'none',
-                                        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                                        fontSize: '0.85rem'
-                                    }}
-                                />
-                                <Bar dataKey="value" fill="#3b82f6" barSize={25} radius={[0, 6, 6, 0]}>
-                                    {aquiferData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <div className="aquifer-chart-wrapper" style={{ width: '100%', overflow: 'hidden' }}>
+                        <div
+                            className="aquifer-chart-container"
+                            style={{
+                                height: `${Math.max(220, aquiferData.length * 50)}px`,
+                                width: '100%',
+                                position: 'relative'
+                            }}
+                        >
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={aquiferData}
+                                    layout="vertical"
+                                    margin={{ top: 10, right: 40, left: 20, bottom: 10 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                    <XAxis type="number" hide domain={[0, 'dataMax + 1000']} />
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        width={110}
+                                        tick={{ fontSize: 9, fontWeight: 600, fill: '#475569' }}
+                                        axisLine={{ stroke: '#e2e8f0' }}
+                                        tickLine={false}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: '#f8fafc', opacity: 0.4 }}
+                                        contentStyle={{
+                                            borderRadius: '12px',
+                                            border: 'none',
+                                            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                                            fontSize: '0.85rem'
+                                        }}
+                                    />
+                                    <Bar
+                                        dataKey="value"
+                                        fill="#3b82f6"
+                                        barSize={20}
+                                        minPointSize={2}
+                                    >
+                                        {aquiferData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
 
                     <div className="aquifer-legend-list">
-                        {aquiferData.slice(0, 6).map((aq, i) => (
+                        <div style={{ borderTop: '1px solid #f1f5f9', margin: '1rem 0' }}></div>
+                        {aquiferData.map((aq, i) => (
                             <div key={i} className="aquifer-legend-item">
                                 <div className="legend-item-left">
                                     <div className="legend-dot" style={{ backgroundColor: aq.color }}></div>

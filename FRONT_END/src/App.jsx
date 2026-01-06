@@ -6,6 +6,7 @@ import ControlsSidebar from './components/ControlsSidebar';
 import DataAnalysisSidebar from './components/DataAnalysisSidebar';
 import MapView from './components/MapView';
 import AttributeTable from './components/AttributeTable';
+import api from './services/api';
 
 // Utils & Data
 import { reprojectGeoJSON } from './utils/reproject';
@@ -35,6 +36,59 @@ function App() {
     const [isProceedClicked, setIsProceedClicked] = useState(false);
     const [isControlsSidebarCollapsed, setIsControlsSidebarCollapsed] = useState(false);
     const [waterResourceView, setWaterResourceView] = useState('Dams');
+    const [rainfallPoints, setRainfallPoints] = useState([]);
+    const [selectedDams, setSelectedDams] = useState([]);
+    const [tableSelection, setTableSelection] = useState([]);
+
+    const handleAddToTable = (dam) => {
+        setSelectedDams(prev => {
+            // Generate a unique key since data lacks explicit IDs
+            const damId = `${dam.name}-${dam.district}`;
+            const alreadyExists = prev.some(item => item.id === damId);
+
+            if (alreadyExists) return prev;
+
+            const feature = {
+                id: damId,
+                type: 'Feature',
+                properties: {
+                    Name: dam.name,
+                    District: dam.district,
+                    Block: dam.block,
+                    River: dam.river,
+                    Basin: dam.basin,
+                    Type: dam.type,
+                    Length: dam.length ? `${dam.length}m` : 'N/A',
+                    Height: dam.max_height ? `${dam.max_height}m` : 'N/A',
+                    Year: dam.completion_year || 'N/A'
+                }
+            };
+            return [...prev, feature];
+        });
+        alert(`${dam.name} added to Attribute Inventory analysis.`);
+    };
+
+    const handleRemoveRow = (id) => {
+        setSelectedDams(prev => prev.filter(item => item.id !== id));
+        setTableSelection(prev => prev.filter(itemId => itemId !== id));
+    };
+
+    const handleToggleSelection = (id) => {
+        if (id === 'all') {
+            const allIds = selectedDams.map(d => d.id);
+            if (tableSelection.length === allIds.length) {
+                setTableSelection([]);
+            } else {
+                setTableSelection(allIds);
+            }
+        } else {
+            setTableSelection(prev =>
+                prev.includes(id)
+                    ? prev.filter(itemId => itemId !== id)
+                    : [...prev, id]
+            );
+        }
+    };
 
     // Fetch and Reproject Block Data on Mount
     useEffect(() => {
@@ -113,6 +167,32 @@ function App() {
         }
     }, []);
 
+    // Fetch rainfall points when Rainfall type is selected and date range changes
+    useEffect(() => {
+        const fetchRainfallData = async () => {
+            if (filters?.type === 'Rainfall' && (filters.dataRangeStart || filters.dataRangeEnd)) {
+                try {
+                    const params = {};
+                    if (filters.dataRangeStart) params.start_date = filters.dataRangeStart;
+                    if (filters.dataRangeEnd) params.end_date = filters.dataRangeEnd;
+                    if (filters.district) params.district = filters.district;
+                    if (filters.block) params.block = filters.block;
+
+                    // Also filter by district/block if selected
+                    // We need to handle how the backend filters these.
+                    // Assuming rainfall records endpoint supports basic date filtering.
+                    const data = await api.rainfall.getRecords(params);
+                    setRainfallPoints(data);
+                } catch (error) {
+                    console.error("Error fetching rainfall data:", error);
+                }
+            } else {
+                setRainfallPoints([]);
+            }
+        };
+        fetchRainfallData();
+    }, [filters]);
+
     const handleLayerChange = (layerName, checked) => {
         setLayers(prev => ({
             ...prev,
@@ -155,6 +235,13 @@ function App() {
                         coordinates: [well.lng, well.lat]
                     }
                 }))
+            };
+        }
+
+        if (filters.type === 'Water Resources') {
+            return {
+                type: 'FeatureCollection',
+                features: selectedDams
             };
         }
 
@@ -226,6 +313,7 @@ function App() {
                             activeUrlLayers={activeUrlLayers}
                             blockBoundaryData={processedBlockData}
                             rajasthanData={rajasthanData}
+                            rainfallPoints={rainfallPoints}
                             onWellSelect={setSelectedWell}
                             selectedWell={selectedWell}
                             onLocationClick={(location, neighbors) => {
@@ -234,6 +322,7 @@ function App() {
                             }}
                             activeCategory={activeCategory}
                             initialShowLegend={isProceedClicked || activeUrlLayers.length > 0}
+                            onAddToTable={handleAddToTable}
                         />
                     </div>
 
@@ -244,6 +333,9 @@ function App() {
                                 onRowClick={(feature) => {
                                     console.log("Clicked feature:", feature);
                                 }}
+                                selectedIds={tableSelection}
+                                onToggleSelection={handleToggleSelection}
+                                onRemoveRow={handleRemoveRow}
                             />
                         </div>
                     )}
@@ -255,6 +347,7 @@ function App() {
                         neighbors={neighbors}
                         filters={filters}
                         blockData={processedBlockData}
+                        rainfallPoints={rainfallPoints}
                         isControlsSidebarCollapsed={isControlsSidebarCollapsed}
                     />
                 )}

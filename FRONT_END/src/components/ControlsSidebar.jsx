@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import './ControlsSidebar.css';
 import { groundwaterData } from '../data/groundwaterData';
+import { DISTRICTS } from '../constants/uiOptions';
 import {
     IconMap,
     IconDownload,
@@ -13,6 +14,7 @@ import {
     IconSettings,
     IconNetwork
 } from './Icons';
+import api from '../services/api';
 
 // Sub-components
 import AnalysisFilters from './Controls/AnalysisFilters';
@@ -50,16 +52,73 @@ const ControlsSidebar = ({
         type: ''
     });
 
-    // Cascading selection data
+    const [apiDistricts, setApiDistricts] = useState([]);
+    const [apiBlocks, setApiBlocks] = useState([]);
+
+    // Fetch districts on mount (for Rajasthan)
+    useEffect(() => {
+        const fetchDistricts = async () => {
+            try {
+                // First get Rajasthan state ID
+                const states = await api.location.getStates({ name: 'Rajasthan' });
+                if (states && states.length > 0) {
+                    const rajasthanId = states[0].id;
+                    const districtData = await api.location.getDistricts({ state: rajasthanId });
+                    setApiDistricts(districtData);
+                }
+            } catch (error) {
+                console.error("Error fetching districts:", error);
+                // Fallback to empty or previous constant if needed? 
+                // For now just error log
+            }
+        };
+        fetchDistricts();
+    }, []);
+
+    // Fetch blocks when district changes
+    useEffect(() => {
+        const fetchBlocks = async () => {
+            if (!filters.district) {
+                setBlocks([]);
+                return;
+            }
+
+            try {
+                // Find district ID by name
+                const district = apiDistricts.find(d => d.name === filters.district);
+                if (district) {
+                    const blockData = await api.location.getBlocks({ district: district.id });
+                    setApiBlocks(blockData);
+                }
+            } catch (error) {
+                console.error("Error fetching blocks:", error);
+            }
+        };
+        fetchBlocks();
+    }, [filters.district, apiDistricts]);
+
+    // List of districts to show in dropdown
+    const memoDistricts = useMemo(() => {
+        if (filters.type === 'Rainfall') return apiDistricts;
+        return DISTRICTS;
+    }, [filters.type, apiDistricts]);
+
+    // List of blocks to show in dropdown
     const availableBlocks = useMemo(() => {
+        // Source from database for Rainfall
+        if (filters.type === 'Rainfall') {
+            return apiBlocks.map(b => b.name);
+        }
+
+        // Otherwise fallback to GeoJSON/Static derivation
         if (!blockBoundaryData || !filters.district) return [];
-        const blocks = blockBoundaryData.features
-            .filter(f => f.properties.DIST_NAME?.toUpperCase() === filters.district.toUpperCase())
-            .map(f => f.properties.BLOCK_NAME)
+        const geoBlocks = blockBoundaryData.features
+            .filter(f => (f.properties.DIST_NAME || f.properties.District)?.toUpperCase() === filters.district.toUpperCase())
+            .map(f => f.properties.BLOCK_NAME || f.properties.Block)
             .filter(Boolean)
             .sort();
-        return [...new Set(blocks)];
-    }, [blockBoundaryData, filters.district]);
+        return [...new Set(geoBlocks)];
+    }, [filters.type, apiBlocks, blockBoundaryData, filters.district]);
 
     const handleFilterChange = (field, value) => {
         const newFilters = { ...filters, [field]: value };
@@ -69,16 +128,19 @@ const ControlsSidebar = ({
             newFilters.block = '';
         }
 
-        // Reset district and taluka if type becomes Ground Water Resource Estimation or Rainfall
-        if (field === 'type' && (value === 'Ground Water Resource Estimation' || value === 'Rainfall')) {
+        // Reset district and taluka when switching into or out of specialized types
+        const isCurrentlySpecial = filters.type === 'Ground Water Resource Estimation' || filters.type === 'Rainfall';
+        const willBeSpecial = value === 'Ground Water Resource Estimation' || value === 'Rainfall';
+
+        if (field === 'type' && (isCurrentlySpecial || willBeSpecial)) {
             newFilters.district = '';
             newFilters.block = '';
         }
 
         setFilters(newFilters);
 
-        // Immediate map update for specific layer types
-        if (field === 'type' && (value === 'Ground Water Resource Estimation' || value === 'Rainfall')) {
+        // Immediate map update for all layer types to show warnings or valid layers instantly
+        if (field === 'type') {
             if (onFiltersApply) {
                 onFiltersApply(newFilters);
             }
@@ -232,6 +294,7 @@ const ControlsSidebar = ({
                             filters={filters}
                             handleFilterChange={handleFilterChange}
                             availableBlocks={availableBlocks}
+                            districts={memoDistricts}
                             handleProceed={handleProceed}
                             section="location"
                         />
@@ -242,6 +305,7 @@ const ControlsSidebar = ({
                             filters={filters}
                             handleFilterChange={handleFilterChange}
                             availableBlocks={availableBlocks}
+                            districts={memoDistricts}
                             handleProceed={handleProceed}
                             section="layers"
                         />
@@ -252,6 +316,7 @@ const ControlsSidebar = ({
                             filters={filters}
                             handleFilterChange={handleFilterChange}
                             availableBlocks={availableBlocks}
+                            districts={memoDistricts}
                             handleProceed={handleProceed}
                             section="network"
                         />
@@ -262,6 +327,7 @@ const ControlsSidebar = ({
                             filters={filters}
                             handleFilterChange={handleFilterChange}
                             availableBlocks={availableBlocks}
+                            districts={memoDistricts}
                             handleProceed={handleProceed}
                             section="time"
                         />

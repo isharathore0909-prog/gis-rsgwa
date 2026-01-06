@@ -6,6 +6,74 @@
     min-width: 0;
 }
 
+/* =========================================
+   Map Data Availability Warning
+   ========================================= */
+.map-warning-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    pointer-events: none;
+    max-width: 450px;
+    width: 90%;
+}
+
+.warning-content {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 1.5rem 2.5rem;
+    border-radius: 20px;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    box-shadow:
+        0 20px 25px -5px rgba(0, 0, 0, 0.1),
+        0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    pointer-events: auto;
+}
+
+.warning-icon {
+    font-size: 2.5rem;
+}
+
+.warning-text h3 {
+    margin: 0;
+    color: #92400e;
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.warning-text p {
+    margin: 0.5rem 0 0 0;
+    color: #4b5563;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.warning-text strong {
+    color: #d97706;
+}
+
+@keyframes fadeInOverlay {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -45%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+.animated-fade-in {
+    animation: fadeInOverlay 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Map Action Controls */
 .map-controls {
     position: absolute;
