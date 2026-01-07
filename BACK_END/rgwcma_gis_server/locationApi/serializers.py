@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Country, State, District, Block, Village
+from .models import Country, State, District, Block, Grampanchayat, Village
 
 class CountrySerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,6 +19,11 @@ class DistrictSerializer(serializers.ModelSerializer):
 class BlockSerializer(serializers.ModelSerializer):
     class Meta:
         model = Block
+        fields = '__all__'
+
+class GrampanchayatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Grampanchayat
         fields = '__all__'
 
 class VillageSerializer(serializers.ModelSerializer):

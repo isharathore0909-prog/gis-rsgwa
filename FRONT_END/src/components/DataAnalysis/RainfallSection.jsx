@@ -16,7 +16,7 @@ const RainfallSection = ({
     const viewType = propViewType.toLowerCase();
 
     const aggregatedData = useMemo(() => {
-        if (!rainfallPoints || rainfallPoints.length === 0) return [];
+        if (!rainfallPoints || !Array.isArray(rainfallPoints) || rainfallPoints.length === 0) return [];
 
         if (viewType === 'daily') {
             const grouped = rainfallPoints.reduce((acc, curr) => {

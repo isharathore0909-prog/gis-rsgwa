@@ -118,12 +118,17 @@ export const RainfallMarker = ({ record }) => {
         return '#1e40af'; // Very heavy rain
     };
 
-    const color = getRainfallColor(record.rainfall_mm);
-    const size = Math.min(Math.max(15, record.rainfall_mm * 2), 40);
+    const rainValue = record.rainfall_mm ?? record.rainfall_in_mm ?? 0;
+    const dateValue = record.date ?? record.rainfall_date ?? 'N/A';
+    const villageValue = record.village ?? record.village_name ?? 'N/A';
+    const gpValue = record.gram_panchayat ?? record.gramPanchayat ?? 'N/A';
+
+    const color = getRainfallColor(rainValue);
+    const size = Math.min(Math.max(24, rainValue * 2), 48);
 
     const customIcon = L.divIcon({
         className: 'rainfall-marker',
-        html: `<div style="background-color: ${color}; width: 100%; height: 100%; border-radius: 50%; border: 2px solid white; opacity: 0.8; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 10px; box-shadow: 0 0 8px ${color};">${record.rainfall_mm > 0 ? record.rainfall_mm.toFixed(0) : ''}</div>`,
+        html: `<div style="background-color: ${color}; width: 100%; height: 100%; border-radius: 50%; border: 2px solid white; opacity: 0.9; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px; box-shadow: 0 0 12px ${color};">${rainValue > 0 ? rainValue.toFixed(1) : '0'}</div>`,
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
         popupAnchor: [0, -size / 2]
@@ -133,14 +138,62 @@ export const RainfallMarker = ({ record }) => {
         <Marker position={[record.latitude, record.longitude]} icon={customIcon}>
             <Popup>
                 <div className="rainfall-popup">
-                    <h3 style={{ margin: '0 0 8px 0', color: '#1e3c72' }}>{record.village_name}</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <p style={{ margin: 0 }}><strong>Rainfall:</strong> <span style={{ color: '#2563eb', fontSize: '1.2rem' }}>{record.rainfall_mm} mm</span></p>
-                        <p style={{ margin: 0 }}><strong>Date:</strong> {record.date}</p>
-                        <p style={{ margin: 0 }}><strong>Gauge Type:</strong> {record.gauge_type}</p>
+                    <h3 style={{ margin: '0 0 8px 0', color: '#1e3c72', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                        {villageValue}
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <p style={{ margin: 0 }}><strong>{record.isAggregated ? 'Average Rainfall' : 'Rainfall'}:</strong> <span style={{ color: '#2563eb', fontSize: '1.2rem', fontWeight: 700 }}>{rainValue.toFixed(1)} mm</span></p>
+                        <p style={{ margin: 0, fontSize: '0.85rem' }}><strong>GP:</strong> {gpValue}</p>
+                        <p style={{ margin: 0, fontSize: '0.85rem' }}><strong>Date:</strong> {dateValue}</p>
+                        <p style={{ margin: 0, fontSize: '0.85rem' }}><strong>Gauge Type:</strong> {record.gauge_type || 'Manual'}</p>
                     </div>
                 </div>
             </Popup>
         </Marker>
+    );
+};
+
+export const WaterQualityMarker = ({ record, onMarkerClick }) => {
+    // Determine color based on water quality parameters
+    const getWQColor = (record) => {
+        // Simple quality assessment based on key parameters
+        let issues = 0;
+
+        if (record.ph && (record.ph < 6.5 || record.ph > 8.5)) issues++;
+        if (record.tds && record.tds > 2000) issues++;
+        if (record.fluoride && record.fluoride > 1.5) issues++;
+        if (record.nitrate && record.nitrate > 45) issues++;
+        if (record.ec && record.ec > 3000) issues++;
+
+        if (issues === 0) return '#2a9d8f'; // Good - Green
+        if (issues <= 2) return '#f4a261'; // Warning - Orange
+        return '#e63946'; // Critical - Red
+    };
+
+    const color = getWQColor(record);
+
+    const customIcon = L.divIcon({
+        className: 'water-quality-marker',
+        html: `
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2"/>
+                <path d="M12 8v4m0 4h.01" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -14]
+    });
+
+    return (
+        <Marker
+            position={[record.latitude, record.longitude]}
+            icon={customIcon}
+            eventHandlers={{
+                click: (e) => {
+                    onMarkerClick && onMarkerClick(record, e.latlng);
+                }
+            }}
+        />
     );
 };

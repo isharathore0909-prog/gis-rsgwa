@@ -5,8 +5,9 @@ const AnalysisFilters = ({
     filters,
     handleFilterChange,
     availableBlocks,
+    availableGPs = [],
+    availableVillages = [],
     districts = [],
-    handleProceed,
     section = 'all' // 'location', 'layers', 'time', 'all'
 }) => {
 
@@ -91,6 +92,35 @@ const AnalysisFilters = ({
                                 </select>
                             </div>
                         )}
+
+                        <div className="field-row">
+                            <span className="field-label">GP</span>
+                            <select
+                                className="select-input"
+                                value={filters.gramPanchayat}
+                                onChange={e => handleFilterChange('gramPanchayat', e.target.value)}
+                                disabled={!filters.block}
+                            >
+                                <option value="">-- All Gram Panchayats --</option>
+                                {availableGPs.map(gp => (
+                                    <option key={gp} value={gp}>{gp}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="field-row">
+                            <span className="field-label">Village</span>
+                            <select
+                                className="select-input"
+                                value={filters.village}
+                                onChange={e => handleFilterChange('village', e.target.value)}
+                                disabled={!filters.block} // GP is optional but block is required
+                            >
+                                <option value="">-- All Villages --</option>
+                                {availableVillages.map(v => (
+                                    <option key={v} value={v}>{v}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                 </div>
             )}
@@ -133,10 +163,6 @@ const AnalysisFilters = ({
                             />
                         </div>
                     </div>
-
-                    <button className="proceed-btn" onClick={handleProceed}>
-                        Execute Analysis
-                    </button>
                 </>
             )}
         </>

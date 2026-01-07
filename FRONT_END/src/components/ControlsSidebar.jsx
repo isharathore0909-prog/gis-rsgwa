@@ -45,6 +45,8 @@ const ControlsSidebar = ({
         source: 'Rajasthan GW',
         district: '',
         block: '',
+        gramPanchayat: '',
+        village: '',
         timestep: 'Monthly',
         dataRangeStart: '',
         dataRangeEnd: '',
@@ -54,6 +56,7 @@ const ControlsSidebar = ({
 
     const [apiDistricts, setApiDistricts] = useState([]);
     const [apiBlocks, setApiBlocks] = useState([]);
+    const [rainfallData, setRainfallData] = useState([]);
 
     // Fetch districts on mount (for Rajasthan)
     useEffect(() => {
@@ -68,11 +71,21 @@ const ControlsSidebar = ({
                 }
             } catch (error) {
                 console.error("Error fetching districts:", error);
-                // Fallback to empty or previous constant if needed? 
-                // For now just error log
             }
         };
         fetchDistricts();
+
+        // Load rainfall data for resolving GPs and Villages
+        const loadRainfallData = async () => {
+            try {
+                const response = await fetch('/rainfall_data.json');
+                const data = await response.json();
+                setRainfallData(data);
+            } catch (err) {
+                console.error("Failed to load rainfall data for filtering:", err);
+            }
+        };
+        loadRainfallData();
     }, []);
 
     // Helper for Title Case
@@ -131,36 +144,73 @@ const ControlsSidebar = ({
         return [...new Set(geoBlocks)];
     }, [blockBoundaryData, filters.district]);
 
+    // List of GPs and Villages for Rainfall layer
+    const availableGPs = useMemo(() => {
+        if (!filters.district || !filters.block || !rainfallData.length) return [];
+
+        const gps = rainfallData
+            .filter(d =>
+                (d.district || '').toUpperCase() === filters.district.toUpperCase() &&
+                (d.block || '').toUpperCase() === filters.block.toUpperCase()
+            )
+            .map(d => d.gram_panchayat || d.gramPanchayat)
+            .filter(Boolean);
+
+        return [...new Set(gps)].sort();
+    }, [filters.district, filters.block, rainfallData]);
+
+    const availableVillages = useMemo(() => {
+        if (!filters.district || !filters.block || !rainfallData.length) return [];
+
+        const query = rainfallData.filter(d =>
+            (d.district || '').toUpperCase() === filters.district.toUpperCase() &&
+            (d.block || '').toUpperCase() === filters.block.toUpperCase()
+        );
+
+        const filtered = filters.gramPanchayat
+            ? query.filter(d => (d.gram_panchayat || d.gramPanchayat || '').toUpperCase() === filters.gramPanchayat.toUpperCase())
+            : query;
+
+        const villages = filtered
+            .map(d => d.village || d.village_name)
+            .filter(Boolean);
+
+        return [...new Set(villages)].sort();
+    }, [filters.district, filters.block, filters.gramPanchayat, rainfallData]);
+
     const handleFilterChange = (field, value) => {
         const newFilters = { ...filters, [field]: value };
 
         // Reset children when parent changes
         if (field === 'district') {
             newFilters.block = '';
+            newFilters.gramPanchayat = '';
+            newFilters.village = '';
+        }
+        if (field === 'block') {
+            newFilters.gramPanchayat = '';
+            newFilters.village = '';
+        }
+        if (field === 'gramPanchayat') {
+            newFilters.village = '';
         }
 
-        // Reset district and taluka when switching into or out of specialized types
+        // Reset district and other filters when switching into or out of specialized types
         const isCurrentlySpecial = filters.type === 'Ground Water Resource Estimation' || filters.type === 'Rainfall';
         const willBeSpecial = value === 'Ground Water Resource Estimation' || value === 'Rainfall';
 
         if (field === 'type' && (isCurrentlySpecial || willBeSpecial)) {
             newFilters.district = '';
             newFilters.block = '';
+            newFilters.gramPanchayat = '';
+            newFilters.village = '';
         }
 
         setFilters(newFilters);
 
-        // Immediate map update for specific fields
-        if (field === 'type') {
-            if (onFiltersApply) {
-                onFiltersApply(newFilters);
-            }
-        }
-    };
-
-    const handleProceed = () => {
+        // Immediate update for map and analysis sidebar
         if (onFiltersApply) {
-            onFiltersApply(filters);
+            onFiltersApply(newFilters);
         }
     };
 
@@ -305,8 +355,9 @@ const ControlsSidebar = ({
                             filters={filters}
                             handleFilterChange={handleFilterChange}
                             availableBlocks={availableBlocks}
+                            availableGPs={availableGPs}
+                            availableVillages={availableVillages}
                             districts={memoDistricts}
-                            handleProceed={handleProceed}
                             section="location"
                         />
                     )}
@@ -316,8 +367,9 @@ const ControlsSidebar = ({
                             filters={filters}
                             handleFilterChange={handleFilterChange}
                             availableBlocks={availableBlocks}
+                            availableGPs={availableGPs}
+                            availableVillages={availableVillages}
                             districts={memoDistricts}
-                            handleProceed={handleProceed}
                             section="layers"
                         />
                     )}
@@ -327,8 +379,9 @@ const ControlsSidebar = ({
                             filters={filters}
                             handleFilterChange={handleFilterChange}
                             availableBlocks={availableBlocks}
+                            availableGPs={availableGPs}
+                            availableVillages={availableVillages}
                             districts={memoDistricts}
-                            handleProceed={handleProceed}
                             section="network"
                         />
                     )}
@@ -338,8 +391,9 @@ const ControlsSidebar = ({
                             filters={filters}
                             handleFilterChange={handleFilterChange}
                             availableBlocks={availableBlocks}
+                            availableGPs={availableGPs}
+                            availableVillages={availableVillages}
                             districts={memoDistricts}
-                            handleProceed={handleProceed}
                             section="time"
                         />
                     )}

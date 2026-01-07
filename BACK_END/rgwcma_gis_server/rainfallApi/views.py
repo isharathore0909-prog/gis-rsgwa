@@ -18,7 +18,9 @@ class RainfallViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = Rainfall.objects.all()
-        village_id = self.request.query_params.get('village', None)
+        village_id = self.request.query_params.get('village_id', None)
+        village_name = self.request.query_params.get('village', None)
+        gp_name = self.request.query_params.get('gram_panchayat', None)
         district_name = self.request.query_params.get('district', None)
         block_name = self.request.query_params.get('block', None)
         start_date = self.request.query_params.get('start_date', None)
@@ -26,6 +28,12 @@ class RainfallViewSet(viewsets.ModelViewSet):
 
         if village_id is not None:
             queryset = queryset.filter(village_id=village_id)
+
+        if village_name:
+            queryset = queryset.filter(village__name__icontains=village_name)
+
+        if gp_name:
+            queryset = queryset.filter(village__grampanchayat__name__icontains=gp_name)
         
         if district_name:
             queryset = queryset.filter(village__grampanchayat__block__district__name__icontains=district_name)
@@ -38,5 +46,6 @@ class RainfallViewSet(viewsets.ModelViewSet):
             
         if end_date is not None:
             queryset = queryset.filter(date__lte=end_date)
+
             
         return queryset

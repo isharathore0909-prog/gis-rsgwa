@@ -177,35 +177,18 @@ function App() {
                     if (filters.dataRangeEnd) params.end_date = filters.dataRangeEnd;
                     if (filters.district) params.district = filters.district;
                     if (filters.block) params.block = filters.block;
+                    if (filters.gramPanchayat) params.gram_panchayat = filters.gramPanchayat;
+                    if (filters.village) params.village = filters.village;
 
-                    // Try API first
-                    let data = [];
-                    try {
-                        data = await api.rainfall.getRecords(params);
-                        console.log("Rainfall data from API:", data);
-                    } catch (apiError) {
-                        console.warn("API failed, falling back to local JSON:", apiError);
-                        const response = await fetch('/rainfall_data.json');
-                        data = await response.json();
+                    // Fetch from Database API
+                    const response = await api.rainfall.getRecords(params);
+                    console.log("Rainfall data from Database:", response);
 
-                        // Filter local data manually to simulate backend behavior
-                        if (filters.district) {
-                            data = data.filter(d => (d.district || d.DIST_NAME)?.toUpperCase() === filters.district.toUpperCase());
-                        }
-                        if (filters.block) {
-                            data = data.filter(d => (d.block || d.BLOCK_NAME)?.toUpperCase() === filters.block.toUpperCase());
-                        }
-                        if (filters.dataRangeStart) {
-                            data = data.filter(d => (d.date || d.rainfall_date) >= filters.dataRangeStart);
-                        }
-                        if (filters.dataRangeEnd) {
-                            data = data.filter(d => (d.date || d.rainfall_date) <= filters.dataRangeEnd);
-                        }
-                    }
-
+                    // Handle paginated response
+                    const data = response.results || response || [];
                     setRainfallPoints(data);
                 } catch (error) {
-                    console.error("Error fetching rainfall data:", error);
+                    console.error("Error fetching database rainfall data:", error);
                     setRainfallPoints([]);
                 }
             } else {

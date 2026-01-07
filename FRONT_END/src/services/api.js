@@ -84,6 +84,13 @@ const api = {
     // Rainfall API helpers
     rainfall: {
         getRecords: (params) => api.get('/rainfall/records/', params),
+    },
+
+    // Water Quality API helpers
+    waterQuality: {
+        getRecords: (params) => api.get('/water-quality/', params),
+        getStatistics: (params) => api.get('/water-quality/statistics/', params),
+        getByLocation: (params) => api.get('/water-quality/by_location/', params),
     }
 };
 

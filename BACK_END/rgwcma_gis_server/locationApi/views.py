@@ -1,8 +1,8 @@
 from rest_framework import viewsets, permissions
-from .models import Country, State, District, Block, Village
+from .models import Country, State, District, Block, Grampanchayat, Village
 from .serializers import (
     CountrySerializer, StateSerializer, DistrictSerializer, 
-    BlockSerializer, VillageSerializer
+    BlockSerializer, GrampanchayatSerializer, VillageSerializer
 )
 
 class IsAdminOrReadOnly(permissions.BasePermission):
@@ -55,6 +55,18 @@ class BlockViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(district_id=district_id)
         return queryset
 
+class GrampanchayatViewSet(viewsets.ModelViewSet):
+    queryset = Grampanchayat.objects.all()
+    serializer_class = GrampanchayatSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        queryset = Grampanchayat.objects.all()
+        block_id = self.request.query_params.get('block', None)
+        if block_id is not None:
+            queryset = queryset.filter(block_id=block_id)
+        return queryset
+
 class VillageViewSet(viewsets.ModelViewSet):
     queryset = Village.objects.all()
     serializer_class = VillageSerializer
@@ -62,8 +74,13 @@ class VillageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Village.objects.all()
+        grampanchayat_id = self.request.query_params.get('grampanchayat', None)
+        if grampanchayat_id is not None:
+            queryset = queryset.filter(grampanchayat_id=grampanchayat_id)
+        
+        # Backward compatibility or convenience: filter by block
         block_id = self.request.query_params.get('block', None)
         if block_id is not None:
-            queryset = queryset.filter(block_id=block_id)
-        # Also allow filtering by district indirectly if needed, but strict hierarchy is requested.
+            queryset = queryset.filter(grampanchayat__block_id=block_id)
+            
         return queryset

@@ -495,3 +495,65 @@
         opacity: 0.8;
     }
 }
+
+/* =========================================
+   Premium Legend & Toggle Refinements
+   ========================================= */
+
+.map-legend-toggle {
+    position: absolute;
+    bottom: 25px;
+    right: 25px;
+    background: white;
+    padding: 10px 18px;
+    border-radius: 30px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    z-index: 1001;
+    border: 1px solid var(--border-light);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    user-select: none;
+}
+
+.map-legend-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    border-color: var(--secondary-blue);
+}
+
+.map-legend-toggle.active {
+    background: var(--dark-blue);
+    border-color: var(--secondary-blue);
+}
+
+.map-legend-toggle.active .legend-label {
+    color: white;
+}
+
+.map-legend-toggle.active span:last-child {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.legend-widget {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.legend-swatch {
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    width: 24px;
+    height: 12px;
+}
+
+.tiny-select {
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+}

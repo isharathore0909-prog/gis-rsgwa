@@ -11,14 +11,19 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
+
+# ==============================================================================
+# PATH CONFIGURATION
+# ==============================================================================
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
+# ==============================================================================
+# SECURITY SETTINGS
+# ==============================================================================
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-$^kdt&z_65hhm&pkj-ko9m(jgxj52e6s3nu-pikq#09o9l+$e&'
 
@@ -28,20 +33,31 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
-# Application definition
+# ==============================================================================
+# APPLICATION DEFINITION
+# ==============================================================================
 
 INSTALLED_APPS = [
+    # Django Core Apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    # Third-Party Apps
     'corsheaders',
     'rest_framework',
+    'django_filters',
+    
+    # Local Apps
     'locationApi',
     'account_app',
     'rainfallApi',
+    'raingaugeApi',
+    'water_qualityApi',
+    'aquiferApi',
 ]
 
 MIDDLEWARE = [
@@ -54,8 +70,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'rgwcma_gis_server.urls'
 
@@ -77,7 +91,9 @@ TEMPLATES = [
 WSGI_APPLICATION = 'rgwcma_gis_server.wsgi.application'
 
 
-# Database
+# ==============================================================================
+# DATABASE CONFIGURATION
+# ==============================================================================
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
@@ -88,7 +104,9 @@ DATABASES = {
 }
 
 
-# Password validation
+# ==============================================================================
+# PASSWORD VALIDATION
+# ==============================================================================
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -107,7 +125,9 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
+# ==============================================================================
+# INTERNATIONALIZATION
+# ==============================================================================
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
@@ -119,19 +139,27 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
+# ==============================================================================
+# STATIC FILES
+# ==============================================================================
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+# ==============================================================================
+# CORS CONFIGURATION
+# ==============================================================================
 
-from datetime import timedelta
+CORS_ALLOW_ALL_ORIGINS = True
+
+
+# ==============================================================================
+# REST FRAMEWORK CONFIGURATION
+# ==============================================================================
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -140,14 +168,25 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_FILTER_BACKENDS': (
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 100,
 }
+
+
+# ==============================================================================
+# JWT AUTHENTICATION CONFIGURATION
+# ==============================================================================
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
-
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }

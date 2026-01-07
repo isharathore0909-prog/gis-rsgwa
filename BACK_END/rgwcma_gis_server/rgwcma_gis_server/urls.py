@@ -22,4 +22,7 @@ urlpatterns = [
     path('api/location/', include('locationApi.urls')),
     path('api/account/', include('account_app.urls')),
     path('api/rainfall/', include('rainfallApi.urls')),
+    path('api/raingauge/', include('raingaugeApi.urls')),
+    path('api/', include('water_qualityApi.urls')),
+    path('api/', include('aquiferApi.urls')),
 ]

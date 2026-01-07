@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 // Styles
 import './DataAnalysisSidebar.css';
@@ -36,6 +36,8 @@ import {
     calculateWQI,
     getParameterColor
 } from '../data/blockWaterQualityData';
+
+import api from '../services/api';
 
 /**
  * DataAnalysisSidebar Component
@@ -217,9 +219,112 @@ const DataAnalysisSidebar = ({
         ];
     }, [displayRegion]);
 
+    // =================================================================================
+    // 3. Water Quality Data (From Database)
+    // =================================================================================
+    const [waterQualityRecords, setWaterQualityRecords] = useState([]);
+    const [waterQualityLoading, setWaterQualityLoading] = useState(false);
+    const [waterQualityError, setWaterQualityError] = useState(null);
+
+    // Fetch water quality data from database when filters change
+    useEffect(() => {
+        if (!isWaterQuality || !displayRegion) {
+            setWaterQualityRecords([]);
+            return;
+        }
+
+        const fetchWaterQuality = async () => {
+            setWaterQualityLoading(true);
+            setWaterQualityError(null);
+            try {
+                const params = {
+                    district: displayRegion,
+                };
+
+                if (displayBlock) {
+                    params.block = displayBlock;
+                }
+
+                const data = await api.waterQuality.getRecords(params);
+                setWaterQualityRecords(data.results || data || []);
+            } catch (error) {
+                console.error('Error fetching water quality data:', error);
+                setWaterQualityError(error.message);
+                setWaterQualityRecords([]);
+            } finally {
+                setWaterQualityLoading(false);
+            }
+        };
+
+        fetchWaterQuality();
+    }, [isWaterQuality, displayRegion, displayBlock]);
+
+    // Process water quality data for display
     const blockWaterQualityData = useMemo(() => {
         if (!displayRegion) return null;
 
+        // If we have a specific well clicked from the map, show that well's data
+        if (isWaterQuality && neighbor?.type === 'water_quality_well') {
+            const wellData = {
+                ...neighbor,
+                block: neighbor.block || displayBlock || displayRegion,
+                district: neighbor.district || displayRegion,
+                chloride: 0, // Not available in database
+                iron: 0, // Not available in database
+                arsenic: 0, // Not available in database
+                uranium: 0, // Not available in database
+            };
+            return {
+                ...wellData,
+                status: checkWaterQualityStatus(wellData),
+                wqi: calculateWQI(wellData)
+            };
+        }
+
+        // If we have database records, use them (Aggregation)
+        if (isWaterQuality && waterQualityRecords.length > 0) {
+            // Calculate average values for the selected region/block
+            const avgData = waterQualityRecords.reduce((acc, record) => {
+                acc.ec += record.ec || 0;
+                acc.fluoride += record.fluoride || 0;
+                acc.nitrate += record.nitrate || 0;
+                acc.tds += record.tds || 0;
+                acc.ph += record.ph || 0;
+                acc.hardness += record.hardness || 0;
+                acc.alkalinity += record.alkalinity || 0;
+                acc.count++;
+                return acc;
+            }, { ec: 0, fluoride: 0, nitrate: 0, tds: 0, ph: 0, hardness: 0, alkalinity: 0, count: 0 });
+
+            if (avgData.count > 0) {
+                const blockData = {
+                    district: displayRegion,
+                    block: displayBlock || displayRegion,
+                    ec: avgData.ec / avgData.count,
+                    fluoride: avgData.fluoride / avgData.count,
+                    nitrate: avgData.nitrate / avgData.count,
+                    tds: avgData.tds / avgData.count,
+                    ph: avgData.ph / avgData.count,
+                    hardness: avgData.hardness / avgData.count,
+                    alkalinity: avgData.alkalinity / avgData.count,
+                    chloride: 0, // Not available in database
+                    iron: 0, // Not available in database
+                    arsenic: 0, // Not available in database
+                    uranium: 0, // Not available in database
+                };
+
+                return {
+                    ...blockData,
+                    status: checkWaterQualityStatus(blockData),
+                    wqi: calculateWQI(blockData)
+                };
+            }
+
+            // No data found in database for this region
+            return { isNoData: true, block: displayBlock || displayRegion };
+        }
+
+        // Fallback to static data if not in water quality mode or no database records
         // Handle District Name Aliases (e.g., Ganganagar)
         let normalizedRegion = displayRegion;
         if (normalizedRegion.includes('Ganganagar')) normalizedRegion = 'Ganganagar';
@@ -237,14 +342,10 @@ const DataAnalysisSidebar = ({
         } else {
             return getDistrictWaterQuality(normalizedRegion);
         }
-    }, [displayRegion, displayBlock]);
+    }, [displayRegion, displayBlock, isWaterQuality, waterQualityRecords, neighbor]);
 
     // =================================================================================
-    // 3. Data Processing (Rainfall)
-    // =================================================================================
-
-    // =================================================================================
-    // 3. Data Processing (Rainfall - From Database)
+    // 4. Data Processing (Rainfall - From Database)
     // =================================================================================
     const rainfallStats = useMemo(() => {
         if (!isRainfall || !rainfallPoints.length) return null;
@@ -279,7 +380,7 @@ const DataAnalysisSidebar = ({
     }, [isRainfall, rainfallPoints]);
 
     // =================================================================================
-    // 4. Component Render
+    // 5. Component Render
     // =================================================================================
     return (
         <aside className={`data-analysis-sidebar ${isControlsSidebarCollapsed ? 'expanded-layout' : ''}`}>
