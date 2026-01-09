@@ -4,17 +4,22 @@ import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import ControlsSidebar from './components/ControlsSidebar';
 import DataAnalysisSidebar from './components/DataAnalysisSidebar';
-import MapView from './components/MapView';
+import MapView from './components/Map/MapView';
 import AttributeTable from './components/AttributeTable';
-import api from './services/api';
+import api from './api';
 
-// Utils & Data
-import { reprojectGeoJSON } from './utils/reproject';
-import mapLayers from './data/mapLayers.json';
-import pageCategories from './data/pageCategories.json';
+// Hooks
+import { useBoundaryHierarchy } from './hooks/useBoundaryHierarchy';
 
 // Styles
 import './App.css';
+
+// Data
+import { RAJASTHAN_DAMS_DATA } from './data/damsData';
+
+// Utils
+import { reprojectGeoJSON } from './utils/reproject';
+import { getPolygonCentroid } from './utils/mapUtils';
 
 function App() {
     const [layers, setLayers] = useState({
@@ -39,6 +44,15 @@ function App() {
     const [rainfallPoints, setRainfallPoints] = useState([]);
     const [selectedDams, setSelectedDams] = useState([]);
     const [tableSelection, setTableSelection] = useState([]);
+    const [rajasthanId, setRajasthanId] = useState(null);
+
+    // Use hierarchical boundary hook
+    const {
+        boundaries: dynamicBoundaries,
+        loading: boundariesLoading,
+        error: boundariesError,
+        currentLevel
+    } = useBoundaryHierarchy(filters, rajasthanId);
 
     const handleAddToTable = (dam) => {
         setSelectedDams(prev => {
@@ -90,25 +104,64 @@ function App() {
         }
     };
 
-    // Fetch and Reproject Block Data on Mount
+    // Initialize Application Data
     useEffect(() => {
-        // Fetch blocks
-        fetch('/block_boundary.json')
+        // Load Rajasthan boundary from local GeoJSON file
+        fetch('/Final_Dist_Boundary.geojson')
             .then(response => response.json())
             .then(data => {
+                console.log('Loaded Final_Dist_Boundary.geojson:', data);
+                setRajasthanData(data);
+            })
+            .catch(err => console.error('Error loading Final_Dist_Boundary.geojson:', err));
+
+        // Fetch Rajasthan state ID
+        api.location.getStates({ name: 'Rajasthan' })
+            .then(res => {
+                const states = res.results || res;
+                if (states && states.length > 0) {
+                    setRajasthanId(states[0].id);
+                }
+            })
+            .catch(error => console.error("Error fetching state ID:", error));
+
+        // Fetch blocks for legacy support (optional, can be removed if not needed elsewhere)
+        // Fetch blocks - FORCE LOCAL FILE (User Request)
+        // api.boundaries.getCollection({ layer: 'block' })
+        //     .then(data => {
+        //         if (data && data.features && data.features.length > 0) {
+        //             // Start Validation: Check if features actually have valid geometry
+        //             const validGeomCount = data.features.filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates.length > 0).length;
+        //             if (validGeomCount < data.features.length * 0.5) { // If less than 50% have valid geometry
+        //                 console.warn("API returned block data with mostly missing geometries. Falling back to local file.");
+        //                 throw new Error("Invalid API Data: Missing Geometries");
+        //             }
+        //             // End Validation
+
+        //             const processed = reprojectGeoJSON(data);
+        //             setProcessedBlockData(processed);
+        //         }
+        //     })
+        //     .catch(() => {
+        // Fallback to local file
+        // Use groundwater_zone.json for Ground Water Resource Estimation
+        fetch('/groundwater_zone.json')
+            .then(response => response.json())
+            .then(data => {
+                console.log("Loaded groundwater_zone.json:", data);
                 const processed = reprojectGeoJSON(data);
                 setProcessedBlockData(processed);
             })
-            .catch(error => console.error("Error fetching block boundary data:", error));
-
-        // Fetch Rajasthan state boundary
-        fetch('/Rajasthan.geojson')
-            .then(response => response.json())
-            .then(data => {
-                // Assuming Rajasthan.geojson is already in WGS84 (lat/lng)
-                setRajasthanData(data);
-            })
-            .catch(error => console.error("Error fetching Rajasthan boundary data:", error));
+            .catch(err => {
+                console.error("Could not load groundwater_zone.json, falling back to block boundary:", err);
+                fetch('/block_boundary_updated.json')
+                    .then(response => response.json())
+                    .then(data => {
+                        const processed = reprojectGeoJSON(data);
+                        setProcessedBlockData(processed);
+                    })
+                    .catch(e => console.error("Could not load fallback block data:", e));
+            });
     }, []);
 
     useEffect(() => {
@@ -225,14 +278,26 @@ function App() {
         if (!filters || !filters.type) return null;
 
         if (filters.type === 'Ground Water Resource Estimation') {
-            return processedBlockData;
+            let features = processedBlockData?.features || [];
+            if (filters.district) {
+                features = features.filter(f => (f.properties.DIST_NAME || f.properties.District)?.toUpperCase() === filters.district.toUpperCase());
+            }
+            if (filters.taluka || filters.block) {
+                const targetBlock = (filters.taluka || filters.block).toUpperCase();
+                features = features.filter(f => (f.properties.BLOCK_NAME || f.properties.Block)?.toUpperCase() === targetBlock);
+            }
+            return { ...processedBlockData, features };
         }
 
         if (filters.type === 'Ground Water Level') {
             // Even if groundwaterData is currently empty, we prepare the structure
             return {
                 type: 'FeatureCollection',
-                features: (neighbors.length > 0 ? neighbors : []).map(well => ({
+                features: (neighbors.length > 0 ? neighbors : []).filter(well => {
+                    const matchDist = !filters.district || well.district?.toUpperCase() === filters.district.toUpperCase();
+                    const matchBlock = !(filters.taluka || filters.block) || (well.block || well.taluka)?.toUpperCase() === (filters.taluka || filters.block).toUpperCase();
+                    return matchDist && matchBlock;
+                }).map(well => ({
                     type: 'Feature',
                     properties: well,
                     geometry: {
@@ -244,9 +309,136 @@ function App() {
         }
 
         if (filters.type === 'Water Resources') {
+            // Generate dam features with coordinates derived from block centroids
+            const features = RAJASTHAN_DAMS_DATA.map((dam, idx) => {
+                let geometry = null;
+
+                // Find matching block for geometry
+                if (processedBlockData && processedBlockData.features) {
+                    const blockFeature = processedBlockData.features.find(f => {
+                        const dName = (f.properties.DIST_NAME || f.properties.District)?.toLowerCase();
+                        const bName = (f.properties.BLOCK_NAME || f.properties.Block)?.toLowerCase();
+                        return dName === dam.district?.toLowerCase() && bName === dam.block?.toLowerCase();
+                    });
+
+                    if (blockFeature) {
+                        const centroid = getPolygonCentroid(blockFeature.geometry);
+                        if (centroid) {
+                            geometry = {
+                                type: 'Point',
+                                coordinates: [centroid.lng, centroid.lat]
+                            };
+                        }
+                    }
+                }
+
+                // If filter is active, check if dam matches criteria
+                if (filters.district && dam.district?.toLowerCase() !== filters.district.toLowerCase()) {
+                    return null;
+                }
+                if ((filters.taluka || filters.block) && dam.block?.toLowerCase() !== (filters.taluka || filters.block).toLowerCase()) {
+                    return null;
+                }
+
+                return {
+                    type: 'Feature',
+                    id: `dam-${idx}`,
+                    properties: {
+                        ...dam,
+                        id: `dam-${idx}`, // Ensure ID exists for table key
+                        'Dam Name': dam.name,
+                        'River': dam.river,
+                        'Basin': dam.basin,
+                        'Capacity': dam.capacity || 'N/A'
+                    },
+                    geometry: geometry // Can be null if not found
+                };
+            }).filter(f => f !== null && f.geometry !== null); // Only return geolocated dams matching filter
+
             return {
                 type: 'FeatureCollection',
-                features: selectedDams
+                features: features
+            };
+        }
+
+        if (filters.type === 'Rainfall') {
+            // Prioritize clicked location (neighbors) if available
+            if (neighbors && neighbors.length > 0) {
+                return {
+                    type: 'FeatureCollection',
+                    features: neighbors.filter(item => {
+                        const matchDist = !filters.district || item.district?.toUpperCase() === filters.district.toUpperCase();
+                        const matchBlock = !(filters.taluka || filters.block) || (item.block || item.taluka)?.toUpperCase() === (filters.taluka || filters.block).toUpperCase();
+                        return matchDist && matchBlock;
+                    }).map((item, idx) => ({
+                        type: 'Feature',
+                        id: item.id || `selected-${idx}`,
+                        properties: {
+                            'Location': item.location || item.name || 'Selected Location',
+                            'District': item.district,
+                            'Block': item.block,
+                            'Type': 'Selected Location',
+                            ...item
+                        },
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [item.lng || item.longitude || 0, item.lat || item.latitude || 0]
+                        }
+                    }))
+                };
+            }
+
+            return {
+                type: 'FeatureCollection',
+                features: rainfallPoints.filter(p => {
+                    const matchDist = !filters.district || p.district_name?.toUpperCase() === filters.district.toUpperCase();
+                    const matchBlock = !(filters.taluka || filters.block) || (p.block_name || p.block)?.toUpperCase() === (filters.taluka || filters.block).toUpperCase();
+                    return matchDist && matchBlock;
+                }).map((p, idx) => ({
+                    type: 'Feature',
+                    id: p.id || `rain-${idx}`,
+                    properties: {
+                        ...p,
+                        'Village Name': p.village_name || p.village,
+                        'Rainfall (mm)': p.rainfall_mm,
+                        'Date': p.date
+                    },
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [p.longitude, p.latitude]
+                    }
+                }))
+            };
+        }
+
+        if (filters.type === 'Water Quality') {
+            const records = window.waterQualityRecords || []; // Accessing via window or state if available
+            // Note: Since MapView manages waterQualityRecords state internally, 
+            // for a proper implementation we should pull it up to App.jsx or use a ref.
+            // For now, let's use the Rainfall-style fallback if current records are not easily accessible.
+            return {
+                type: 'FeatureCollection',
+                features: records.filter(p => {
+                    const matchDist = !filters.district || p.district?.toUpperCase() === filters.district.toUpperCase();
+                    const matchBlock = !(filters.taluka || filters.block) || p.block?.toUpperCase() === (filters.taluka || filters.block).toUpperCase();
+                    return matchDist && matchBlock;
+                }).map((p, idx) => ({
+                    type: 'Feature',
+                    id: p.id || `wq-${idx}`,
+                    properties: {
+                        'Well ID': p.well_id,
+                        'District': p.district,
+                        'Block': p.block,
+                        'Village': p.village_name,
+                        'pH': p.ph,
+                        'TDS': p.tds,
+                        'Date': p.meta_date
+                    },
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [p.longitude, p.latitude]
+                    }
+                }))
             };
         }
 
@@ -258,6 +450,14 @@ function App() {
     return (
         <div className="app-container">
             <Header />
+            {boundariesLoading && (
+                <div className="global-loader-overlay">
+                    <div className="loader-content">
+                        <div className="spinner"></div>
+                        <p>Fetching boundary data...</p>
+                    </div>
+                </div>
+            )}
 
             <div className={`main-layout ${isWaterResources ? 'full-width-map' : ''}`} style={isWaterResources ? { gridTemplateColumns: '1fr' } : {}}>
                 <div className="workspace-container">
@@ -318,6 +518,8 @@ function App() {
                             activeUrlLayers={activeUrlLayers}
                             blockBoundaryData={processedBlockData}
                             rajasthanData={rajasthanData}
+                            dynamicBoundaries={dynamicBoundaries}
+                            currentLevel={currentLevel}
                             rainfallPoints={rainfallPoints}
                             onWellSelect={setSelectedWell}
                             selectedWell={selectedWell}
@@ -325,6 +527,7 @@ function App() {
                                 setClickedLocation(location);
                                 setNeighbors(neighbors);
                             }}
+                            onFiltersApply={handleFiltersApply} // Pass filters apply for drill-down map clicks
                             activeCategory={activeCategory}
                             initialShowLegend={isProceedClicked || activeUrlLayers.length > 0}
                             onAddToTable={handleAddToTable}
@@ -332,17 +535,15 @@ function App() {
                     </div>
 
                     {getAttributeData() && (
-                        <div className="workspace-bottom">
-                            <AttributeTable
-                                data={getAttributeData()}
-                                onRowClick={(feature) => {
-                                    console.log("Clicked feature:", feature);
-                                }}
-                                selectedIds={tableSelection}
-                                onToggleSelection={handleToggleSelection}
-                                onRemoveRow={handleRemoveRow}
-                            />
-                        </div>
+                        <AttributeTable
+                            data={getAttributeData()}
+                            onRowClick={(feature) => {
+                                console.log("Clicked feature:", feature);
+                            }}
+                            selectedIds={tableSelection}
+                            onToggleSelection={handleToggleSelection}
+                            onRemoveRow={handleRemoveRow}
+                        />
                     )}
                 </div>
 

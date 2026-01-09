@@ -100,6 +100,10 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 20,  # Increase timeout to 20 seconds
+            'init_command': 'PRAGMA journal_mode=WAL;', # Enable WAL mode for better concurrency
+        }
     }
 }
 
@@ -156,6 +160,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-auth-key",
+    "X-Auth-Key",
+]
+
 
 # ==============================================================================
 # REST FRAMEWORK CONFIGURATION
@@ -164,6 +174,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'locationApi.authentication.ApiKeyAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',

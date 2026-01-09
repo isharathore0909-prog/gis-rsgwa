@@ -108,7 +108,7 @@ export const WellMarker = ({ well, color, onMarkerClick }) => {
     );
 };
 
-export const RainfallMarker = ({ record }) => {
+export const RainfallMarker = ({ record, onMarkerClick }) => {
     // Determine color based on intensity
     const getRainfallColor = (mm) => {
         if (mm === 0) return '#cbd5e1'; // No rain
@@ -135,7 +135,15 @@ export const RainfallMarker = ({ record }) => {
     });
 
     return (
-        <Marker position={[record.latitude, record.longitude]} icon={customIcon}>
+        <Marker
+            position={[record.latitude, record.longitude]}
+            icon={customIcon}
+            eventHandlers={{
+                click: (e) => {
+                    onMarkerClick && onMarkerClick(record, e.latlng);
+                }
+            }}
+        >
             <Popup>
                 <div className="rainfall-popup">
                     <h3 style={{ margin: '0 0 8px 0', color: '#1e3c72', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>

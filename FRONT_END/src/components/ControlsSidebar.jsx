@@ -13,8 +13,8 @@ import {
     IconCalendar,
     IconSettings,
     IconNetwork
-} from './Icons';
-import api from '../services/api';
+} from './Common/Icons';
+import api from '../api';
 
 // Sub-components
 import AnalysisFilters from './Controls/AnalysisFilters';
@@ -56,6 +56,8 @@ const ControlsSidebar = ({
 
     const [apiDistricts, setApiDistricts] = useState([]);
     const [apiBlocks, setApiBlocks] = useState([]);
+    const [apiGPs, setApiGPs] = useState([]);
+    const [apiVillages, setApiVillages] = useState([]);
     const [rainfallData, setRainfallData] = useState([]);
 
     // Fetch districts on mount (for Rajasthan)
@@ -63,29 +65,18 @@ const ControlsSidebar = ({
         const fetchDistricts = async () => {
             try {
                 // First get Rajasthan state ID
-                const states = await api.location.getStates({ name: 'Rajasthan' });
+                const stateRes = await api.location.getStates({ name: 'Rajasthan' });
+                const states = stateRes.results || stateRes;
                 if (states && states.length > 0) {
                     const rajasthanId = states[0].id;
-                    const districtData = await api.location.getDistricts({ state: rajasthanId });
-                    setApiDistricts(districtData);
+                    const districtRes = await api.location.getDistricts({ state: rajasthanId });
+                    setApiDistricts(districtRes.results || districtRes);
                 }
             } catch (error) {
                 console.error("Error fetching districts:", error);
             }
         };
         fetchDistricts();
-
-        // Load rainfall data for resolving GPs and Villages
-        const loadRainfallData = async () => {
-            try {
-                const response = await fetch('/rainfall_data.json');
-                const data = await response.json();
-                setRainfallData(data);
-            } catch (err) {
-                console.error("Failed to load rainfall data for filtering:", err);
-            }
-        };
-        loadRainfallData();
     }, []);
 
     // Helper for Title Case
@@ -94,7 +85,7 @@ const ControlsSidebar = ({
         return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     };
 
-    // Fetch blocks when district changes
+    // Fetch blocks when district changes (Using API with direct DB query)
     useEffect(() => {
         const fetchBlocks = async () => {
             if (!filters.district) {
@@ -103,80 +94,94 @@ const ControlsSidebar = ({
             }
 
             try {
-                const district = apiDistricts.find(d => d.name.toUpperCase() === filters.district.toUpperCase());
-                if (district) {
-                    const blockData = await api.location.getBlocks({ district: district.id });
-                    setApiBlocks(blockData);
-                }
+                // Use new name-based filtering supported by backend
+                const blockRes = await api.location.getBlocks({ district_name: filters.district });
+                setApiBlocks(blockRes.results || blockRes);
             } catch (error) {
                 console.error("Error fetching blocks:", error);
+                setApiBlocks([]);
             }
         };
         fetchBlocks();
-    }, [filters.district, apiDistricts]);
+    }, [filters.district]);
+
+    // Fetch GPs when block changes (Using API with direct DB query)
+    useEffect(() => {
+        const fetchGPs = async () => {
+            if (!filters.block) {
+                setApiGPs([]);
+                return;
+            }
+
+            try {
+                const gpRes = await api.location.getGrampanchayats({ block_name: filters.block });
+                setApiGPs(gpRes.results || gpRes);
+            } catch (error) {
+                console.error("Error fetching GPs:", error);
+                setApiGPs([]);
+            }
+        };
+        fetchGPs();
+    }, [filters.block]);
+
+    // Fetch Villages when GP changes (Using API with direct DB query)
+    useEffect(() => {
+        const fetchVillages = async () => {
+            if (!filters.block) {
+                setApiVillages([]);
+                return;
+            }
+
+            try {
+                const params = {};
+                if (filters.gramPanchayat) {
+                    params.gp_name = filters.gramPanchayat;
+                } else if (filters.block) {
+                    params.block_name = filters.block;
+                }
+
+                if (params.gp_name || params.block_name) {
+                    const villageRes = await api.location.getVillages(params);
+                    setApiVillages(villageRes.results || villageRes);
+                }
+            } catch (error) {
+                console.error("Error fetching villages:", error);
+            }
+        };
+        fetchVillages();
+    }, [filters.gramPanchayat, filters.block]);
 
     // List of districts to show in dropdown
-    const memoDistricts = useMemo(() => {
-        if (blockBoundaryData && blockBoundaryData.features) {
-            const geoDistricts = blockBoundaryData.features
-                .map(f => f.properties.DIST_NAME || f.properties.District)
-                .filter(Boolean)
-                .map(d => toTitleCase(d));
-            return [...new Set(geoDistricts)].sort();
+    const availableDistricts = useMemo(() => {
+        if (apiDistricts && apiDistricts.length > 0) {
+            return [...new Set(apiDistricts.map(d => d.name))].sort();
         }
         return DISTRICTS;
-    }, [blockBoundaryData]);
+    }, [apiDistricts]);
 
     // List of blocks to show in dropdown
     const availableBlocks = useMemo(() => {
-        if (!blockBoundaryData || !filters.district) return [];
+        if (apiBlocks && apiBlocks.length > 0) {
+            return [...new Set(apiBlocks.map(b => b.name))].sort();
+        }
+        return [];
+    }, [apiBlocks]);
 
-        const geoBlocks = blockBoundaryData.features
-            .filter(f => {
-                const dName = (f.properties.DIST_NAME || f.properties.District || '');
-                return dName.toUpperCase() === filters.district.toUpperCase();
-            })
-            .map(f => f.properties.BLOCK_NAME || f.properties.Block)
-            .filter(Boolean)
-            .map(b => toTitleCase(b))
-            .sort();
-
-        return [...new Set(geoBlocks)];
-    }, [blockBoundaryData, filters.district]);
-
-    // List of GPs and Villages for Rainfall layer
+    // List of GPs to show in dropdown
     const availableGPs = useMemo(() => {
-        if (!filters.district || !filters.block || !rainfallData.length) return [];
+        if (apiGPs && apiGPs.length > 0) {
+            return [...new Set(apiGPs.map(g => g.name))].sort();
+        }
+        return [];
+    }, [apiGPs]);
 
-        const gps = rainfallData
-            .filter(d =>
-                (d.district || '').toUpperCase() === filters.district.toUpperCase() &&
-                (d.block || '').toUpperCase() === filters.block.toUpperCase()
-            )
-            .map(d => d.gram_panchayat || d.gramPanchayat)
-            .filter(Boolean);
-
-        return [...new Set(gps)].sort();
-    }, [filters.district, filters.block, rainfallData]);
-
+    // List of Villages to show in dropdown
     const availableVillages = useMemo(() => {
-        if (!filters.district || !filters.block || !rainfallData.length) return [];
-
-        const query = rainfallData.filter(d =>
-            (d.district || '').toUpperCase() === filters.district.toUpperCase() &&
-            (d.block || '').toUpperCase() === filters.block.toUpperCase()
-        );
-
-        const filtered = filters.gramPanchayat
-            ? query.filter(d => (d.gram_panchayat || d.gramPanchayat || '').toUpperCase() === filters.gramPanchayat.toUpperCase())
-            : query;
-
-        const villages = filtered
-            .map(d => d.village || d.village_name)
-            .filter(Boolean);
-
-        return [...new Set(villages)].sort();
-    }, [filters.district, filters.block, filters.gramPanchayat, rainfallData]);
+        if (apiVillages && apiVillages.length > 0) {
+            return [...new Set(apiVillages.map(v => v.name))].sort();
+        }
+        return [];
+    }, [apiVillages]);
 
     const handleFilterChange = (field, value) => {
         const newFilters = { ...filters, [field]: value };
@@ -357,7 +362,7 @@ const ControlsSidebar = ({
                             availableBlocks={availableBlocks}
                             availableGPs={availableGPs}
                             availableVillages={availableVillages}
-                            districts={memoDistricts}
+                            districts={availableDistricts}
                             section="location"
                         />
                     )}
@@ -369,7 +374,7 @@ const ControlsSidebar = ({
                             availableBlocks={availableBlocks}
                             availableGPs={availableGPs}
                             availableVillages={availableVillages}
-                            districts={memoDistricts}
+                            districts={availableDistricts}
                             section="layers"
                         />
                     )}
@@ -381,7 +386,7 @@ const ControlsSidebar = ({
                             availableBlocks={availableBlocks}
                             availableGPs={availableGPs}
                             availableVillages={availableVillages}
-                            districts={memoDistricts}
+                            districts={availableDistricts}
                             section="network"
                         />
                     )}
@@ -393,7 +398,7 @@ const ControlsSidebar = ({
                             availableBlocks={availableBlocks}
                             availableGPs={availableGPs}
                             availableVillages={availableVillages}
-                            districts={memoDistricts}
+                            districts={availableDistricts}
                             section="time"
                         />
                     )}

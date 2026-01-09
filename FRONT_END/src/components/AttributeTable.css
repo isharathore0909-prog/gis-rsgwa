@@ -5,12 +5,15 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.05);
-    z-index: 1000;
-    transition: var(--transition-smooth);
-    max-height: 320px;
-    height: 100%;
-    position: relative;
+    /* Position is handled by parent Grid layout (App.jsx) */
+    /* It will naturally sit at the bottom row */
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    z-index: 2000;
+    transition: none;
+    /* Remove transition for smooth dragging */
+    /* border-radius removed for full width */
+    border: none;
+    border-top: 1px solid var(--border-light);
 }
 
 .attribute-table-container.collapsed {
@@ -24,7 +27,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    cursor: pointer;
+    cursor: ns-resize;
     user-select: none;
     border-bottom: 2px solid transparent;
     transition: border-color 0.2s;
@@ -93,18 +96,22 @@
 .collapsible-content {
     transition: var(--transition-smooth);
     overflow: hidden;
-    max-height: 272px;
-    /* 320 - 48 */
+    /* Use flex to fill remaining space in parent */
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .collapsible-content.hidden {
-    max-height: 0;
+    display: none;
 }
 
 .table-wrapper {
     overflow: auto;
-    height: 272px;
-    /* Fixed height for scrollable area */
+    /* Fill the collapsible-content area */
+    flex: 1;
+    height: 100%;
     background: white;
 }
 

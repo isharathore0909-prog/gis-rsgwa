@@ -85,8 +85,9 @@ body {
     flex-direction: row;
     /* Remove fixed 100% to allow grid to control height */
     overflow: hidden;
-    min-height: 500px;
-    /* Ensure an initial decent height */
+    /* Allow shrinking below 500px if needed, but flex-grow will fill space */
+    flex: 1;
+    min-height: 0;
 }
 
 .workspace-bottom {
@@ -179,5 +180,57 @@ body {
 
     to {
         opacity: 1;
+    }
+}
+
+/* Global Loader Overlay */
+.global-loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.loader-content {
+    background: white;
+    padding: 24px 40px;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.loader-content p {
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--bg-muted);
+    border-top: 4px solid var(--secondary-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
     }
 }

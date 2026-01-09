@@ -6,7 +6,7 @@ class AquiferDataAdmin(admin.ModelAdmin):
     list_display = [
         'well_id',
         'village_name',
-        'district',
+        # 'district', # Disabled due to missing hierarchy
         'aquifer',
         'well_depth',
         'latest_measurement',
@@ -14,13 +14,12 @@ class AquiferDataAdmin(admin.ModelAdmin):
     ]
     list_filter = [
         'aquifer',
-        'village__grampanchayat__block__district__name',
+        # 'village__grampanchayat__block__district__name', # Removed: Relationships not available in unmanaged models
     ]
     search_fields = [
         'well_id',
-        'village__name',
+        'village__village_name', # Corrected field name
         'aquifer',
-        'village__grampanchayat__block__district__name',
     ]
     readonly_fields = ['created_at', 'updated_at']
     
@@ -77,12 +76,15 @@ class AquiferDataAdmin(admin.ModelAdmin):
     )
     
     def village_name(self, obj):
-        return obj.village.name
+        try:
+            return obj.village.village_name
+        except AttributeError:
+            return "N/A"
     village_name.short_description = 'Village'
     
-    def district(self, obj):
-        return obj.district
-    district.short_description = 'District'
+    # def district(self, obj):
+    #     return obj.district
+    # district.short_description = 'District'
     
     def latest_measurement(self, obj):
         """Show the most recent measurement"""

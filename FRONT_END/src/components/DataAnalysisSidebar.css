@@ -660,3 +660,25 @@
         transform: translateY(0);
     }
 }
+
+/* Source Badges */
+.source-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+.source-badge.db-source {
+    background-color: #d1fae5;
+    color: #047857;
+    border: 1px solid #059669;
+}
+
+.source-badge.static-source {
+    background-color: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+}

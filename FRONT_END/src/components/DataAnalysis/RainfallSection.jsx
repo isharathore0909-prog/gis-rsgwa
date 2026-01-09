@@ -8,6 +8,7 @@ import MiniStatusCard from './Common/MiniStatusCard';
 
 const RainfallSection = ({
     displayRegion,
+    analysisLevel,
     rainfallStats,
     rainfallPoints = [],
     viewType: propViewType = 'monthly'
@@ -17,6 +18,10 @@ const RainfallSection = ({
 
     const aggregatedData = useMemo(() => {
         if (!rainfallPoints || !Array.isArray(rainfallPoints) || rainfallPoints.length === 0) return [];
+
+        // Check if data is already aggregated by backend (contains 'name' and 'total' properties)
+        const isPreAggregated = rainfallPoints[0].name && rainfallPoints[0].total !== undefined && !rainfallPoints[0].date && !rainfallPoints[0].rainfall_mm;
+        if (isPreAggregated) return rainfallPoints;
 
         if (viewType === 'daily') {
             const grouped = rainfallPoints.reduce((acc, curr) => {
@@ -53,7 +58,7 @@ const RainfallSection = ({
         return [];
     }, [rainfallPoints, viewType]);
 
-    if (!rainfallStats || rainfallPoints.length === 0) {
+    if (propViewType === 'loading' || (!rainfallStats && rainfallPoints.length === 0)) {
         return (
             <div className="rainfall-grid animated-entry">
                 <AnalysisCard style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
@@ -69,7 +74,7 @@ const RainfallSection = ({
 
     return (
         <div className="rainfall-grid animated-entry">
-            <AnalysisCard title={`Rainfall Overview: ${displayRegion || 'All Stations'}`}>
+            <AnalysisCard title={`Rainfall Overview: ${analysisLevel === 'State' ? 'Statewide' : displayRegion}`}>
                 <div className="status-summary-grid">
                     <MiniStatusCard value={`${rainfallStats.total} mm`} label="Total Recorded" color="#2a9d8f" />
                     <MiniStatusCard value={`${rainfallStats.avg} mm`} label="Avg Reading" color="#457b9d" />
@@ -100,18 +105,29 @@ const RainfallSection = ({
             </AnalysisCard>
 
             <AnalysisCard title="Highest Recorded Sample">
-                <div className="aquifer-details-list">
-                    <div className="aquifer-detail-item" style={{ padding: '12px 0' }}>
-                        <div className="detail-header">
-                            <span className="dot" style={{ backgroundColor: '#ef4444' }}></span>
-                            <span className="name" style={{ fontWeight: 600 }}>{rainfallStats.maxVillage}</span>
+                {rainfallStats.maxVillage ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', padding: '10px', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Location</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }}></span>
+                                <span style={{ fontWeight: 600, color: '#1e293b' }}>{rainfallStats.maxVillage}</span>
+                            </div>
                         </div>
-                        <div className="detail-stats">
-                            <span className="area" style={{ color: '#ef4444' }}>{rainfallStats.max} <small>mm</small></span>
-                            <span className="percent">{rainfallStats.maxDate}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Amount</span>
+                            <span style={{ fontWeight: 700, color: '#ef4444', fontSize: '1.2rem' }}>
+                                {rainfallStats.max} <small style={{ color: '#94a3b8', fontSize: '0.8rem' }}>mm</small>
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Date</span>
+                            <span style={{ color: '#475569', fontSize: '0.95rem' }}>{rainfallStats.maxDate}</span>
                         </div>
                     </div>
-                </div>
+                ) : (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>N/A</div>
+                )}
             </AnalysisCard>
         </div>
     );

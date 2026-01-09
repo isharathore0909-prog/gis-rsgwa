@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { MapContainer, GeoJSON, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
+import { parseWKT } from '../utils/wktParser';
 import './MapView.css';
 
 // Data
@@ -19,7 +20,7 @@ import { getPolygonCentroid, getFeatureColor } from '../utils/mapUtils';
 import { IconMap, IconLayers } from './Icons';
 
 // API
-import api from '../services/api';
+import api from '../api';
 
 // Fix for default marker icon issue in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -44,9 +45,12 @@ const MapView = ({
     activeUrlLayers = [],
     blockBoundaryData,
     rajasthanData,
+    dynamicBoundaries,
+    currentLevel,
     rainfallPoints = [],
     initialShowLegend,
-    onAddToTable
+    onAddToTable,
+    onFiltersApply
 }) => {
     const mapRef = useRef(null);
     const geoJsonRef = useRef(null);
@@ -115,10 +119,28 @@ const MapView = ({
     useEffect(() => {
         if (!mapRef.current) return;
         const map = mapRef.current;
-        const observer = new ResizeObserver(() => map.invalidateSize());
-        const container = map.getContainer();
-        observer.observe(container);
-        return () => observer.disconnect();
+
+        // Debounce resize to prevent excessive updates during drag
+        let resizeTimeout;
+        const handleResize = () => {
+            if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
+            resizeTimeout = requestAnimationFrame(() => {
+                map.invalidateSize();
+            });
+        };
+
+        const observer = new ResizeObserver(handleResize);
+        // Observe the wrapper div, not just the leaflet container
+        const wrapper = map.getContainer().parentElement;
+        if (wrapper) observer.observe(wrapper);
+
+        // Also observe the leaflet container itself
+        observer.observe(map.getContainer());
+
+        return () => {
+            if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
+            observer.disconnect();
+        };
     }, []);
 
     // Color Palette
@@ -353,6 +375,89 @@ const MapView = ({
         }).filter(Boolean);
     }, [filters?.type, filters?.district, blockBoundaryData]);
 
+    // Validate and clean dynamicBoundaries to prevent GeoJSON crashes
+    const validatedBoundaries = useMemo(() => {
+        if (!dynamicBoundaries) return null;
+
+        try {
+            // Check if it's a valid FeatureCollection
+            if (dynamicBoundaries.type !== 'FeatureCollection' || !Array.isArray(dynamicBoundaries.features)) {
+                console.warn('MapView: dynamicBoundaries is not a valid FeatureCollection', dynamicBoundaries);
+                return null;
+            }
+
+            // Transform features if they have WKT geometry strings
+            const transformedFeatures = dynamicBoundaries.features.map(feature => {
+                if (feature && feature.geometry && typeof feature.geometry === 'string') {
+                    try {
+                        // Remove SRID prefix if present e.g. "SRID=4326;MULTIPOLYGON..."
+                        const wkt = feature.geometry.replace(/^SRID=\d+;/, '');
+                        const parsedGeom = parseWKT(wkt);
+                        if (parsedGeom) {
+                            return { ...feature, geometry: parsedGeom };
+                        }
+                    } catch (e) {
+                        console.error('MapView: Error parsing WKT geometry', e);
+                    }
+                }
+                return feature;
+            });
+
+            // Filter features to ensure they have valid geometry objects
+            const validFeatures = transformedFeatures.filter(feature => {
+                if (!feature || typeof feature !== 'object') return false;
+                if (feature.type !== 'Feature') return false;
+
+                const geometry = feature.geometry;
+                if (!geometry) return false;
+
+                // Check for required geometry fields
+                if (typeof geometry !== 'object' || !geometry.type || !geometry.coordinates) {
+                    console.warn('MapView: Invalid geometry found in feature', feature);
+                    return false;
+                }
+
+                // Basic type check
+                if (!['Point', 'LineString', 'Polygon', 'MultiPoint', 'MultiLineString', 'MultiPolygon', 'GeometryCollection'].includes(geometry.type)) {
+                    console.warn(`MapView: Unsupported geometry type: ${geometry.type}`);
+                    return false;
+                }
+
+                return true;
+            });
+
+            if (validFeatures.length === 0) return null;
+
+            return {
+                ...dynamicBoundaries,
+                features: validFeatures
+            };
+        } catch (error) {
+            console.error('MapView: Error validating GeoJSON data:', error);
+            return null;
+        }
+    }, [dynamicBoundaries]);
+
+    // Validate Rajasthan state boundary
+    const validatedRajasthanData = useMemo(() => {
+        if (!rajasthanData) return null;
+        try {
+            if (rajasthanData.type === 'Feature' || rajasthanData.type === 'FeatureCollection') return rajasthanData;
+            return null;
+        } catch (e) { return null; }
+    }, [rajasthanData]);
+
+    // Validate and clean block boundaries
+    const validatedBlockData = useMemo(() => {
+        if (!filteredBlockBoundaryData) return null;
+        try {
+            if (!filteredBlockBoundaryData.features) return null;
+            const valid = filteredBlockBoundaryData.features.filter(f => f && f.geometry && f.geometry.type && f.geometry.coordinates);
+            if (valid.length === 0) return null;
+            return { ...filteredBlockBoundaryData, features: valid };
+        } catch (e) { return null; }
+    }, [filteredBlockBoundaryData]);
+
     return (
         <div className="map-container">
             <MapContainer center={[26.9124, 75.7873]} zoom={7} style={{ height: '100%', width: '100%' }} zoomControl={false}>
@@ -378,28 +483,108 @@ const MapView = ({
                     />
                 )}
 
-                {rajasthanData && (
+                {validatedRajasthanData && (
                     <GeoJSON
-                        data={rajasthanData}
+                        data={validatedRajasthanData}
                         style={{
                             fillColor: '#64748b',
-                            fillOpacity: 0.1,
-                            color: '#475569',
-                            weight: 2,
-                            dashArray: '5, 5'
+                            fillOpacity: 0.05,
+                            color: '#1e293b',
+                            weight: 3,
+                            dashArray: '10, 10'
+                        }}
+                        interactive={false}
+                    />
+                )}
+
+                {/* Dynamic Hierarchy Boundaries (Drill-down) */}
+                {validatedBoundaries && (
+                    <GeoJSON
+                        key={`dynamic-drill-${validatedBoundaries.features.length}-${filters?.district}-${filters?.block}-${currentLevel}`}
+                        data={validatedBoundaries}
+                        style={(feature) => {
+                            const level = feature.properties.level || currentLevel;
+                            const isDistrict = level === 'district';
+                            const isBlock = level === 'block';
+
+                            return {
+                                fillColor: isDistrict ? '#3b82f6' : (isBlock ? '#10b981' : '#f59e0b'),
+                                fillOpacity: isDistrict ? 0.4 : 0.45,
+                                color: isDistrict ? '#172554' : (isBlock ? '#059669' : '#d97706'),
+                                weight: isDistrict ? 3.5 : 2,
+                                opacity: 1.0
+                            };
+                        }}
+                        onEachFeature={(feature, layer) => {
+                            const props = feature.properties;
+                            const name = props.name || props.BLOCK_NAME || props.DIST_NAME || props.v_name || 'Unknown';
+
+                            layer.on({
+                                mouseover: e => {
+                                    const l = e.target;
+                                    const level = feature.properties.level || currentLevel;
+                                    const isDist = level === 'district';
+                                    if (typeof l.setStyle === 'function') {
+                                        l.setStyle({
+                                            fillOpacity: 0.7,
+                                            weight: isDist ? 5 : 3.5,
+                                            color: isDist ? '#0c0a09' : '#047857'
+                                        });
+                                    }
+                                    if (typeof l.bringToFront === 'function') l.bringToFront();
+                                },
+                                mouseout: e => {
+                                    const l = e.target;
+                                    const level = feature.properties.level || currentLevel;
+                                    const isDist = level === 'district';
+                                    if (typeof l.setStyle === 'function') {
+                                        l.setStyle({
+                                            fillOpacity: isDist ? 0.4 : 0.45,
+                                            weight: isDist ? 3.5 : 2,
+                                            color: isDist ? '#172554' : '#059669'
+                                        });
+                                    }
+                                },
+                                click: e => {
+                                    // Identify current level and apply next filter
+                                    const currentFilters = { ...filters };
+
+                                    // Logic to determine what was clicked based on dynamicBoundaries source
+                                    // Usually properties will have clues or parent_id
+                                    // We'll use the current filters state to decide
+
+                                    if (!currentFilters.district) {
+                                        // Clicked a District
+                                        onFiltersApply({ ...currentFilters, district: name });
+                                    } else if (!currentFilters.block) {
+                                        // Clicked a Block
+                                        onFiltersApply({ ...currentFilters, block: name });
+                                    } else if (!currentFilters.gramPanchayat) {
+                                        // Clicked a GP
+                                        onFiltersApply({ ...currentFilters, gramPanchayat: name });
+                                    } else {
+                                        // Clicked a Village
+                                        onFiltersApply({ ...currentFilters, village: name });
+                                    }
+
+                                    // Fly to the clicked feature
+                                    const bounds = e.target.getBounds();
+                                    if (bounds.isValid()) {
+                                        mapRef.current.flyToBounds(bounds, { padding: [50, 50], duration: 1.2 });
+                                    }
+                                }
+                            });
+
+                            layer.bindPopup(`<strong>${name}</strong>`);
                         }}
                     />
                 )}
 
-
-
-
-
-                {showBlockBoundary && filteredBlockBoundaryData && (
+                {showBlockBoundary && validatedBlockData && (
                     <GeoJSON
-                        key={`geojson-${legendFeature}-${filters?.district || 'all'}-${filteredBlockBoundaryData.features.length}`}
+                        key={`geojson-${legendFeature}-${filters?.district || 'all'}-${validatedBlockData.features.length}`}
                         ref={geoJsonRef}
-                        data={filteredBlockBoundaryData}
+                        data={validatedBlockData}
                         style={(feature) => ({
                             fillColor: getFeatureColor(feature.properties[legendFeature], legendData),
                             weight: 1.5,

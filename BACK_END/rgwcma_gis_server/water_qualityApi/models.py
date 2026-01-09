@@ -44,6 +44,7 @@ class WaterQuality(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        db_table = 'water_qualityApi_waterquality'
         ordering = ['-meta_date']
         unique_together = ('well_id', 'meta_date')
         verbose_name = 'Water Quality Record'
@@ -55,24 +56,39 @@ class WaterQuality(models.Model):
     @property
     def state(self):
         """Get state from village hierarchy"""
-        return self.village.grampanchayat.block.district.state.name
+        try:
+            return self.village.grampanchayat.block.district.state.name
+        except AttributeError:
+            return "N/A"
 
     @property
     def district(self):
         """Get district from village hierarchy"""
-        return self.village.grampanchayat.block.district.name
+        try:
+            return self.village.grampanchayat.block.district.name
+        except AttributeError:
+            return "N/A"
 
     @property
     def block(self):
         """Get block from village hierarchy"""
-        return self.village.grampanchayat.block.name
+        try:
+            return self.village.grampanchayat.block.name
+        except AttributeError:
+            return "N/A"
 
     @property
     def grampanchayat(self):
         """Get grampanchayat from village hierarchy"""
-        return self.village.grampanchayat.name
+        try:
+            return self.village.grampanchayat.name
+        except AttributeError:
+            return "N/A"
 
     @property
     def village_name(self):
         """Get village name"""
-        return self.village.name
+        try:
+            return self.village.name
+        except AttributeError:
+            return "N/A"

@@ -36,7 +36,7 @@ Fetch full address details (District, Block, GP, Village) for a specific locatio
 Returns JSON object with address details.
 
 ```bash
-curl -X GET "http://localhost:8010/pincode/?lat=3338893.2686&lon= 400975.5764" \
+curl -X GET "http://gpspl.geoplanetsolution.in/pincode/?lat=3338893.2686&lon= 400975.5764" \
      -H "X-Auth-Key: <YOUR_API_KEY>"
 ```
 
@@ -44,7 +44,7 @@ curl -X GET "http://localhost:8010/pincode/?lat=3338893.2686&lon= 400975.5764" \
 Returns GeoJSON Feature with the polygon boundary of the village/location.
 
 ```bash
-curl -X GET "http://localhost:8010/pincode/?lat=3338893.2686&lon= 400975.5764&boundary=true" \
+curl -X GET "http://gpspl.geoplanetsolution.in/pincode/?lat=3338893.2686&lon= 400975.5764&boundary=true" \
      -H "X-Auth-Key: <YOUR_API_KEY>"
 ```
 
@@ -65,25 +65,25 @@ Fetch the boundary geometry for a specific administrative unit (District, Block,
 
 **By Village Code:**
 ```bash
-curl -X GET "http://localhost:8000/boundary-by-code/?village_code=123456" \
+curl -X GET "http://gpspl.geoplanetsolution.in/boundary-by-code/?village_code=123456" \
      -H "X-Auth-Key: <YOUR_API_KEY>"
 ```
 
 **By GP Code:**
 ```bash
-curl -X GET "http://localhost:8000/boundary-by-code/?gpcode=987654" \
+curl -X GET "http://gpspl.geoplanetsolution.in/boundary-by-code/?gpcode=987654" \
      -H "X-Auth-Key: <YOUR_API_KEY>"
 ```
 
 **By Block Code:**
 ```bash
-curl -X GET "http://localhost:8000/boundary-by-code/?block_code=BLOCK123" \
+curl -X GET "http://gpspl.geoplanetsolution.in/boundary-by-code/?block_code=BLOCK123" \
      -H "X-Auth-Key: <YOUR_API_KEY>"
 ```
 
 **By District Code:**
 ```bash
-curl -X GET "http://localhost:8000/boundary-by-code/?district_code=DIST01" \
+curl -X GET "http://gpspl.geoplanetsolution.in/boundary-by-code/?district_code=DIST01" \
      -H "X-Auth-Key: <YOUR_API_KEY>"
 ```
 
@@ -102,7 +102,7 @@ Check multiple coordinates at once to find their containing polygon/address.
 **Endpoint:** `POST /mpinp/`
 
 ```bash
-curl -X POST "http://localhost:8000/mpinp/" \
+curl -X POST "http://gpspl.geoplanetsolution.in/mpinp/" \
      -H "X-Auth-Key: <YOUR_API_KEY>" \
      -H "Content-Type: application/json" \
      -d '{
@@ -120,7 +120,7 @@ curl -X POST "http://localhost:8000/mpinp/" \
 **Endpoint:** `POST /pincode/`
 
 ```bash
-curl -X POST "http://localhost:8000/pincode/" \
+curl -X POST "http://gpspl.geoplanetsolution.in/pincode/" \
      -H "X-Auth-Key: <YOUR_API_KEY>" \
      -H "Content-Type: application/json" \
      -d '[
@@ -141,11 +141,3 @@ curl -X POST "http://localhost:8000/pincode/" \
            }
          ]'
 ```
-POSTGRES_DB=gisdb
-POSTGRES_USER=shubham
-POSTGRES_PASSWORD=Shu@19999
-POSTGRES_HOST=72.60.192.17
-POSTGRES_PORT=5432
-
-#db_for_api_location
-@15766892101811

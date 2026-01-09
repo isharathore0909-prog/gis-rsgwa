@@ -1,6 +1,8 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 const api = {
+    baseURL: BASE_URL, // Export baseURL for use in other services
+
     getToken() {
         return localStorage.getItem('access_token');
     },
@@ -45,16 +47,31 @@ const api = {
         return response.json();
     },
 
-    async get(endpoint, params = {}) {
+    async get(endpoint, params = {}, options = {}) {
         const url = new URL(`${BASE_URL}${endpoint}`);
-        Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+        Object.keys(params).forEach(key => {
+            if (params[key] !== undefined && params[key] !== null) {
+                url.searchParams.append(key, params[key]);
+            }
+        });
 
-        const response = await fetch(url, {
-            headers: this.getToken() ? { 'Authorization': `Bearer ${this.getToken()}` } : {}
+        const token = this.getToken();
+        const headers = {
+            ...options.headers,
+        };
+
+        if (token && !headers['Authorization'] && !headers['X-Auth-Key']) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(url.toString(), {
+            ...options,
+            headers,
         });
 
         if (!response.ok) {
-            throw new Error(`API error: ${response.statusText}`);
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || `API error: ${response.statusText}`);
         }
         return response.json();
     },
@@ -79,6 +96,26 @@ const api = {
         getDistricts: (params) => api.get('/location/districts/', params),
         getBlocks: (params) => api.get('/location/blocks/', params),
         getVillages: (params) => api.get('/location/villages/', params),
+        getGrampanchayats: (params) => api.get('/location/grampanchayats/', params),
+
+        // Location codes
+        getLocationCodes: (params) => api.get('/location/location-codes/', params),
+
+        // New methods for boundaries
+        getBoundaryByCode: (params, apiKey) => api.get('/location/boundary-by-code/', params, {
+            headers: apiKey ? { 'X-Auth-Key': apiKey } : {}
+        }),
+        getBoundaryCollection: (params, apiKey) => api.get('/location/boundary-collection/', params, {
+            headers: apiKey ? { 'X-Auth-Key': apiKey } : {}
+        }),
+        getAddressByLatLon: (params, apiKey) => api.get('/location/pincode/', params, {
+            headers: apiKey ? { 'X-Auth-Key': apiKey } : {}
+        }),
+        bulkUpdateBoundaries: (data, apiKey) => api.request('/location/pincode/', {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: apiKey ? { 'X-Auth-Key': apiKey } : {}
+        }),
     },
 
     // Rainfall API helpers

@@ -37,7 +37,7 @@ import {
     getParameterColor
 } from '../data/blockWaterQualityData';
 
-import api from '../services/api';
+import api from '../api';
 
 /**
  * DataAnalysisSidebar Component
@@ -102,7 +102,7 @@ const DataAnalysisSidebar = ({
             : blockData.features;
 
         features.forEach(f => {
-            const status = (f.properties.GWDL || f.properties.CATEGORY)?.trim().toLowerCase();
+            const status = (f.properties.Category || f.properties.GWDL || f.properties.CATEGORY)?.trim().toLowerCase();
             if (counts.hasOwnProperty(status)) {
                 counts[status]++;
             }
@@ -222,14 +222,14 @@ const DataAnalysisSidebar = ({
     // =================================================================================
     // 3. Water Quality Data (From Database)
     // =================================================================================
-    const [waterQualityRecords, setWaterQualityRecords] = useState([]);
+    const [waterQualityStats, setWaterQualityStats] = useState(null);
     const [waterQualityLoading, setWaterQualityLoading] = useState(false);
     const [waterQualityError, setWaterQualityError] = useState(null);
 
     // Fetch water quality data from database when filters change
     useEffect(() => {
         if (!isWaterQuality || !displayRegion) {
-            setWaterQualityRecords([]);
+            setWaterQualityStats(null);
             return;
         }
 
@@ -245,12 +245,19 @@ const DataAnalysisSidebar = ({
                     params.block = displayBlock;
                 }
 
-                const data = await api.waterQuality.getRecords(params);
-                setWaterQualityRecords(data.results || data || []);
+                // Use statistics endpoint for aggregated data
+                const data = await api.waterQuality.getStatistics(params);
+                console.log('Water Quality Sidebar Stats:', {
+                    params,
+                    data,
+                    summary: data.summary,
+                    hasRecords: data.summary?.total_records > 0
+                });
+                setWaterQualityStats(data.summary || null);
             } catch (error) {
                 console.error('Error fetching water quality data:', error);
                 setWaterQualityError(error.message);
-                setWaterQualityRecords([]);
+                setWaterQualityStats(null);
             } finally {
                 setWaterQualityLoading(false);
             }
@@ -281,48 +288,33 @@ const DataAnalysisSidebar = ({
             };
         }
 
-        // If we have database records, use them (Aggregation)
-        if (isWaterQuality && waterQualityRecords.length > 0) {
-            // Calculate average values for the selected region/block
-            const avgData = waterQualityRecords.reduce((acc, record) => {
-                acc.ec += record.ec || 0;
-                acc.fluoride += record.fluoride || 0;
-                acc.nitrate += record.nitrate || 0;
-                acc.tds += record.tds || 0;
-                acc.ph += record.ph || 0;
-                acc.hardness += record.hardness || 0;
-                acc.alkalinity += record.alkalinity || 0;
-                acc.count++;
-                return acc;
-            }, { ec: 0, fluoride: 0, nitrate: 0, tds: 0, ph: 0, hardness: 0, alkalinity: 0, count: 0 });
+        // If we have database statistics, use them
+        if (isWaterQuality && waterQualityStats && waterQualityStats.total_records > 0) {
+            const blockData = {
+                district: displayRegion,
+                block: displayBlock || displayRegion,
+                ec: waterQualityStats.avg_ec || 0,
+                fluoride: waterQualityStats.avg_fluoride || 0,
+                nitrate: waterQualityStats.avg_nitrate || 0,
+                tds: waterQualityStats.avg_tds || 0,
+                ph: waterQualityStats.avg_ph || 0,
+                hardness: waterQualityStats.avg_hardness || 0,
+                alkalinity: waterQualityStats.avg_alkalinity || 0,
+                chloride: 0, // Not available in database
+                iron: 0, // Not available in database
+                arsenic: 0, // Not available in database
+                uranium: 0, // Not available in database
+            };
 
-            if (avgData.count > 0) {
-                const blockData = {
-                    district: displayRegion,
-                    block: displayBlock || displayRegion,
-                    ec: avgData.ec / avgData.count,
-                    fluoride: avgData.fluoride / avgData.count,
-                    nitrate: avgData.nitrate / avgData.count,
-                    tds: avgData.tds / avgData.count,
-                    ph: avgData.ph / avgData.count,
-                    hardness: avgData.hardness / avgData.count,
-                    alkalinity: avgData.alkalinity / avgData.count,
-                    chloride: 0, // Not available in database
-                    iron: 0, // Not available in database
-                    arsenic: 0, // Not available in database
-                    uranium: 0, // Not available in database
-                };
-
-                return {
-                    ...blockData,
-                    status: checkWaterQualityStatus(blockData),
-                    wqi: calculateWQI(blockData)
-                };
-            }
-
-            // No data found in database for this region
-            return { isNoData: true, block: displayBlock || displayRegion };
+            return {
+                ...blockData,
+                status: checkWaterQualityStatus(blockData),
+                wqi: calculateWQI(blockData)
+            };
         }
+
+        // No data found in database for this region? Fallback to static data below.
+        // The UI will show 'Static Data' badge if correct prop is passed.
 
         // Fallback to static data if not in water quality mode or no database records
         // Handle District Name Aliases (e.g., Ganganagar)
@@ -342,12 +334,58 @@ const DataAnalysisSidebar = ({
         } else {
             return getDistrictWaterQuality(normalizedRegion);
         }
-    }, [displayRegion, displayBlock, isWaterQuality, waterQualityRecords, neighbor]);
+    }, [displayRegion, displayBlock, isWaterQuality, waterQualityStats, neighbor]);
 
     // =================================================================================
-    // 4. Data Processing (Rainfall - From Database)
+    // 4. Rainfall Data (From Database)
     // =================================================================================
+    const [rainfallStatsData, setRainfallStatsData] = useState(null);
+    const [rainfallSummaryData, setRainfallSummaryData] = useState([]);
+    const [rainfallLoading, setRainfallLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isRainfall || !displayRegion) {
+            setRainfallStatsData(null);
+            setRainfallSummaryData([]);
+            return;
+        }
+
+        const fetchRainfallStats = async () => {
+            setRainfallLoading(true);
+            try {
+                const params = { district: displayRegion };
+                if (displayBlock) params.block = displayBlock;
+                if (globalFilters?.gramPanchayat) params.gram_panchayat = globalFilters.gramPanchayat;
+                if (globalFilters?.village) params.village = globalFilters.village;
+                if (globalFilters?.dataRangeStart) params.start_date = globalFilters.dataRangeStart;
+                if (globalFilters?.dataRangeEnd) params.end_date = globalFilters.dataRangeEnd;
+
+                // 1. Fetch Statistics (Total, Avg, Max)
+                const stats = await api.rainfall.getStatistics(params);
+                setRainfallStatsData(stats);
+
+                // 2. Fetch Summary (Chart Data)
+                const summaryParams = { ...params, timestep: globalFilters?.timestep || 'daily' };
+                const summary = await api.rainfall.getSummary(summaryParams);
+                setRainfallSummaryData(summary);
+
+            } catch (error) {
+                console.error('Error fetching rainfall stats:', error);
+            } finally {
+                setRainfallLoading(false);
+            }
+        };
+
+        fetchRainfallStats();
+    }, [isRainfall, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, globalFilters?.dataRangeStart, globalFilters?.dataRangeEnd, globalFilters?.timestep]);
+
+    // Legacy fallback processing (only if backend stats fail)
     const rainfallStats = useMemo(() => {
+        if (rainfallStatsData) return {
+            ...rainfallStatsData,
+            chartData: rainfallSummaryData
+        };
+
         if (!isRainfall || !rainfallPoints.length) return null;
 
         const getRain = (r) => r.rainfall_mm || r.rainfall_in_mm || 0;
@@ -372,7 +410,7 @@ const DataAnalysisSidebar = ({
             total: total.toFixed(2),
             avg: avg.toFixed(2),
             max: getRain(maxRecord),
-            maxVillage: maxRecord.village || maxRecord.village_name,
+            maxVillage: maxRecord.village_name || maxRecord.village,
             maxDate: getDate(maxRecord),
             count: rainfallPoints.length,
             chartData: dailyChartData
@@ -380,24 +418,40 @@ const DataAnalysisSidebar = ({
     }, [isRainfall, rainfallPoints]);
 
     // =================================================================================
-    // 5. Component Render
+    // 5. Analysis Context Helper
+    // =================================================================================
+    const getAnalysisContext = () => {
+        if (globalFilters?.village) return { level: 'Village', name: globalFilters.village };
+        if (globalFilters?.gramPanchayat) return { level: 'Gram Panchayat', name: globalFilters.gramPanchayat };
+        if (globalFilters?.block) return { level: 'Block', name: globalFilters.block };
+        if (globalFilters?.district) return { level: 'District', name: globalFilters.district };
+        return { level: 'State', name: 'Rajasthan' };
+    };
+
+    const { level: analysisLevel, name: analysisName } = getAnalysisContext();
+
+    // =================================================================================
+    // 6. Component Render
     // =================================================================================
     return (
         <aside className={`data-analysis-sidebar ${isControlsSidebarCollapsed ? 'expanded-layout' : ''}`}>
             <div className="sidebar-content">
 
                 <AnalysisHeader
-                    displayRegion={displayRegion}
+                    displayRegion={analysisName}
+                    analysisLevel={analysisLevel}
                     isRainfall={isRainfall}
                     selectedLayer={globalFilters?.type}
                 />
 
                 {isRainfall && (
                     <RainfallSection
-                        displayRegion={displayRegion}
+                        displayRegion={analysisName}
+                        analysisLevel={analysisLevel}
                         rainfallStats={rainfallStats}
-                        rainfallPoints={rainfallPoints}
+                        rainfallPoints={rainfallSummaryData}
                         viewType={globalFilters?.timestep}
+                        isLoading={rainfallLoading}
                     />
                 )}
 
@@ -408,6 +462,7 @@ const DataAnalysisSidebar = ({
                         blockWaterQualityData={blockWaterQualityData}
                         qualityData={qualityData}
                         isControlsSidebarCollapsed={isControlsSidebarCollapsed}
+                        isDatabaseData={waterQualityStats?.total_records > 0}
                     />
                 )}
 
@@ -429,6 +484,14 @@ const DataAnalysisSidebar = ({
                         displayRegion={displayRegion}
                         displayBlock={displayBlock}
                     />
+                )}
+                {/* Debug Info */}
+                {import.meta.env.DEV && (
+                    <div style={{ fontSize: '10px', color: '#999', padding: '10px' }}>
+                        Type: {globalFilters?.type} | Region: {displayRegion} | Block: {displayBlock}<br />
+                        DB Stats: {waterQualityStats ? `${waterQualityStats.total_records} records` : 'Loading/Null'}<br />
+                        Using DB: {waterQualityStats?.total_records > 0 ? 'Yes' : 'No'}
+                    </div>
                 )}
             </div>
         </aside>

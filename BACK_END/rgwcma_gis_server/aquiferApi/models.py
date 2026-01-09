@@ -96,30 +96,35 @@ class AquiferData(models.Model):
         return f"{self.well_id} - {self.village.name}"
 
     # Properties to access location hierarchy
+    # Properties to access location hierarchy
     @property
     def state(self):
         """Get state from village hierarchy"""
-        return self.village.grampanchayat.block.district.state.name
+        return None # Hierarchy unreliable without spatial join of unmanaged models
+        # return self.village.grampanchayat.block.district.state.name
 
     @property
     def district(self):
         """Get district from village hierarchy"""
-        return self.village.grampanchayat.block.district.name
+        return None # Hierarchy unreliable
+        # return self.village.grampanchayat.block.district.name
 
     @property
     def block(self):
         """Get block from village hierarchy"""
-        return self.village.grampanchayat.block.name
+        return None # Hierarchy unreliable
+        # return self.village.grampanchayat.block.name
 
     @property
     def grampanchayat(self):
         """Get grampanchayat from village hierarchy"""
-        return self.village.grampanchayat.name
+        return None # Hierarchy unreliable
+        # return self.village.grampanchayat.name
 
     @property
     def village_name(self):
         """Get village name"""
-        return self.village.name
+        return self.village.village_name
     
     def get_year_data(self, year):
         """Get pre and post monsoon data for a specific year"""

@@ -12,7 +12,8 @@ const WaterQualitySection = ({
     selectedBlock,
     blockWaterQualityData,
     qualityData,
-    isControlsSidebarCollapsed
+    isControlsSidebarCollapsed,
+    isDatabaseData
 }) => {
     if (!displayRegion) {
         return (
@@ -36,6 +37,11 @@ const WaterQualitySection = ({
                         Water Quality Analysis: {displayRegion}
                         {selectedBlock && ` - ${selectedBlock}`}
                     </h3>
+                    {isDatabaseData !== undefined && (
+                        <span className={`source-badge ${isDatabaseData ? 'db-source' : 'static-source'}`}>
+                            {isDatabaseData ? 'Database' : 'Static Data'}
+                        </span>
+                    )}
                 </div>
             </div>
 

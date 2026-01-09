@@ -1,10 +1,16 @@
 import React from 'react';
 import { IconChart } from '../Icons';
 
-const AnalysisHeader = ({ displayRegion, isRainfall, selectedLayer, subtitle }) => {
-    // Detect if we are looking at a block or district
-    const isBlock = displayRegion?.toLowerCase().includes('block');
-    const label = isBlock ? 'Block Analysis:' : 'District Analysis:';
+const AnalysisHeader = ({ displayRegion, analysisLevel, isRainfall, selectedLayer, subtitle }) => {
+    // Generate label based on analysis level
+    let label = 'Analysis:';
+    if (analysisLevel) {
+        label = analysisLevel === 'State' ? 'State Overview:' : `${analysisLevel} Analysis:`;
+    } else {
+        // Fallback checks
+        const isBlock = displayRegion?.toLowerCase().includes('block');
+        label = isBlock ? 'Block Analysis:' : 'District Analysis:';
+    }
 
     return (
         <div className="sidebar-header-section">

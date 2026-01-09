@@ -6,7 +6,7 @@ class WaterQualityAdmin(admin.ModelAdmin):
     list_display = [
         'well_id', 
         'village_name', 
-        'district', 
+        # 'district', # Disabled due to missing hierarchy
         'meta_date', 
         'type_of_well',
         'ph', 
@@ -16,12 +16,12 @@ class WaterQualityAdmin(admin.ModelAdmin):
     list_filter = [
         'type_of_well',
         'meta_date',
-        'village__grampanchayat__block__district__name',
+        # 'village__grampanchayat__block__district__name', # Removed
     ]
     search_fields = [
         'well_id',
-        'village__name',
-        'village__grampanchayat__block__district__name',
+        'village__village_name',
+        # 'village__grampanchayat__block__district__name', # Removed
     ]
     readonly_fields = ['created_at', 'updated_at']
     
@@ -42,9 +42,12 @@ class WaterQualityAdmin(admin.ModelAdmin):
     )
     
     def village_name(self, obj):
-        return obj.village.name
+        try:
+            return obj.village.village_name
+        except AttributeError:
+            return "N/A"
     village_name.short_description = 'Village'
     
-    def district(self, obj):
-        return obj.district
-    district.short_description = 'District'
+    # def district(self, obj):
+    #     return obj.district
+    # district.short_description = 'District'

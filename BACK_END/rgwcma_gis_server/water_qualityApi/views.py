@@ -104,6 +104,12 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
         """
         queryset = super().get_queryset()
         
+        # Only use select_related for details/list, not for aggregates or statistics
+        if hasattr(self, 'action') and self.action in ['list', 'retrieve']:
+            queryset = queryset.select_related(
+                'village__grampanchayat__block__district__state'
+            )
+        
         # Location hierarchy filters
         location_filters = {
             'state': 'village__grampanchayat__block__district__state__name__iexact',
@@ -172,7 +178,10 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
         Returns:
             Response: JSON containing summary statistics and distributions
         """
+        # Get basic queryset WITHOUT select_related for performance
         queryset = self.get_queryset()
+        if hasattr(queryset, 'select_related'):
+            queryset = queryset.select_related(None) 
         
         # Aggregate statistics
         stats = queryset.aggregate(
