@@ -12,7 +12,8 @@ const RainfallSection = ({
     rainfallStats,
     rainfallPoints = [],
     viewType: propViewType = 'monthly',
-    isExpanded
+    isExpanded,
+    isLoading
 }) => {
     // Normalize viewType to lowercase (e.g., 'Daily' -> 'daily')
     const viewType = propViewType.toLowerCase();
@@ -62,6 +63,19 @@ const RainfallSection = ({
         return [];
     }, [rainfallPoints, viewType]);
 
+    if (isLoading) {
+        return (
+            <div className="rainfall-grid animated-entry">
+                <AnalysisCard style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '1rem' }} className="spinner"></div>
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+                        Loading rainfall data...
+                    </p>
+                </AnalysisCard>
+            </div>
+        );
+    }
+
     if (propViewType === 'loading' || (!rainfallStats && rainfallPoints.length === 0)) {
         return (
             <div className="rainfall-grid animated-entry">
@@ -78,22 +92,26 @@ const RainfallSection = ({
 
     return (
         <div className="rainfall-grid animated-entry">
-            <AnalysisCard title={`Rainfall Overview: ${analysisLevel === 'State' ? 'Statewide' : displayRegion}`}>
+            <AnalysisCard title={
+                rainfallStats?.isNearbyData
+                    ? `Rainfall Overview: Nearby Data (${rainfallStats.radius_km}km radius)`
+                    : `Rainfall Overview: ${analysisLevel === 'State' ? 'Statewide' : displayRegion}`
+            }>
                 <div className="status-summary-grid">
                     {/* For Statewide/Regionwide view (no specific block), show Average Rainfall (of stations) instead of Sum which is meaningless */}
                     {(analysisLevel === 'State' || displayRegion === 'Rajasthan' || displayRegion === 'Statewide') ? (
                         <MiniStatusCard
-                            value={`${rainfallStats.avg_station_total || rainfallStats.avg} mm`}
+                            value={`${Number(rainfallStats?.avg_station_total ?? rainfallStats?.avg ?? 0).toFixed(2)} mm`}
                             label="Average Rainfall"
                             color="#2a9d8f"
                         />
                     ) : (
-                        <MiniStatusCard value={`${rainfallStats.total} mm`} label="Total Recorded" color="#2a9d8f" />
+                        <MiniStatusCard value={`${Number(rainfallStats?.total ?? 0).toFixed(2)} mm`} label="Total Recorded" color="#2a9d8f" />
                     )}
 
-                    <MiniStatusCard value={`${rainfallStats.avg} mm`} label="Avg Reading" color="#457b9d" />
-                    <MiniStatusCard value={`${rainfallStats.count}`} label="Total Records" color="#6366f1" />
-                    <MiniStatusCard value={`${rainfallStats.max} mm`} label="Highest Record" color="#f4a261" />
+                    <MiniStatusCard value={`${Number(rainfallStats?.avg ?? 0).toFixed(2)} mm`} label="Avg Reading" color="#457b9d" />
+                    <MiniStatusCard value={`${rainfallStats?.count ?? 0}`} label="Total Records" color="#6366f1" />
+                    <MiniStatusCard value={`${Number(rainfallStats?.max ?? 0).toFixed(2)} mm`} label="Highest Record" color="#f4a261" />
                 </div>
             </AnalysisCard>
 
@@ -139,7 +157,7 @@ const RainfallSection = ({
                                     lineHeight: '1',
                                     letterSpacing: '-1px'
                                 }}>
-                                    {rainfallStats.max}
+                                    {Number(rainfallStats?.max ?? 0).toFixed(1)}
                                 </span>
                                 <span style={{
                                     fontSize: '1rem',

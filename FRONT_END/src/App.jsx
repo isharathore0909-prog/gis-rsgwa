@@ -474,10 +474,18 @@ function App() {
                     type: 'Feature',
                     id: p.id || `rain-${idx}`,
                     properties: {
-                        ...p,
-                        'Village Name': p.village_name || p.village,
-                        'Rainfall (mm)': p.rainfall_mm,
-                        'Date': p.date
+                        'ID': p.id,
+                        'Date': p.date,
+                        'Rainfall (mm)': p.rainfall_mm ? Number(p.rainfall_mm).toFixed(2) : '0.00',
+                        'Gauge Type': p.gauge_type || 'manual',
+                        'Village': p.village_name || p.village || '-',
+                        'Gram Panchayat': p.gram_panchayat_name || p.gram_panchayat || '-',
+                        'Block': p.block_name || p.block || '-',
+                        'District': p.district_name || p.district || '-',
+                        'Latitude': p.latitude ? Number(p.latitude).toFixed(6) : '-',
+                        'Longitude': p.longitude ? Number(p.longitude).toFixed(6) : '-',
+                        'Created At': p.created_at ? new Date(p.created_at).toLocaleDateString() : '-',
+                        'Updated At': p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '-'
                     },
                     geometry: {
                         type: 'Point',

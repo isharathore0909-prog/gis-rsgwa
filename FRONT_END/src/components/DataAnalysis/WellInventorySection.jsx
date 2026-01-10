@@ -34,18 +34,17 @@ const WellInventorySection = ({
     analysisLevel,
     globalFilters,
     selectedWell,
+    clickedLocation,
     isExpanded
 }) => {
     const [loading, setLoading] = useState(false);
     const [listData, setListData] = useState([]); // Data for aggregation
+    const [nearbyData, setNearbyData] = useState(null);
+    const [nearbyLoading, setNearbyLoading] = useState(false);
     const [error, setError] = useState(null);
 
     // Fetch List Data ONLY if not already loaded or if filters changed
     useEffect(() => {
-        // If we have a selected well, we don't necessarily need to reload listData unless it's empty
-        // But if filters change, we MUST reload listData
-        // We removed !displayRegion check to allow global stats
-
         const fetchData = async () => {
             setLoading(true);
             setError(null);
@@ -76,8 +75,42 @@ const WellInventorySection = ({
         fetchData();
     }, [displayRegion, displayBlock, globalFilters]);
 
+    // Fetch Nearby Data when location is clicked
+    useEffect(() => {
+        if (!clickedLocation || selectedWell) {
+            setNearbyData(null);
+            return;
+        }
+
+        const fetchNearbyData = async () => {
+            setNearbyLoading(true);
+            try {
+                const response = await api.aquifer.getNearby({
+                    latitude: clickedLocation.lat,
+                    longitude: clickedLocation.lng,
+                    radius: 0.1 // ~10km
+                });
+
+                console.log("WellInventorySection: Nearby Data:", response);
+                if (response && response.averages) {
+                    setNearbyData(response);
+                } else {
+                    setNearbyData(null);
+                }
+            } catch (err) {
+                console.error("Error fetching nearby aquifer data:", err);
+                setNearbyData(null);
+            } finally {
+                setNearbyLoading(false);
+            }
+        };
+
+        fetchNearbyData();
+    }, [clickedLocation, selectedWell]);
+
     // Prepare Aggregated Chart Data (Average Water Levels)
     const aggregatedChartData = useMemo(() => {
+        // ... (existing aggregation logic)
         if (!listData || listData.length === 0) return [];
 
         const years = Array.from({ length: 10 }, (_, i) => 2015 + i);
@@ -109,6 +142,18 @@ const WellInventorySection = ({
         });
     }, [listData]);
 
+    // Prepare Nearby Chart Data
+    const nearbyChartData = useMemo(() => {
+        if (!nearbyData || !nearbyData.averages) return [];
+
+        const years = Array.from({ length: 10 }, (_, i) => 2015 + i);
+        return years.map(year => ({
+            year: year.toString(),
+            'Pre-Monsoon': nearbyData.averages[year]?.pre?.toFixed(2) || null,
+            'Post-Monsoon': nearbyData.averages[year]?.pst?.toFixed(2) || null
+        }));
+    }, [nearbyData]);
+
     // Prepare Aquifer Distribution Data
     const aquiferDistribution = useMemo(() => {
         if (!listData || listData.length === 0) return [];
@@ -129,7 +174,7 @@ const WellInventorySection = ({
 
     // Render Selected Well View
     if (selectedWell) {
-        // ... (Same as before)
+        // ... (existing selected well view)
         const chartData = (() => {
             const years = Array.from({ length: 10 }, (_, i) => 2015 + i);
             return years.map(year => ({
@@ -217,7 +262,59 @@ const WellInventorySection = ({
         );
     }
 
-    if (loading) return <div className="well-inventory-loading">Loading specific area data...</div>;
+    // Render Nearby estimation view
+    if (nearbyData) {
+        return (
+            <div className="well-inventory-section detailed-view nearby-view">
+                <div className="well-profile-card nearby-profile-card">
+                    <div className="profile-header">
+                        <div className="profile-icon">📍</div>
+                        <div className="profile-info">
+                            <h4>Nearby Estimation</h4>
+                            <p>Lat: {clickedLocation.lat.toFixed(4)}, Lon: {clickedLocation.lng.toFixed(4)}</p>
+                        </div>
+                    </div>
+
+                    <div className="profile-stats-grid">
+                        <div className="stat-item">
+                            <label>Wells in Radius</label>
+                            <strong>{nearbyData.count}</strong>
+                        </div>
+                        <div className="stat-item">
+                            <label>Radius</label>
+                            <strong>~10 km</strong>
+                        </div>
+                        <div className="stat-item">
+                            <label>Data Type</label>
+                            <strong>Spatial Average</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="well-chart-container" style={{ height: isExpanded ? '400px' : '300px' }}>
+                    <h5>Estimated Water Level (Avg of {nearbyData.count} Wells)</h5>
+                    <div className="chart-wrapper">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={nearbyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                <YAxis reversed={true} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+                                <Tooltip
+                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.85rem' }}
+                                    formatter={(value) => [`${value} m`, 'Avg Depth']}
+                                />
+                                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
+                                <Line name="Pre-Monsoon (Avg)" type="monotone" dataKey="Pre-Monsoon" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                                <Line name="Post-Monsoon (Avg)" type="monotone" dataKey="Post-Monsoon" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (loading || nearbyLoading) return <div className="well-inventory-loading">Loading specific area data...</div>;
     if (error) return <div className="well-inventory-error">{error}</div>;
 
     // Render Aggregated Dashboard (Default State)

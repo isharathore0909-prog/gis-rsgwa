@@ -13,6 +13,7 @@ class RainfallSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'village', 'village_name', 'gram_panchayat_name', 
             'block_name', 'district_name', 'gauge_type', 
-            'rainfall_mm', 'date', 'latitude', 'longitude'
+            'rainfall_mm', 'date', 'latitude', 'longitude',
+            'created_at', 'updated_at'
         ]
 

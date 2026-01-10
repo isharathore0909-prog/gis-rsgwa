@@ -200,6 +200,10 @@ class BackendAPIClient {
         return this.get(BACKEND_API.ENDPOINTS.RAINFALL_SUMMARY, params, true);
     }
 
+    async getRainfallNearby(params = {}) {
+        return this.get(BACKEND_API.ENDPOINTS.RAINFALL_NEARBY, params, true);
+    }
+
     async getWaterQualityRecords(params = {}) {
         return this.get(BACKEND_API.ENDPOINTS.WATER_QUALITY, params, true);
     }
@@ -214,6 +218,10 @@ class BackendAPIClient {
 
     async getAquiferStatistics(params = {}) {
         return this.get(BACKEND_API.ENDPOINTS.AQUIFER_STATISTICS, params, true);
+    }
+
+    async getAquiferNearby(params = {}) {
+        return this.get(BACKEND_API.ENDPOINTS.AQUIFER_NEARBY, params, true);
     }
 
     async getRechargeStructureRecords(params = {}) {

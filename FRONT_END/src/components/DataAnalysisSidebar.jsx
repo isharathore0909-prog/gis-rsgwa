@@ -13,16 +13,7 @@ import WellInventorySection from './DataAnalysis/WellInventorySection';
 import RechargeStructureSection from './DataAnalysis/RechargeStructureSection';
 import AnalysisCard from './DataAnalysis/Common/AnalysisCard';
 
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Cell
-} from 'recharts';
+// Recharts imports removed (unused in this file)
 
 // Data
 import {
@@ -335,7 +326,9 @@ const DataAnalysisSidebar = ({
     // 4. Aquifer Data (From Database)
     // =================================================================================
     useEffect(() => {
-        if (!isAquifer || !displayRegion) {
+        const showAquiferData = isAquifer || isGWRE || (!isRainfall && !isWaterQuality && !isWellInventory && !isRechargeStructure);
+
+        if (!showAquiferData || !displayRegion) {
             setAquiferStats(null);
             return;
         }
@@ -415,56 +408,105 @@ const DataAnalysisSidebar = ({
     // =================================================================================
     const [rainfallStatsData, setRainfallStatsData] = useState(null);
     const [rainfallSummaryData, setRainfallSummaryData] = useState([]);
+    const [rainfallError, setRainfallError] = useState(null);
     const [rainfallLoading, setRainfallLoading] = useState(false);
 
     useEffect(() => {
         if (!isRainfall) {
             setRainfallStatsData(null);
             setRainfallSummaryData([]);
+            setRainfallError(null);
             return;
         }
 
         const fetchRainfallStats = async () => {
             setRainfallLoading(true);
+            setRainfallError(null);
             try {
-                // If no region selected, we fetch state data (empty params)
-                const params = {};
+                // Check if user clicked on a specific location (lat/lon)
+                const hasClickedLocation = clickedLocation && clickedLocation.lat && clickedLocation.lng;
 
-                // Only add district if explicitly selected/filtered
-                if (displayRegion) {
-                    params.district = displayRegion;
+                if (hasClickedLocation && globalFilters?.gramPanchayat) {
+                    // User clicked on map within a gram panchayat - use nearby endpoint
+                    console.log('Fetching nearby rainfall data for clicked location:', clickedLocation);
+
+                    const nearbyParams = {
+                        lat: clickedLocation.lat,
+                        lon: clickedLocation.lng,
+                        gram_panchayat: globalFilters.gramPanchayat,
+                        radius_km: 10, // 10km radius
+                        timestep: globalFilters?.timestep || 'monthly'
+                    };
+
+                    if (globalFilters?.dataRangeStart) nearbyParams.start_date = globalFilters.dataRangeStart;
+                    if (globalFilters?.dataRangeEnd) nearbyParams.end_date = globalFilters.dataRangeEnd;
+
+                    const nearbyData = await api.rainfall.getNearby(nearbyParams);
+                    console.log('Nearby Rainfall Response:', nearbyData);
+
+                    if (nearbyData.stats) {
+                        setRainfallStatsData({
+                            ...nearbyData.stats,
+                            maxVillage: nearbyData.stats.max_village,
+                            maxDate: nearbyData.stats.max_date,
+                            isNearbyData: true,
+                            location: nearbyData.location,
+                            radius_km: nearbyData.radius_km
+                        });
+                        setRainfallSummaryData(nearbyData.summary || []);
+                    } else {
+                        // No data found nearby
+                        setRainfallStatsData(null);
+                        setRainfallSummaryData([]);
+                    }
+                } else {
+                    // Regular location-based query (district/block/GP/village)
+                    const baseParams = {};
+
+                    // Only add district if explicitly selected/filtered
+                    if (displayRegion) {
+                        baseParams.district = displayRegion;
+                    }
+
+                    if (displayBlock) baseParams.block = displayBlock;
+                    if (globalFilters?.gramPanchayat) baseParams.gram_panchayat = globalFilters.gramPanchayat;
+                    if (globalFilters?.village) baseParams.village = globalFilters.village;
+                    if (globalFilters?.dataRangeStart) baseParams.start_date = globalFilters.dataRangeStart;
+                    if (globalFilters?.dataRangeEnd) baseParams.end_date = globalFilters.dataRangeEnd;
+
+                    console.log('Fetching Rainfall Stats with base params:', baseParams);
+
+                    // 1. Fetch Statistics (Total, Avg, Max) - NO timestep param
+                    const stats = await api.rainfall.getStatistics(baseParams);
+                    console.log('Rainfall Statistics Response:', stats);
+                    setRainfallStatsData({
+                        ...stats,
+                        maxVillage: stats.max_village,
+                        maxDate: stats.max_date
+                    });
+
+                    // 2. Fetch Summary (Chart Data) - WITH timestep param
+                    const summaryParams = {
+                        ...baseParams,
+                        timestep: globalFilters?.timestep || 'monthly'
+                    };
+                    console.log('Fetching Rainfall Summary with params:', summaryParams);
+                    const summary = await api.rainfall.getSummary(summaryParams);
+                    console.log('Rainfall Summary Response:', summary);
+                    setRainfallSummaryData(summary);
                 }
-
-                if (displayBlock) params.block = displayBlock;
-                if (globalFilters?.gramPanchayat) params.gram_panchayat = globalFilters.gramPanchayat;
-                if (globalFilters?.village) params.village = globalFilters.village;
-                if (globalFilters?.dataRangeStart) params.start_date = globalFilters.dataRangeStart;
-                if (globalFilters?.dataRangeEnd) params.end_date = globalFilters.dataRangeEnd;
-                params.timestep = globalFilters?.timestep || 'monthly';
-
-                console.log('Fetching Rainfall Stats:', params);
-
-                // 1. Fetch Statistics (Total, Avg, Max)
-                const stats = await api.rainfall.getStatistics(params);
-                setRainfallStatsData({
-                    ...stats,
-                    maxVillage: stats.max_village,
-                    maxDate: stats.max_date
-                });
-
-                // 2. Fetch Summary (Chart Data)
-                const summary = await api.rainfall.getSummary(params);
-                setRainfallSummaryData(summary);
 
             } catch (error) {
                 console.error('Error fetching rainfall stats:', error);
+                setRainfallError(error.message || 'Failed to load rainfall statistics');
             } finally {
                 setRainfallLoading(false);
             }
         };
 
         fetchRainfallStats();
-    }, [isRainfall, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, globalFilters?.dataRangeStart, globalFilters?.dataRangeEnd, globalFilters?.timestep]);
+    }, [isRainfall, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, globalFilters?.dataRangeStart, globalFilters?.dataRangeEnd, globalFilters?.timestep, clickedLocation]);
+
 
     // Legacy fallback processing (only if backend stats fail)
     const rainfallStats = useMemo(() => {
@@ -502,7 +544,7 @@ const DataAnalysisSidebar = ({
             count: rainfallPoints.length,
             chartData: dailyChartData
         };
-    }, [isRainfall, rainfallPoints]);
+    }, [isRainfall, rainfallPoints, rainfallStatsData, rainfallSummaryData]);
 
     // =================================================================================
     // 5. Analysis Context Helper
@@ -630,6 +672,7 @@ const DataAnalysisSidebar = ({
                         analysisLevel={analysisLevel}
                         globalFilters={globalFilters}
                         selectedWell={neighbor?.type === 'well_inventory_well' ? neighbor : null}
+                        clickedLocation={clickedLocation}
                         isExpanded={isControlsSidebarCollapsed}
                     />
                 )}
@@ -641,7 +684,8 @@ const DataAnalysisSidebar = ({
                         Recharge Stats: {rechargeStats ? `${rechargeStats.total_count} (of ${rechargeStats.total_available_in_db} total)` : (rechargeLoading ? 'Loading...' : 'Null')}<br />
                         Recharge DB Linkage: {rechargeStats ? `Vlg:${rechargeStats.debug?.with_village}, Dist:${rechargeStats.debug?.with_district} | VlgTable:${rechargeStats.debug?.village_table_size}` : 'N/A'}<br />
                         Sample RS VlgID: {rechargeStats ? rechargeStats.debug?.sample_rs_village_id : 'N/A'}<br />
-                        Using WQ DB: {waterQualityStats?.total_records > 0 ? 'Yes' : 'No'}
+                        Using WQ DB: {waterQualityStats?.total_records > 0 ? 'Yes' : 'No'}<br />
+                        Rainfall Error: {rainfallError || 'None'}
                     </div>
                 )}
             </div>

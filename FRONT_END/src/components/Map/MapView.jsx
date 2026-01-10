@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
-import { MapContainer, GeoJSON, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, GeoJSON, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import { parseWKT } from '../../utils/wktParser';
 import './MapView.css';
@@ -182,10 +182,8 @@ const MapView = ({
 
     // Clear selected dam when layer changes away from Water Resources or District changes
     useEffect(() => {
-        if (filters?.type !== 'Water Resources') {
-            setSelectedDam(null);
-        }
-        // Also clear if district changes to avoid stale overlays
+        // Clear selected dam when layer changes OR District changes
+        // This prevents stale overlays from persisting
         setSelectedDam(null);
     }, [filters?.type, filters?.district]);
 
@@ -755,8 +753,6 @@ const MapView = ({
                                     }
                                 }
                             });
-
-                            layer.bindPopup(`<strong>${name}</strong>`);
                         }}
                     />
                 )}
@@ -800,7 +796,6 @@ const MapView = ({
                                     }]);
                                 }
                             });
-                            layer.bindPopup(`<strong>${feature.properties.BLOCK_NAME || feature.properties.Block}</strong><br/>${legendFeature}: ${feature.properties[legendFeature]}`);
                         }}
                     />
                 )}

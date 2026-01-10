@@ -251,3 +251,64 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         return Response({
             'error': 'Invalid level parameter. Use "district".'
         }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'])
+    def nearby(self, request):
+        """
+        Find wells within a radius of a given lat/lon and return their average water level
+        GET /api/aquifer/nearby/?latitude=26.91&longitude=75.78&radius=0.1
+        """
+        lat = request.query_params.get('latitude')
+        lon = request.query_params.get('longitude')
+        radius_deg = float(request.query_params.get('radius', 0.05)) # ~5km roughly
+
+        if not lat or not lon:
+            return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            lat = float(lat)
+            lon = float(lon)
+        except ValueError:
+            return Response({'error': 'Invalid coordinate values'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Basic bounding box filter - fast enough for SQLite without spatial extensions
+        nearby_wells = AquiferData.objects.filter(
+            latitude__gte=lat - radius_deg,
+            latitude__lte=lat + radius_deg,
+            longitude__gte=lon - radius_deg,
+            longitude__lte=lon + radius_deg
+        )
+
+        if not nearby_wells.exists():
+            return Response({
+                'count': 0,
+                'message': 'No wells found within the specified radius.',
+                'averages': None
+            })
+
+        # Calculate averages for each year (2015-2024)
+        years = range(2015, 2025)
+        averages = {}
+        
+        # Prepare annotation mapping
+        agg_map = {}
+        for year in years:
+            agg_map[f'pre_{year}'] = Avg(f'pre_{year}')
+            agg_map[f'pst_{year}'] = Avg(f'pst_{year}')
+        
+        results = nearby_wells.aggregate(**agg_map)
+        
+        # Format the output
+        for year in years:
+            averages[str(year)] = {
+                'pre': results[f'pre_{year}'],
+                'pst': results[f'pst_{year}']
+            }
+
+        return Response({
+            'latitude': lat,
+            'longitude': lon,
+            'count': nearby_wells.count(),
+            'radius_deg': radius_deg,
+            'averages': averages
+        })

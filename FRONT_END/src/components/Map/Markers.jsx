@@ -1,5 +1,5 @@
 import React from 'react';
-import { Marker, Popup } from 'react-leaflet';
+import { Marker } from 'react-leaflet';
 import L from 'leaflet';
 
 export const DamMarker = ({ dam, coordinate, onDamClick, onAddToTable }) => {
@@ -52,17 +52,7 @@ export const WellMarker = ({ well, color, onMarkerClick }) => {
             eventHandlers={{
                 click: () => onMarkerClick(well)
             }}
-        >
-            <Popup>
-                <div style={{ minWidth: '200px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', color: '#1e3c72' }}>{well.id}</h4>
-                    <p style={{ margin: '5px 0' }}><strong>Location:</strong> {well.location}</p>
-                    <p style={{ margin: '5px 0' }}><strong>Water Level:</strong> {well.waterLevel} m</p>
-                    <p style={{ margin: '5px 0' }}><strong>pH:</strong> {well.ph}</p>
-                    <p style={{ margin: '5px 0' }}><strong>TDS:</strong> {well.tds} mg/L</p>
-                </div>
-            </Popup>
-        </Marker>
+        />
     );
 };
 
@@ -93,15 +83,7 @@ export const AquiferWellMarker = ({ record, onMarkerClick }) => {
                     onMarkerClick && onMarkerClick(record, e.latlng);
                 }
             }}
-        >
-            <Popup>
-                <div style={{ minWidth: '150px' }}>
-                    <h4 style={{ margin: '0 0 5px 0', color: '#1e3c72' }}>{record.well_id}</h4>
-                    <p style={{ margin: '0', fontSize: '0.9rem' }}>{record.village_name}</p>
-                    <p style={{ margin: '0', fontSize: '0.8rem', color: '#666' }}>Depth: {record.well_depth}m</p>
-                </div>
-            </Popup>
-        </Marker>
+        />
     );
 };
 
@@ -140,21 +122,7 @@ export const RainfallMarker = ({ record, onMarkerClick }) => {
                     onMarkerClick && onMarkerClick(record, e.latlng);
                 }
             }}
-        >
-            <Popup>
-                <div className="rainfall-popup">
-                    <h3 style={{ margin: '0 0 8px 0', color: '#1e3c72', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
-                        {villageValue}
-                    </h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <p style={{ margin: 0 }}><strong>{record.isAggregated ? 'Average Rainfall' : 'Rainfall'}:</strong> <span style={{ color: '#2563eb', fontSize: '1.2rem', fontWeight: 700 }}>{rainValue.toFixed(1)} mm</span></p>
-                        <p style={{ margin: 0, fontSize: '0.85rem' }}><strong>GP:</strong> {gpValue}</p>
-                        <p style={{ margin: 0, fontSize: '0.85rem' }}><strong>Date:</strong> {dateValue}</p>
-                        <p style={{ margin: 0, fontSize: '0.85rem' }}><strong>Gauge Type:</strong> {record.gauge_type || 'Manual'}</p>
-                    </div>
-                </div>
-            </Popup>
-        </Marker>
+        />
     );
 };
 

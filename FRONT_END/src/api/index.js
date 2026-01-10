@@ -54,6 +54,7 @@ export default {
         getRecords: (params) => backendApi.getRainfallRecords(params),
         getStatistics: (params) => backendApi.getRainfallStatistics(params),
         getSummary: (params) => backendApi.getRainfallSummary(params),
+        getNearby: (params) => backendApi.getRainfallNearby(params),
     },
 
     // Water Quality API
@@ -66,6 +67,7 @@ export default {
     aquifer: {
         getRecords: (params) => backendApi.getAquiferRecords(params),
         getStatistics: (params) => backendApi.getAquiferStatistics(params),
+        getNearby: (params) => backendApi.getAquiferNearby(params),
     },
 
     // Recharge Structure API
