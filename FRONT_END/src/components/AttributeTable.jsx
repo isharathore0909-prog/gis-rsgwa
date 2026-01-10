@@ -59,7 +59,7 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
     }, [isDragging, isCollapsed]);
 
     if (!data || !data.features || data.features.length === 0) {
-        const msg = !data ? "Loading attribute data..." : "No features found in block boundary data.";
+        const msg = !data ? "Loading attribute data..." : "No features found.";
         return (
             <div
                 className={`attribute-table-container ${isCollapsed ? 'collapsed' : ''}`}

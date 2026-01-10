@@ -77,9 +77,17 @@ class RainfallViewSet(viewsets.ModelViewSet):
                     'date': max_record.date
                 }
 
+        # Calculate Average of Station Totals (Better for Statewide view)
+        # 1. Group by village, 2. Sum per village, 3. Avg of sums
+        avg_station_total = 0
+        if queryset.exists():
+            station_avg = queryset.values('village').annotate(station_total=Sum('rainfall_mm')).aggregate(avg=Avg('station_total'))
+            avg_station_total = station_avg.get('avg', 0)
+
         return Response({
             'total': round(stats['total'] or 0, 2),
             'avg': round(stats['avg'] or 0, 2),
+            'avg_station_total': round(avg_station_total or 0, 2),
             'count': stats['count'],
             'max': stats['max'] or 0,
             'max_village': max_info.get('village'),
@@ -96,17 +104,17 @@ class RainfallViewSet(viewsets.ModelViewSet):
             # SQLite specific date formatting - Escaped % as %% for Django .extra()
             data = queryset.extra(select={'month': "strftime('%%Y-%%m', date)"}) \
                            .values('month') \
-                           .annotate(total=Sum('rainfall_mm')) \
+                           .annotate(total=Sum('rainfall_mm'), average=Avg('rainfall_mm')) \
                            .order_by('month')
-            return Response([{'name': d['month'], 'total': d['total']} for d in data])
+            return Response([{'name': d['month'], 'total': d['total'], 'average': round(d['average'], 2)} for d in data])
         
         elif timestep == 'yearly':
             data = queryset.extra(select={'year': "strftime('%%Y', date)"}) \
                            .values('year') \
-                           .annotate(total=Sum('rainfall_mm')) \
+                           .annotate(total=Sum('rainfall_mm'), average=Avg('rainfall_mm')) \
                            .order_by('year')
-            return Response([{'name': d['year'], 'total': d['total']} for d in data])
+            return Response([{'name': d['year'], 'total': d['total'], 'average': round(d['average'], 2)} for d in data])
             
         else: # Daily
-            data = queryset.values('date').annotate(total=Sum('rainfall_mm')).order_by('date')
-            return Response([{'name': d['date'], 'total': d['total']} for d in data])
+            data = queryset.values('date').annotate(total=Sum('rainfall_mm'), average=Avg('rainfall_mm')).order_by('date')
+            return Response([{'name': d['date'], 'total': d['total'], 'average': round(d['average'], 2)} for d in data])

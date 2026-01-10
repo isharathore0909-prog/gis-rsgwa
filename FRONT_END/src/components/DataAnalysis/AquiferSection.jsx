@@ -14,12 +14,17 @@ import { AQUIFER_DATA } from '../../data/districtAquiferData';
 import { BLOCK_AQUIFER_DATA } from '../../data/blockAquiferData';
 import './AquiferSection.css';
 
-const AquiferSection = ({ displayRegion, displayBlock }) => {
+const AquiferSection = ({ displayRegion, displayBlock, data, isExpanded }) => {
     // Colors for the chart
     const colors = ['#f9c74f', '#90be6d', '#f9844a', '#4d908e', '#277da1', '#577590', '#f3722c'];
 
     // Process data based on selected region
     const aquiferData = useMemo(() => {
+        // If data is passed (e.g. from DB), use it
+        if (data && data.length > 0) {
+            return data;
+        }
+
         if (!displayRegion) return [];
 
         // Helper to normalize names for comparison
@@ -66,14 +71,18 @@ const AquiferSection = ({ displayRegion, displayBlock }) => {
                 percent: aq.percent,
                 color: colors[i % colors.length]
             }));
-    }, [displayRegion, displayBlock]);
+    }, [displayRegion, displayBlock, data]);
 
     if (aquiferData.length === 0) {
         return (
             <div className="aquifer-section">
-                <p style={{ padding: '1rem', color: '#64748b', textAlign: 'center' }}>
-                    No specific aquifer data available for the selected region.
-                </p>
+                <AnalysisCard style={{ textAlign: 'center', padding: '3rem', marginTop: '1rem' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏜️</div>
+                    <h3 style={{ color: '#64748b' }}>Data Not Available</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+                        Data is not available. Please select another location.
+                    </p>
+                </AnalysisCard>
             </div>
         );
     }
@@ -98,7 +107,7 @@ const AquiferSection = ({ displayRegion, displayBlock }) => {
                         <div
                             className="aquifer-chart-container"
                             style={{
-                                height: `${Math.max(220, aquiferData.length * 50)}px`,
+                                height: isExpanded ? `${Math.max(400, aquiferData.length * 60)}px` : `${Math.max(220, aquiferData.length * 50)}px`,
                                 width: '100%',
                                 position: 'relative'
                             }}

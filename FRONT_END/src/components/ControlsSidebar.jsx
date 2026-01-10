@@ -287,19 +287,19 @@ const ControlsSidebar = ({
 
                 {/* Split Unitwise Selection Icons */}
                 <div
-                    className={`nav-item ${activeTab === 'location' ? 'active' : ''}`}
-                    onClick={() => handleTabChange('location')}
-                    title="Area Selection"
-                >
-                    <IconLocation className="nav-icon" />
-                </div>
-
-                <div
                     className={`nav-item ${activeTab === 'layers_spec' ? 'active' : ''}`}
                     onClick={() => handleTabChange('layers_spec')}
                     title="Layer Specification"
                 >
                     <IconSettings className="nav-icon" />
+                </div>
+
+                <div
+                    className={`nav-item ${activeTab === 'location' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('location')}
+                    title="Area Selection"
+                >
+                    <IconLocation className="nav-icon" />
                 </div>
 
                 <div

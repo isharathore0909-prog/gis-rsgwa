@@ -1,0 +1,290 @@
+.well-inventory-section {
+    padding: 15px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    gap: 15px;
+}
+
+/* Detailed View Styles */
+.well-detail-header {
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 10px;
+}
+
+.well-detail-header h4 {
+    margin: 0 0 8px 0;
+    color: #1e293b;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.well-meta-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.badge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+.badge.location {
+    background-color: #f1f5f9;
+    color: #475569;
+}
+
+.badge.depth {
+    background-color: #e0f2fe;
+    color: #0369a1;
+}
+
+.well-chart-container {
+    display: flex;
+    flex-direction: column;
+    /* Removed flex: 1 to stop auto-expansion */
+}
+
+.well-chart-container h5 {
+    margin: 0 0 10px 0;
+    font-size: 0.9rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.chart-wrapper {
+    width: 100%;
+    height: 300px;
+    /* Fixed height for the chart */
+}
+
+/* List View Styles (Fallback) */
+.well-count-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.well-count-header h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #64748b;
+}
+
+.region-badge {
+    background: #f0fdf4;
+    color: #15803d;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.table-container.small-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #f1f5f9;
+    border-radius: 6px;
+}
+
+.well-inventory-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.well-inventory-table th,
+.well-inventory-table td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid #f8fafc;
+}
+
+.well-inventory-table th {
+    background: #f8fafc;
+    color: #64748b;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.well-inventory-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.well-inventory-table td.font-medium {
+    font-weight: 500;
+    color: #334155;
+    font-family: monospace;
+}
+
+.list-footer {
+    padding: 8px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    border-top: 1px solid #f1f5f9;
+}
+
+.well-inventory-loading,
+.well-inventory-error,
+.well-inventory-empty {
+    padding: 20px;
+    text-align: center;
+    color: #64748b;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.well-inventory-error {
+    color: #ef4444;
+}
+
+/* Aggregated Dashboard View */
+.well-inventory-section.dashboard-view {
+    overflow-y: auto;
+    gap: 20px;
+}
+
+.aggregated-chart-section h5,
+.aquifer-stats-card h5 {
+    margin: 0 0 12px 0;
+    font-size: 0.9rem;
+    color: #475569;
+    font-weight: 600;
+    border-left: 3px solid #3b82f6;
+    padding-left: 8px;
+}
+
+.chart-wrapper.small-chart {
+    height: 220px;
+}
+
+.aquifer-stats-card {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.pie-chart-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.aquifer-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 10px;
+    width: 100%;
+}
+
+.legend-item {
+    font-size: 0.75rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* New Well Profile Card Styles */
+.well-profile-card {
+    background: linear-gradient(145deg, #ffffff, #f8fafc);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.profile-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.profile-icon {
+    font-size: 1.5rem;
+    background: #e0f2fe;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(3, 105, 161, 0.1);
+}
+
+.profile-info {
+    flex: 1;
+}
+
+.profile-info h4 {
+    margin: 0 0 4px 0;
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: -0.01em;
+}
+
+.profile-info p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.profile-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: #f8fafc;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #f1f5f9;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.stat-item label {
+    font-size: 0.65rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.stat-item strong {
+    font-size: 0.85rem;
+    color: #334155;
+    font-weight: 700;
+}

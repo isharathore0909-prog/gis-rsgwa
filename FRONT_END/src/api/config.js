@@ -29,6 +29,10 @@ export const BACKEND_API = {
         RAINFALL_SUMMARY: '/rainfall/records/summary/',
         WATER_QUALITY: '/water-quality/',
         WATER_QUALITY_STATISTICS: '/water-quality/statistics/',
+        AQUIFER: '/aquifer/',
+        AQUIFER_STATISTICS: '/aquifer/statistics/',
+        RECHARGE_STRUCTURE: '/recharge-structure/',
+        RECHARGE_STRUCTURE_STATISTICS: '/recharge-structure/statistics/',
 
         // Auth endpoints
         LOGIN: '/account/login/',

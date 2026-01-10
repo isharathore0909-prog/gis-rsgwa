@@ -9,6 +9,8 @@ import RainfallSection from './DataAnalysis/RainfallSection';
 import WaterQualitySection from './DataAnalysis/WaterQualitySection';
 import GroundWaterSection from './DataAnalysis/GroundWaterSection';
 import AquiferSection from './DataAnalysis/AquiferSection';
+import WellInventorySection from './DataAnalysis/WellInventorySection';
+import RechargeStructureSection from './DataAnalysis/RechargeStructureSection';
 import AnalysisCard from './DataAnalysis/Common/AnalysisCard';
 
 import {
@@ -63,10 +65,12 @@ const DataAnalysisSidebar = ({
     const isRainfall = globalFilters?.type === 'Rainfall';
     const isWaterQuality = globalFilters?.type === 'Water Quality';
     const isAquifer = globalFilters?.type === 'Aquifer';
+    const isWellInventory = globalFilters?.type === 'Well Inventory';
+    const isRechargeStructure = globalFilters?.type === 'Recharge Structure';
     const isDistrictOnly = isGWRE || isRainfall; // Removed isWaterQuality to allow block support
 
     const filterDistrict = globalFilters?.district;
-    const filterBlock = globalFilters?.block;
+    const filterBlock = globalFilters?.block || globalFilters?.taluka;
     const neighbor = neighbors && neighbors.length > 0 ? neighbors[0] : null;
     const clickedDistrict = neighbor?.district;
     const clickedBlock = neighbor?.id || neighbor?.location;
@@ -160,28 +164,8 @@ const DataAnalysisSidebar = ({
         ];
     }, [displayRegion]);
 
-    const aquiferData = useMemo(() => {
-        const colors = ['#f9c74f', '#90be6d', '#f9844a', '#4d908e', '#277da1', '#577590', '#f3722c'];
-        let filteredAquifers = AQUIFER_DATA;
+    // Moved aquiferData definition down to access aquiferStats
 
-        if (displayRegion) {
-            filteredAquifers = AQUIFER_DATA.filter(aq =>
-                aq.districts.some(d => d.toUpperCase() === displayRegion.toUpperCase())
-            );
-        }
-
-        return filteredAquifers
-            .sort((a, b) => b.area - a.area)
-            .slice(0, 10)
-            .map((aq, i) => ({
-                name: aq.type,
-                value: aq.area,
-                districts: aq.districts.length,
-                area: aq.area.toLocaleString(),
-                percent: aq.percent,
-                color: colors[i % colors.length]
-            }));
-    }, [displayRegion]);
 
     const qualityData = useMemo(() => {
         if (displayRegion && DISTRICT_QUALITY_DATA[displayRegion]) {
@@ -226,9 +210,12 @@ const DataAnalysisSidebar = ({
     const [waterQualityLoading, setWaterQualityLoading] = useState(false);
     const [waterQualityError, setWaterQualityError] = useState(null);
 
+    const [aquiferStats, setAquiferStats] = useState(null);
+    const [aquiferLoading, setAquiferLoading] = useState(false);
+
     // Fetch water quality data from database when filters change
     useEffect(() => {
-        if (!isWaterQuality || !displayRegion) {
+        if (!isWaterQuality) {
             setWaterQualityStats(null);
             return;
         }
@@ -237,9 +224,13 @@ const DataAnalysisSidebar = ({
             setWaterQualityLoading(true);
             setWaterQualityError(null);
             try {
-                const params = {
-                    district: displayRegion,
-                };
+                // Initial params (empty for state level)
+                const params = {};
+
+                // Only add district if we have a specific region selected
+                if (displayRegion) {
+                    params.district = displayRegion;
+                }
 
                 if (displayBlock) {
                     params.block = displayBlock;
@@ -268,8 +259,6 @@ const DataAnalysisSidebar = ({
 
     // Process water quality data for display
     const blockWaterQualityData = useMemo(() => {
-        if (!displayRegion) return null;
-
         // If we have a specific well clicked from the map, show that well's data
         if (isWaterQuality && neighbor?.type === 'water_quality_well') {
             const wellData = {
@@ -289,10 +278,12 @@ const DataAnalysisSidebar = ({
         }
 
         // If we have database statistics, use them
+        // This works for both district/block specific AND state level (if displayRegion is null)
         if (isWaterQuality && waterQualityStats && waterQualityStats.total_records > 0) {
+            const regionName = displayRegion || 'Rajasthan';
             const blockData = {
-                district: displayRegion,
-                block: displayBlock || displayRegion,
+                district: regionName,
+                block: displayBlock || (displayRegion ? regionName : 'State Average'),
                 ec: waterQualityStats.avg_ec || 0,
                 fluoride: waterQualityStats.avg_fluoride || 0,
                 nitrate: waterQualityStats.avg_nitrate || 0,
@@ -314,6 +305,10 @@ const DataAnalysisSidebar = ({
         }
 
         // No data found in database for this region? Fallback to static data below.
+
+        // If no displayRegion (State level) and no DB stats, just return null or empty to show placeholder
+        if (!displayRegion) return null;
+
         // The UI will show 'Static Data' badge if correct prop is passed.
 
         // Fallback to static data if not in water quality mode or no database records
@@ -337,6 +332,85 @@ const DataAnalysisSidebar = ({
     }, [displayRegion, displayBlock, isWaterQuality, waterQualityStats, neighbor]);
 
     // =================================================================================
+    // 4. Aquifer Data (From Database)
+    // =================================================================================
+    useEffect(() => {
+        if (!isAquifer || !displayRegion) {
+            setAquiferStats(null);
+            return;
+        }
+
+        const fetchAquiferData = async () => {
+            setAquiferLoading(true);
+            try {
+                const params = {
+                    district: displayRegion,
+                };
+
+                if (displayBlock) {
+                    params.block = displayBlock;
+                }
+
+                if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
+                if (globalFilters?.village) params.village_name = globalFilters.village;
+
+                const data = await api.aquifer.getStatistics(params);
+                console.log('Aquifer Sidebar Stats:', {
+                    params,
+                    data
+                });
+                setAquiferStats(data);
+            } catch (error) {
+                console.error('Error fetching aquifer data:', error);
+                setAquiferStats(null);
+            } finally {
+                setAquiferLoading(false);
+            }
+        };
+
+        fetchAquiferData();
+    }, [isAquifer, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village]);
+
+    // Process aquifer data for display
+    const aquiferData = useMemo(() => {
+        const colors = ['#f9c74f', '#90be6d', '#f9844a', '#4d908e', '#277da1', '#577590', '#f3722c'];
+
+        // Priority: Database Data
+        if (aquiferStats && aquiferStats.aquifer_distribution && aquiferStats.aquifer_distribution.length > 0) {
+            const totalWells = aquiferStats.summary.total_wells || 1;
+            return aquiferStats.aquifer_distribution.map((aq, i) => ({
+                name: aq.aquifer || 'Unknown',
+                value: aq.count,
+                districts: 1, // Not relevant for single location view
+                area: aq.count, // Using count as proxy for "area" or prevalence since we don't have area in DB
+                percent: Math.round((aq.count / totalWells) * 100),
+                color: colors[i % colors.length]
+            }));
+        }
+
+        // Fallback: Static Data (only if not using DB or DB empty)
+        let filteredAquifers = AQUIFER_DATA;
+
+        if (displayRegion) {
+            filteredAquifers = AQUIFER_DATA.filter(aq =>
+                aq.districts.some(d => d.toUpperCase() === displayRegion.toUpperCase())
+            );
+        }
+
+        return filteredAquifers
+            .sort((a, b) => b.area - a.area)
+            .slice(0, 10)
+            .map((aq, i) => ({
+                name: aq.type,
+                value: aq.area,
+                districts: aq.districts.length,
+                area: aq.area.toLocaleString(),
+                percent: aq.percent,
+                color: colors[i % colors.length]
+            }));
+    }, [displayRegion, aquiferStats]);
+
+    // =================================================================================
     // 4. Rainfall Data (From Database)
     // =================================================================================
     const [rainfallStatsData, setRainfallStatsData] = useState(null);
@@ -344,7 +418,7 @@ const DataAnalysisSidebar = ({
     const [rainfallLoading, setRainfallLoading] = useState(false);
 
     useEffect(() => {
-        if (!isRainfall || !displayRegion) {
+        if (!isRainfall) {
             setRainfallStatsData(null);
             setRainfallSummaryData([]);
             return;
@@ -353,20 +427,33 @@ const DataAnalysisSidebar = ({
         const fetchRainfallStats = async () => {
             setRainfallLoading(true);
             try {
-                const params = { district: displayRegion };
+                // If no region selected, we fetch state data (empty params)
+                const params = {};
+
+                // Only add district if explicitly selected/filtered
+                if (displayRegion) {
+                    params.district = displayRegion;
+                }
+
                 if (displayBlock) params.block = displayBlock;
                 if (globalFilters?.gramPanchayat) params.gram_panchayat = globalFilters.gramPanchayat;
                 if (globalFilters?.village) params.village = globalFilters.village;
                 if (globalFilters?.dataRangeStart) params.start_date = globalFilters.dataRangeStart;
                 if (globalFilters?.dataRangeEnd) params.end_date = globalFilters.dataRangeEnd;
+                params.timestep = globalFilters?.timestep || 'monthly';
+
+                console.log('Fetching Rainfall Stats:', params);
 
                 // 1. Fetch Statistics (Total, Avg, Max)
                 const stats = await api.rainfall.getStatistics(params);
-                setRainfallStatsData(stats);
+                setRainfallStatsData({
+                    ...stats,
+                    maxVillage: stats.max_village,
+                    maxDate: stats.max_date
+                });
 
                 // 2. Fetch Summary (Chart Data)
-                const summaryParams = { ...params, timestep: globalFilters?.timestep || 'daily' };
-                const summary = await api.rainfall.getSummary(summaryParams);
+                const summary = await api.rainfall.getSummary(params);
                 setRainfallSummaryData(summary);
 
             } catch (error) {
@@ -431,7 +518,44 @@ const DataAnalysisSidebar = ({
     const { level: analysisLevel, name: analysisName } = getAnalysisContext();
 
     // =================================================================================
-    // 6. Component Render
+    // 6. Recharge Structure Data
+    // =================================================================================
+    const [rechargeStats, setRechargeStats] = useState(null);
+    const [rechargeLoading, setRechargeLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isRechargeStructure) {
+            setRechargeStats(null);
+            return;
+        }
+
+        const fetchRechargeStats = async () => {
+            setRechargeLoading(true);
+            try {
+                const params = {};
+                if (analysisLevel === 'District') params.district = analysisName;
+                else if (analysisLevel === 'Block') params.block = analysisName;
+                else if (analysisLevel === 'State') params.state = analysisName;
+                else if (analysisLevel === 'Village') params.village_name = analysisName;
+                else if (analysisLevel === 'Gram Panchayat') params.gp_name = analysisName;
+
+                console.log('Fetching Recharge Stats with params:', params);
+                const data = await api.rechargeStructure.getStatistics(params);
+                console.log('Recharge Structure Sidebar Stats Result:', data);
+                setRechargeStats(data);
+            } catch (error) {
+                console.error('Error fetching recharge stats:', error);
+                setRechargeStats(null);
+            } finally {
+                setRechargeLoading(false);
+            }
+        };
+
+        fetchRechargeStats();
+    }, [isRechargeStructure, displayRegion, displayBlock, analysisLevel, analysisName]);
+
+    // =================================================================================
+    // 7. Component Render
     // =================================================================================
     return (
         <aside className={`data-analysis-sidebar ${isControlsSidebarCollapsed ? 'expanded-layout' : ''}`}>
@@ -452,12 +576,13 @@ const DataAnalysisSidebar = ({
                         rainfallPoints={rainfallSummaryData}
                         viewType={globalFilters?.timestep}
                         isLoading={rainfallLoading}
+                        isExpanded={isControlsSidebarCollapsed}
                     />
                 )}
 
                 {isWaterQuality && (
                     <WaterQualitySection
-                        displayRegion={displayRegion}
+                        displayRegion={displayRegion || 'Rajasthan'}
                         selectedBlock={displayBlock}
                         blockWaterQualityData={blockWaterQualityData}
                         qualityData={qualityData}
@@ -466,7 +591,17 @@ const DataAnalysisSidebar = ({
                     />
                 )}
 
-                {(isGWRE || (!isRainfall && !isWaterQuality && !isAquifer)) && (
+                {isRechargeStructure && (
+                    <RechargeStructureSection
+                        displayRegion={analysisName}
+                        displayBlock={displayBlock}
+                        stats={rechargeStats}
+                        isLoading={rechargeLoading}
+                        isExpanded={isControlsSidebarCollapsed}
+                    />
+                )}
+
+                {(isGWRE || (!isRainfall && !isWaterQuality && !isAquifer && !isWellInventory && !isRechargeStructure)) && (
                     <GroundWaterSection
                         isGWRE={isGWRE}
                         pieData={pieData}
@@ -483,14 +618,30 @@ const DataAnalysisSidebar = ({
                     <AquiferSection
                         displayRegion={displayRegion}
                         displayBlock={displayBlock}
+                        data={aquiferData}
+                        isExpanded={isControlsSidebarCollapsed}
+                    />
+                )}
+
+                {isWellInventory && (
+                    <WellInventorySection
+                        displayRegion={displayRegion}
+                        displayBlock={displayBlock}
+                        analysisLevel={analysisLevel}
+                        globalFilters={globalFilters}
+                        selectedWell={neighbor?.type === 'well_inventory_well' ? neighbor : null}
+                        isExpanded={isControlsSidebarCollapsed}
                     />
                 )}
                 {/* Debug Info */}
                 {import.meta.env.DEV && (
                     <div style={{ fontSize: '10px', color: '#999', padding: '10px' }}>
                         Type: {globalFilters?.type} | Region: {displayRegion} | Block: {displayBlock}<br />
-                        DB Stats: {waterQualityStats ? `${waterQualityStats.total_records} records` : 'Loading/Null'}<br />
-                        Using DB: {waterQualityStats?.total_records > 0 ? 'Yes' : 'No'}
+                        WQ DB Records: {waterQualityStats ? `${waterQualityStats.total_records}` : 'Loading/Null'}<br />
+                        Recharge Stats: {rechargeStats ? `${rechargeStats.total_count} (of ${rechargeStats.total_available_in_db} total)` : (rechargeLoading ? 'Loading...' : 'Null')}<br />
+                        Recharge DB Linkage: {rechargeStats ? `Vlg:${rechargeStats.debug?.with_village}, Dist:${rechargeStats.debug?.with_district} | VlgTable:${rechargeStats.debug?.village_table_size}` : 'N/A'}<br />
+                        Sample RS VlgID: {rechargeStats ? rechargeStats.debug?.sample_rs_village_id : 'N/A'}<br />
+                        Using WQ DB: {waterQualityStats?.total_records > 0 ? 'Yes' : 'No'}
                     </div>
                 )}
             </div>

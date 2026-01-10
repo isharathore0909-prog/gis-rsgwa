@@ -15,14 +15,13 @@ export const STATION_TYPES = ['All', 'Manual', 'Telemetry'];
 
 export const TYPE_OPTIONS = [
     'Rainfall',
-    'Hydrograph',
+
     'Ground Water Resource Estimation', // Matches GW Assessment
     'Well Inventory',
     'Water Quality',
     'Water Resources',
     'Aquifer',
     'Recharge Structure',
-    'Rain Water Harvesting Structure'
 ];
 
 export const BASEMAPS = [

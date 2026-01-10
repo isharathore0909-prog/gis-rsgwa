@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'raingaugeApi',
     'water_qualityApi',
     'aquiferApi',
+    'rechargeStructureApi',
 ]
 
 MIDDLEWARE = [

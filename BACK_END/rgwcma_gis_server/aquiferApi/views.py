@@ -36,8 +36,10 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
     ordering = ['well_id']
 
     def get_serializer_class(self):
-        """Use simplified serializer for list view"""
+        """Use simplified serializer for list view unless detailed=true"""
         if self.action == 'list':
+            if self.request.query_params.get('detailed') == 'true':
+                return AquiferDataSerializer
             return AquiferDataListSerializer
         return AquiferDataSerializer
 

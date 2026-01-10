@@ -24,58 +24,16 @@ export const DamMarker = ({ dam, coordinate, onDamClick, onAddToTable }) => {
             position={[coordinate.lat, coordinate.lng]}
             icon={customIcon}
             eventHandlers={{
-                click: () => onDamClick(dam)
+                click: (e) => {
+                    // Prevent map click propagation
+                    L.DomEvent.stopPropagation(e);
+
+                    // Trigger actions
+                    onDamClick && onDamClick(dam);
+                    onAddToTable && onAddToTable(dam);
+                }
             }}
-        >
-            <Popup className="dam-popup-wrapper">
-                <div className="dam-popup-container">
-                    <div className="dam-popup-header">
-                        <h3>{dam.name}</h3>
-                        <span className="dam-type-badge">{dam.type || 'Dam'}</span>
-                    </div>
-
-                    <div className="dam-popup-body">
-                        <div className="dam-popup-grid">
-                            <div className="dam-info-item"><span className="dam-label">River</span><span className="dam-value">{dam.river || 'N/A'}</span></div>
-                            <div className="dam-info-item"><span className="dam-label">Basin</span><span className="dam-value">{dam.basin || 'N/A'}</span></div>
-                            <div className="dam-info-item"><span className="dam-label">District</span><span className="dam-value">{dam.district || 'N/A'}</span></div>
-                            <div className="dam-info-item"><span className="dam-label">Nearest City</span><span className="dam-value">{dam.block || 'N/A'}</span></div>
-                            <div className="dam-info-item full-width"><span className="dam-label">Purpose</span><span className="dam-value">{dam.purpose || 'N/A'}</span></div>
-                        </div>
-
-                        {(dam.length || dam.max_height || dam.completion_year) && (
-                            <div className="dam-popup-footer">
-                                {dam.length && <div className="dam-spec">L: <strong>{dam.length}m</strong></div>}
-                                {dam.max_height && <div className="dam-spec">H: <strong>{dam.max_height}m</strong></div>}
-                                {dam.completion_year && <div className="dam-spec">Year: <strong>{dam.completion_year}</strong></div>}
-                            </div>
-                        )}
-
-                        <button
-                            className="add-to-table-btn"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onAddToTable && onAddToTable(dam);
-                            }}
-                            style={{
-                                width: '100%',
-                                marginTop: '12px',
-                                padding: '8px 12px',
-                                backgroundColor: '#0ea5e9',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                            }}
-                        >
-                            + Add to Table
-                        </button>
-                    </div>
-                </div>
-            </Popup>
-        </Marker>
+        />
     );
 };
 
@@ -102,6 +60,45 @@ export const WellMarker = ({ well, color, onMarkerClick }) => {
                     <p style={{ margin: '5px 0' }}><strong>Water Level:</strong> {well.waterLevel} m</p>
                     <p style={{ margin: '5px 0' }}><strong>pH:</strong> {well.ph}</p>
                     <p style={{ margin: '5px 0' }}><strong>TDS:</strong> {well.tds} mg/L</p>
+                </div>
+            </Popup>
+        </Marker>
+    );
+};
+
+export const AquiferWellMarker = ({ record, onMarkerClick }) => {
+    // Blue marker for Aquifer/Well Inventory
+    const color = '#3b82f6';
+
+    // Create a simple circular marker with a water drop or just a circle
+    const customIcon = L.divIcon({
+        className: 'aquifer-well-marker',
+        html: `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="8" fill="${color}" stroke="white" stroke-width="2"/>
+                <circle cx="12" cy="12" r="3" fill="white" fill-opacity="0.5"/>
+            </svg>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12]
+    });
+
+    return (
+        <Marker
+            position={[record.latitude, record.longitude]}
+            icon={customIcon}
+            eventHandlers={{
+                click: (e) => {
+                    onMarkerClick && onMarkerClick(record, e.latlng);
+                }
+            }}
+        >
+            <Popup>
+                <div style={{ minWidth: '150px' }}>
+                    <h4 style={{ margin: '0 0 5px 0', color: '#1e3c72' }}>{record.well_id}</h4>
+                    <p style={{ margin: '0', fontSize: '0.9rem' }}>{record.village_name}</p>
+                    <p style={{ margin: '0', fontSize: '0.8rem', color: '#666' }}>Depth: {record.well_depth}m</p>
                 </div>
             </Popup>
         </Marker>

@@ -15,13 +15,30 @@ const GroundWaterSection = ({
     aquiferData,
     qualityData,
     blockWaterQualityData,
-    getParameterColor
+    getParameterColor,
+    isExpanded
 }) => {
+    const isNoData = isGWRE && pieData.length === 1 && pieData[0].name === 'Data N/A';
+
+    if (isNoData) {
+        return (
+            <div className="groundwater-analysis-grid animated-entry">
+                <AnalysisCard style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📉</div>
+                    <h3 style={{ color: '#64748b' }}>Data Not Available</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+                        Data is not available. Please select another location.
+                    </p>
+                </AnalysisCard>
+            </div>
+        );
+    }
+
     return (
         <div className="groundwater-analysis-grid animated-entry">
             <AnalysisCard title={isGWRE ? 'Stage of Ground Water Extraction' : 'Ground Water Status'}>
                 <div className="pie-chart-wrapper">
-                    <ResponsiveContainer width="100%" height={260}>
+                    <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
                         <PieChart>
                             <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={5} dataKey="value">
                                 {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
@@ -43,7 +60,7 @@ const GroundWaterSection = ({
 
             <AnalysisCard title="Ground Water Level (mbgl)">
                 <div className="bar-chart-wrapper">
-                    <ResponsiveContainer width="100%" height={260}>
+                    <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
                         <BarChart data={waterLevelChartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                             <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -59,7 +76,7 @@ const GroundWaterSection = ({
 
             <AnalysisCard title="Aquifers Present">
                 <div className="bar-chart-wrapper">
-                    <ResponsiveContainer width="100%" height={260}>
+                    <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
                         <BarChart data={aquiferData} layout="vertical" margin={{ top: 10, right: 30, left: 100, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                             <XAxis type="number" hide />
@@ -91,7 +108,7 @@ const GroundWaterSection = ({
 
             <AnalysisCard title="Water Quality Compliance">
                 <div className="bar-chart-wrapper">
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={isExpanded ? 400 : 300}>
                         <BarChart
                             data={qualityData}
                             layout="vertical"

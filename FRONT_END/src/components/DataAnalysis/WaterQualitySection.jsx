@@ -49,9 +49,9 @@ const WaterQualitySection = ({
                 <div className="sidebar-section animated-entry">
                     <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: 'var(--shadow-sm)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📉</div>
-                        <h3 style={{ marginBottom: '0.5rem', color: '#1e293b' }}>Data is not present</h3>
+                        <h3 style={{ marginBottom: '0.5rem', color: '#1e293b' }}>Data Not Available</h3>
                         <p style={{ fontSize: '0.9rem', color: '#64748b' }}>
-                            Water quality monitoring data is currently unavailable for <strong>{blockWaterQualityData.block}</strong> block.
+                            Data is not available. Please select another location.
                         </p>
                     </div>
                 </div>
@@ -88,18 +88,80 @@ const WaterQualitySection = ({
                         )}
                     </div>
 
-                    <div className="water-quality-grid">
-                        <ParameterChart name="EC" value={blockWaterQualityData.ec} limit={3000} unit="µS/cm" status={blockWaterQualityData.ec > 3000 ? 'High' : 'Safe'} />
-                        <ParameterChart name="Fluoride" value={blockWaterQualityData.fluoride} limit={1.5} unit="mg/l" status={blockWaterQualityData.fluoride > 1.5 ? 'High' : 'Safe'} />
-                        <ParameterChart name="Nitrate" value={blockWaterQualityData.nitrate} limit={45} unit="mg/l" status={blockWaterQualityData.nitrate > 45 ? 'High' : 'Safe'} />
-                        <ParameterChart name="Iron" value={blockWaterQualityData.iron} limit={1.0} unit="mg/l" status={blockWaterQualityData.iron > 1.0 ? 'High' : 'Safe'} />
-                        <ParameterChart name="Arsenic" value={blockWaterQualityData.arsenic} limit={10} unit="µg/l" status={blockWaterQualityData.arsenic > 10 ? 'High' : 'Safe'} />
-                        <ParameterChart name="Uranium" value={blockWaterQualityData.uranium} limit={30} unit="µg/l" status={blockWaterQualityData.uranium > 30 ? 'High' : 'Safe'} />
-                        <ParameterChart name="TDS" value={blockWaterQualityData.tds} limit={2000} unit="mg/l" status={blockWaterQualityData.tds > 2000 ? 'High' : 'Safe'} />
-                        <ParameterChart name="pH" value={blockWaterQualityData.ph} limit={8.5} status={(blockWaterQualityData.ph >= 6.5 && blockWaterQualityData.ph <= 8.5) ? 'Normal' : 'Out Range'} />
-                        <ParameterChart name="Chloride" value={blockWaterQualityData.chloride} limit={1000} unit="mg/l" status={blockWaterQualityData.chloride > 1000 ? 'High' : 'Safe'} />
-                        <ParameterChart name="Hardness" value={blockWaterQualityData.hardness} limit={600} unit="mg/l" status={blockWaterQualityData.hardness > 600 ? 'High' : 'Safe'} />
-                    </div>
+                    {(() => {
+                        const params = [
+                            { key: 'ec', name: 'EC', limit: 3000, unit: 'µS/cm' },
+                            { key: 'fluoride', name: 'Fluoride', limit: 1.5, unit: 'mg/l' },
+                            { key: 'nitrate', name: 'Nitrate', limit: 45, unit: 'mg/l' },
+                            { key: 'iron', name: 'Iron', limit: 1.0, unit: 'mg/l' },
+                            { key: 'arsenic', name: 'Arsenic', limit: 10, unit: 'µg/l' },
+                            { key: 'uranium', name: 'Uranium', limit: 30, unit: 'µg/l' },
+                            { key: 'tds', name: 'TDS', limit: 2000, unit: 'mg/l' },
+                            { key: 'ph', name: 'pH', limit: 8.5, unit: '', range: [6.5, 8.5] },
+                            { key: 'chloride', name: 'Chloride', limit: 1000, unit: 'mg/l' },
+                            { key: 'hardness', name: 'Hardness', limit: 600, unit: 'mg/l' }
+                        ];
+
+                        const visibleParams = params.filter(p => {
+                            const val = blockWaterQualityData[p.key];
+                            return val !== undefined && val !== null && val !== 0;
+                        });
+
+                        if (visibleParams.length === 0) {
+                            return (
+                                <div className="no-data-message" style={{
+                                    textAlign: 'center',
+                                    padding: '2rem',
+                                    color: '#64748b',
+                                    gridColumn: '1 / -1',
+                                    background: '#f8fafc',
+                                    borderRadius: '8px',
+                                    border: '1px dashed #cbd5e1'
+                                }}>
+                                    <p style={{ margin: 0, fontSize: '0.9rem' }}>No specific parameter data recorded for this location.</p>
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <>
+                                <div className="water-quality-grid">
+                                    {visibleParams.map(param => {
+                                        const value = blockWaterQualityData[param.key];
+                                        let status;
+                                        if (param.key === 'ph') {
+                                            status = (value >= param.range[0] && value <= param.range[1]) ? 'Normal' : 'Out Range';
+                                        } else {
+                                            status = value > param.limit ? 'High' : 'Safe';
+                                        }
+
+                                        return (
+                                            <ParameterChart
+                                                key={param.key}
+                                                name={param.name}
+                                                value={value}
+                                                limit={param.limit}
+                                                unit={param.unit}
+                                                status={status}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                                <div className="quality-legend-simple" style={{ marginTop: '1.5rem', borderTop: '1px dashed #e2e8f0', paddingTop: '1rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', fontSize: '0.75rem', color: '#64748b' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2a9d8f' }}></span>
+                                            <span>Safe / Normal</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></span>
+                                            <span>High / Out of Range</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
                 </>
             ) : (
                 <>

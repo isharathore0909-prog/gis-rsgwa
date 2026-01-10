@@ -9,7 +9,7 @@ import { groundwaterData } from '../../data/groundwaterData';
 import { RAJASTHAN_DAMS_DATA } from '../../data/damsData';
 
 // Sub-components
-import { DamMarker, WellMarker, RainfallMarker, WaterQualityMarker } from './Markers';
+import { DamMarker, WellMarker, RainfallMarker, WaterQualityMarker, AquiferWellMarker } from './Markers';
 import { MapEvents, MapUpdater } from './MapEvents';
 import BasinFlowOverlay from './BasinFlowOverlay';
 
@@ -29,6 +29,16 @@ L.Icon.Default.mergeOptions({
     iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
+
+/**
+ * MapView Component
+ * 
+ * Main geospatial visualization component using Leaflet.
+ */
+// Constants
+const THEMATIC_PALETTE = ['#0066cc', '#00ccff', '#00ff99', '#ffff00', '#ff9900', '#ff3300', '#cc0000'];
+const BLUE_PALETTE = ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'];
+const DEFAULT_CENTER = [26.9124, 75.7873];
 
 /**
  * MapView Component
@@ -59,8 +69,7 @@ const MapView = ({
     const [legendFeature, setLegendFeature] = useState('GWDL');
     const [numClasses, setNumClasses] = useState(5);
     const [waterQualityRecords, setWaterQualityRecords] = useState([]);
-
-
+    const [aquiferRecords, setAquiferRecords] = useState([]);
 
     // Sync legend visibility and defaults
     useEffect(() => {
@@ -109,6 +118,13 @@ const MapView = ({
                     params.village_name = filters.village;
                 }
 
+                // Don't fetch if no district is selected (User request)
+                if (!params.district) {
+                    setWaterQualityRecords([]);
+                    window.waterQualityRecords = [];
+                    return;
+                }
+
                 const data = await api.waterQuality.getRecords(params);
                 const records = data.results || data || [];
                 console.log('Water Quality Data Fetched:', {
@@ -127,13 +143,51 @@ const MapView = ({
         fetchWaterQuality();
     }, [filters?.type, filters?.district, filters?.taluka, filters?.gramPanchayat, filters?.village]);
 
+    // Fetch Aquifer/Well Inventory data
+    useEffect(() => {
+        if (filters?.type !== 'Well Inventory' && filters?.type !== 'Aquifer') {
+            setAquiferRecords([]);
+            return;
+        }
 
-    // Clear selected dam when layer changes away from Water Resources
+        const fetchAquiferData = async () => {
+            try {
+                const params = {};
+                if (filters?.district) params.district = filters.district;
+                if (filters?.taluka) params.block = filters.taluka;
+                if (filters?.gramPanchayat) params.grampanchayat = filters.gramPanchayat;
+                if (filters?.village) params.village_name = filters.village;
+
+                // Fetch full records (using detailed=true if needed, or just list)
+                // For map we might just need list, but user wants detailed data on click
+                params.detailed = 'true';
+
+                if (!params.district) {
+                    setAquiferRecords([]);
+                    return;
+                }
+
+                const data = await api.aquifer.getRecords(params);
+                const records = data.results || data || [];
+                setAquiferRecords(records);
+            } catch (error) {
+                console.error('Error fetching aquifer records:', error);
+                setAquiferRecords([]);
+            }
+        };
+
+        fetchAquiferData();
+    }, [filters?.type, filters?.district, filters?.taluka, filters?.gramPanchayat, filters?.village]);
+
+
+    // Clear selected dam when layer changes away from Water Resources or District changes
     useEffect(() => {
         if (filters?.type !== 'Water Resources') {
             setSelectedDam(null);
         }
-    }, [filters?.type]);
+        // Also clear if district changes to avoid stale overlays
+        setSelectedDam(null);
+    }, [filters?.type, filters?.district]);
 
     // Auto-resize map when container dimensions change
     useEffect(() => {
@@ -144,10 +198,6 @@ const MapView = ({
         observer.observe(container);
         return () => observer.disconnect();
     }, []);
-
-    // Color Palette
-    const THEMATIC_PALETTE = ['#0066cc', '#00ccff', '#00ff99', '#ffff00', '#ff9900', '#ff3300', '#cc0000'];
-    const BLUE_PALETTE = ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'];
 
     // Feature Options (Dynamic based on layer)
     const featureOptions = useMemo(() => {
@@ -255,6 +305,7 @@ const MapView = ({
 
         // Handle Water Quality
         else if (filters?.type === 'Water Quality') {
+            if (!waterQualityRecords || waterQualityRecords.length === 0) return [];
             return [
                 { label: 'Good (No Issues)', value: 'Good', color: '#2a9d8f', isCategorical: true },
                 { label: 'Warning (Moderate)', value: 'Warning', color: '#f4a261', isCategorical: true },
@@ -262,14 +313,21 @@ const MapView = ({
             ];
         }
 
-        // Handle Block Features
-        else if (isBlockFeature) {
+        // Handle Block Features (Thematic Layers)
+        else if (isBlockFeature && ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type)) {
             if (!blockBoundaryData) return [];
             values = blockBoundaryData.features.map(f => f.properties[legendFeature]);
         }
-        // Fallback to Groundwater Well Data
-        else {
+
+        // Handle Well Inventory / Aquifer
+        else if (filters?.type === 'Well Inventory' || filters?.type === 'Aquifer') {
+            if (!aquiferRecords || aquiferRecords.length === 0) return [];
             values = groundwaterData.map(d => d[legendFeature]);
+        }
+
+        // No legend for other layers or when no layer is selected
+        else {
+            return [];
         }
 
         values = values.filter(v => v !== null && v !== undefined);
@@ -298,6 +356,20 @@ const MapView = ({
         } else {
             const min = Math.min(...values);
             const max = Math.max(...values);
+
+            if (min === max) {
+                const palette = filters?.type === 'Rainfall' ? BLUE_PALETTE : THEMATIC_PALETTE;
+                // Use middle color
+                const color = palette[Math.floor(palette.length / 2)];
+                return [{
+                    min,
+                    max,
+                    color,
+                    label: min.toFixed(1),
+                    isCategorical: false
+                }];
+            }
+
             const range = max - min;
             const steps = numClasses;
             const step = range / steps;
@@ -317,13 +389,13 @@ const MapView = ({
                 };
             });
         }
-    }, [legendFeature, numClasses, blockBoundaryData, isBlockFeature, filters?.type, mapRainfallPoints]);
+    }, [legendFeature, numClasses, blockBoundaryData, isBlockFeature, filters?.type, mapRainfallPoints, waterQualityRecords, aquiferRecords]);
 
     // Map Interaction Handlers
     const handleMapReady = (map) => (mapRef.current = map);
     const handleZoomIn = () => mapRef.current?.zoomIn();
     const handleZoomOut = () => mapRef.current?.zoomOut();
-    const handleResetView = () => mapRef.current?.setView([26.9124, 75.7873], 7);
+    const handleResetView = () => mapRef.current?.setView(DEFAULT_CENTER, 7);
     const handleFullscreen = () => !document.fullscreenElement ? document.documentElement.requestFullscreen() : document.exitFullscreen();
     const toggleLegend = () => setShowLegend(!showLegend);
 
@@ -541,8 +613,8 @@ const MapView = ({
 
     return (
         <div className="map-container">
-            <MapContainer center={[26.9124, 75.7873]} zoom={7} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-                <MapUpdater center={[26.9124, 75.7873]} zoom={7} basemap={basemap} onMapReady={handleMapReady} />
+            <MapContainer center={DEFAULT_CENTER} zoom={7} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+                <MapUpdater center={DEFAULT_CENTER} zoom={7} basemap={basemap} onMapReady={handleMapReady} />
                 <MapEvents onLocationClick={onLocationClick} />
 
                 {/* Basemap Layer */}
@@ -599,6 +671,18 @@ const MapView = ({
                     <GeoJSON
                         key={`dynamic-drill-${validatedBoundaries.features.length}-${filters?.district}-${filters?.block}-${currentLevel}`}
                         data={validatedBoundaries}
+                        pointToLayer={(feature, latlng) => {
+                            // Render points as small circle markers instead of default pins
+                            // This prevents them from looking like "data markers" (e.g., well inventory)
+                            return L.circleMarker(latlng, {
+                                radius: 5,
+                                fillColor: '#94a3b8',
+                                color: '#ecfeff',
+                                weight: 1,
+                                opacity: 1,
+                                fillOpacity: 0.8
+                            });
+                        }}
                         style={(feature) => {
                             const level = feature.properties.level || currentLevel;
                             const isDistrict = level === 'district';
@@ -733,17 +817,7 @@ const MapView = ({
                     ) : null
                 ))}
 
-                {/* Debug: Fallback Marker if no dams are found but layer is active */}
-                {filters?.type === 'Water Resources' && damMarkers.length === 0 && (
-                    <Marker position={[26.9124, 75.7873]}>
-                        <Popup>
-                            <strong>Debug Info:</strong><br />
-                            Water Resources Layer Active.<br />
-                            No Dams Mapped.<br />
-                            Check block boundary data.
-                        </Popup>
-                    </Marker>
-                )}
+
 
                 {filters?.type === 'Rainfall' && filters?.village && mapRainfallPoints.map((record, idx) => (
                     record.latitude && record.longitude && (
@@ -778,10 +852,28 @@ const MapView = ({
                         />
                     )
                 ))}
+
+
+                {(filters?.type === 'Well Inventory' || filters?.type === 'Aquifer') && aquiferRecords.map((record, idx) => (
+                    record.latitude && record.longitude && (
+                        <AquiferWellMarker
+                            key={`aq-${record.well_id || idx}`}
+                            record={record}
+                            onMarkerClick={(rec, latlng) => {
+                                onLocationClick(latlng, [{
+                                    ...rec,
+                                    id: rec.well_id,
+                                    location: rec.village_name || 'Unknown',
+                                    type: 'well_inventory_well'
+                                }]);
+                            }}
+                        />
+                    )
+                ))}
             </MapContainer>
 
             {/* Data Availability Warning */}
-            {filters?.type && !['Rainfall', 'Water Resources', 'Ground Water Resource Estimation', 'Aquifer', 'Water Quality'].includes(filters.type) && (
+            {filters?.type && !['Rainfall', 'Water Resources', 'Ground Water Resource Estimation', 'Aquifer', 'Water Quality', 'Well Inventory'].includes(filters.type) && (
                 <div className="map-warning-overlay animated-fade-in">
                     <div className="warning-content">
                         <span className="warning-icon">⚠️</span>
@@ -804,7 +896,7 @@ const MapView = ({
             </div>
 
             {/* Premium Legend Header (Floating Button) */}
-            {filters?.type !== 'Water Resources' && (
+            {filters?.type && filters?.type !== 'Water Resources' && legendData.length > 0 && (
                 <div
                     className={`map-legend-toggle ${showLegend ? 'active' : ''}`}
                     onClick={toggleLegend}
@@ -841,8 +933,8 @@ const MapView = ({
             )}
 
             {/* Professional Legend Widget */}
-            {showLegend && filters?.type !== 'Water Resources' && (
-                <div className="legend-widget animated-fade-in" style={{ bottom: '75px', right: '25px' }}>
+            {showLegend && filters?.type && filters?.type !== 'Water Resources' && legendData.length > 0 && (
+                <div className="legend-widget animated-fade-in" style={{ bottom: '75px', right: '25px', zIndex: 1100 }}>
                     <div className="legend-header">
                         <div className="header-left">
                             <IconLayers className="header-icon" size={18} />

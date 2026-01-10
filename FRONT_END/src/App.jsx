@@ -79,7 +79,7 @@ function App() {
             };
             return [...prev, feature];
         });
-        alert(`${dam.name} added to Attribute Inventory analysis.`);
+        // alert(`${dam.name} added to Attribute Inventory analysis.`);
     };
 
     const handleRemoveRow = (id) => {
@@ -220,6 +220,9 @@ function App() {
         }
     }, []);
 
+    const [aquiferRecords, setAquiferRecords] = useState([]);
+    const [waterQualityRecords, setWaterQualityRecords] = useState([]);
+
     // Fetch rainfall points when Rainfall type is selected and date range changes
     useEffect(() => {
         const fetchRainfallData = async () => {
@@ -250,6 +253,70 @@ function App() {
         };
         fetchRainfallData();
     }, [filters]);
+
+    // Fetch Aquifer/Well Inventory data
+    useEffect(() => {
+        if (filters?.type !== 'Well Inventory' && filters?.type !== 'Aquifer') {
+            setAquiferRecords([]);
+            return;
+        }
+
+        const fetchAquiferData = async () => {
+            try {
+                const params = {};
+                if (filters?.district) params.district = filters.district;
+                if (filters?.taluka || filters?.block) params.block = filters.taluka || filters.block;
+                if (filters?.gramPanchayat) params.grampanchayat = filters.gramPanchayat;
+                if (filters?.village) params.village_name = filters.village;
+
+                params.detailed = 'true';
+
+                const data = await api.aquifer.getRecords(params);
+                const records = data.results || data || [];
+                setAquiferRecords(records);
+            } catch (error) {
+                console.error('Error fetching aquifer records:', error);
+                setAquiferRecords([]);
+            }
+        };
+
+        fetchAquiferData();
+    }, [filters]);
+
+    // Fetch Water Quality Data
+    useEffect(() => {
+        if (filters?.type !== 'Water Quality') {
+            setWaterQualityRecords([]);
+            return;
+        }
+
+        const fetchWaterQualityData = async () => {
+            try {
+                const params = {};
+                const neighbor = neighbors && neighbors.length > 0 ? neighbors[0] : null;
+
+                // Determine district/block from filters OR selected neighbor
+                const district = filters.district || neighbor?.district || neighbor?.properties?.district;
+                const block = filters.block || filters.taluka || neighbor?.block || neighbor?.properties?.block;
+                const village = filters.village || neighbor?.village || neighbor?.properties?.village;
+
+                if (district) params.district = district;
+                if (block) params.block = block;
+                if (village) params.village = village;
+
+                console.log('Fetching Water Quality Records with params:', params);
+
+                const response = await api.waterQuality.getRecords(params);
+                const records = response.results || response || [];
+                setWaterQualityRecords(records);
+            } catch (error) {
+                console.error('Error fetching water quality records:', error);
+                setWaterQualityRecords([]);
+            }
+        };
+
+        fetchWaterQualityData();
+    }, [filters, neighbors]);
 
     const handleLayerChange = (layerName, checked) => {
         setLayers(prev => ({
@@ -309,6 +376,15 @@ function App() {
         }
 
         if (filters.type === 'Water Resources') {
+            // If user has selected specific dams (via marker click), show only those
+            if (selectedDams.length > 0) {
+                return {
+                    type: 'FeatureCollection',
+                    features: selectedDams
+                };
+            }
+
+            // Otherwise show all dams matching the current filter
             // Generate dam features with coordinates derived from block centroids
             const features = RAJASTHAN_DAMS_DATA.map((dam, idx) => {
                 let geometry = null;
@@ -412,27 +488,54 @@ function App() {
         }
 
         if (filters.type === 'Water Quality') {
-            const records = window.waterQualityRecords || []; // Accessing via window or state if available
-            // Note: Since MapView manages waterQualityRecords state internally, 
-            // for a proper implementation we should pull it up to App.jsx or use a ref.
-            // For now, let's use the Rainfall-style fallback if current records are not easily accessible.
+            const records = waterQualityRecords || [];
+
             return {
                 type: 'FeatureCollection',
-                features: records.filter(p => {
-                    const matchDist = !filters.district || p.district?.toUpperCase() === filters.district.toUpperCase();
-                    const matchBlock = !(filters.taluka || filters.block) || p.block?.toUpperCase() === (filters.taluka || filters.block).toUpperCase();
-                    return matchDist && matchBlock;
-                }).map((p, idx) => ({
+                features: records.map((p, idx) => ({
                     type: 'Feature',
                     id: p.id || `wq-${idx}`,
                     properties: {
                         'Well ID': p.well_id,
-                        'District': p.district,
-                        'Block': p.block,
-                        'Village': p.village_name,
+                        'District': p.district || p.village__grampanchayat__block__district__name,
+                        'Block': p.block || p.village__grampanchayat__block__name,
+                        'Village': p.village_name || p.village__name,
                         'pH': p.ph,
                         'TDS': p.tds,
+                        'EC': p.ec,
+                        'Fluoride': p.fluoride,
+                        'Nitrate': p.nitrate,
+                        'Iron': p.iron,
                         'Date': p.meta_date
+                    },
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [p.longitude, p.latitude]
+                    }
+                }))
+            };
+        }
+
+        if (filters.type === 'Well Inventory' || filters.type === 'Aquifer') {
+            return {
+                type: 'FeatureCollection',
+                features: aquiferRecords.map((p, idx) => ({
+                    type: 'Feature',
+                    id: p.well_id || `aq-${idx}`,
+                    properties: {
+                        'Well ID': p.well_id,
+                        // Use village_details.name as primary source, fallback to village_name or null
+                        'Village': p.village_details?.name || p.village_name || '-',
+                        // Fallback to filters since model properties might be unreliable
+                        'District': p.district || filters.district || '-',
+                        'Block': p.block || filters.block || filters.taluka || '-',
+                        'Depth (m)': p.well_depth,
+                        // Historical Data
+                        ...[2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024].reduce((acc, year) => ({
+                            ...acc,
+                            [`Pre ${year}`]: p[`pre_${year}`] ?? '-',
+                            [`Post ${year}`]: p[`pst_${year}`] ?? '-'
+                        }), {})
                     },
                     geometry: {
                         type: 'Point',

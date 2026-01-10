@@ -208,6 +208,22 @@ class BackendAPIClient {
         return this.get(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params, true);
     }
 
+    async getAquiferRecords(params = {}) {
+        return this.get(BACKEND_API.ENDPOINTS.AQUIFER, params, true);
+    }
+
+    async getAquiferStatistics(params = {}) {
+        return this.get(BACKEND_API.ENDPOINTS.AQUIFER_STATISTICS, params, true);
+    }
+
+    async getRechargeStructureRecords(params = {}) {
+        return this.get(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE, params, true);
+    }
+
+    async getRechargeStructureStatistics(params = {}) {
+        return this.get(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE_STATISTICS, params, true);
+    }
+
     // ==================== Auth API ====================
 
     async login(credentials) {

@@ -32,10 +32,16 @@
 
 .data-analysis-sidebar.expanded-layout .region-header,
 .data-analysis-sidebar.expanded-layout .sidebar-header-section,
-.data-analysis-sidebar.expanded-layout .sidebar-section {
+.data-analysis-sidebar.expanded-layout .sidebar-section,
+.data-analysis-sidebar.expanded-layout .recharge-section,
+.data-analysis-sidebar.expanded-layout .aquifer-section,
+.data-analysis-sidebar.expanded-layout .rainfall-grid,
+.data-analysis-sidebar.expanded-layout .groundwater-analysis-grid,
+.data-analysis-sidebar.expanded-layout .well-inventory-section {
     grid-column: span 2;
     margin-bottom: 1rem;
 }
+
 
 .data-analysis-sidebar.expanded-layout .view-switcher {
     grid-column: span 2;

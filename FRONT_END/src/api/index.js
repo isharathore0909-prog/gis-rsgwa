@@ -62,6 +62,18 @@ export default {
         getStatistics: (params) => backendApi.getWaterQualityStatistics(params),
     },
 
+    // Aquifer API
+    aquifer: {
+        getRecords: (params) => backendApi.getAquiferRecords(params),
+        getStatistics: (params) => backendApi.getAquiferStatistics(params),
+    },
+
+    // Recharge Structure API
+    rechargeStructure: {
+        getRecords: (params) => backendApi.getRechargeStructureRecords(params),
+        getStatistics: (params) => backendApi.getRechargeStructureStatistics(params),
+    },
+
     // Auth API
     auth: {
         login: (credentials) => backendApi.login(credentials),
