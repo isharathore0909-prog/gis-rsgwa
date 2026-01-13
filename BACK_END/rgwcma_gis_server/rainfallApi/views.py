@@ -145,6 +145,27 @@ class RainfallViewSet(viewsets.ModelViewSet):
             return Response([{'name': d['date'], 'total': d['total'], 'average': round(d['average'], 2)} for d in data])
 
     @action(detail=False, methods=['get'])
+    def district_wise(self, request):
+        """Aggregate rainfall data by district."""
+        queryset = self.get_queryset()
+        
+        # Group by district and calculate the average
+        # village -> grampanchayat -> block -> district
+        data = queryset.values('village__grampanchayat__block__district__name') \
+                       .annotate(average_rainfall=Avg('rainfall_mm')) \
+                       .order_by('village__grampanchayat__block__district__name')
+        
+        result = [
+            {
+                'district': d['village__grampanchayat__block__district__name'],
+                'average_rainfall': round(d['average_rainfall'] or 0, 2)
+            }
+            for d in data if d['village__grampanchayat__block__district__name']
+        ]
+        
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
     def nearby(self, request):
         """
         Get rainfall data for a specific lat/lon by averaging nearby stations.

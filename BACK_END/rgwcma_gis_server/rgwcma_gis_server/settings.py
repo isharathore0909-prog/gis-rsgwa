@@ -103,7 +103,7 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
         'OPTIONS': {
             'timeout': 20,  # Increase timeout to 20 seconds
-            'init_command': 'PRAGMA journal_mode=WAL;', # Enable WAL mode for better concurrency
+            #'init_command': 'PRAGMA journal_mode=WAL;', # Enable WAL mode for better concurrency
         }
     }
 }
@@ -202,3 +202,5 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
+
+import rgwcma_gis_server.db_wal

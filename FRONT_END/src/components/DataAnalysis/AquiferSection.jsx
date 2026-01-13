@@ -10,68 +10,17 @@ import {
     Cell
 } from 'recharts';
 import AnalysisCard from './Common/AnalysisCard';
-import { AQUIFER_DATA } from '../../data/districtAquiferData';
-import { BLOCK_AQUIFER_DATA } from '../../data/blockAquiferData';
 import './AquiferSection.css';
 
 const AquiferSection = ({ displayRegion, displayBlock, data, isExpanded }) => {
-    // Colors for the chart
-    const colors = ['#f9c74f', '#90be6d', '#f9844a', '#4d908e', '#277da1', '#577590', '#f3722c'];
-
     // Process data based on selected region
     const aquiferData = useMemo(() => {
-        // If data is passed (e.g. from DB), use it
+        // Strictly use Database Data passed via props
         if (data && data.length > 0) {
             return data;
         }
-
-        if (!displayRegion) return [];
-
-        // Helper to normalize names for comparison
-        const normalize = (name) => {
-            if (!name) return "";
-            return name.split(' (')[0].trim().toUpperCase();
-        };
-
-        const targetNorm = normalize(displayRegion);
-
-        // Priority 1: Check for Block Data
-        if (displayBlock) {
-            // Find district key in BLOCK_AQUIFER_DATA by normalized match
-            const districtKey = Object.keys(BLOCK_AQUIFER_DATA).find(key => normalize(key) === targetNorm);
-
-            if (districtKey) {
-                const districtBlocks = BLOCK_AQUIFER_DATA[districtKey];
-                if (districtBlocks && districtBlocks[displayBlock]) {
-                    const blockData = districtBlocks[displayBlock];
-                    if (blockData.length > 0) {
-                        return blockData.map((item, i) => ({
-                            ...item,
-                            area: item.value.toLocaleString(),
-                            color: item.color || colors[i % colors.length]
-                        }));
-                    }
-                }
-            }
-        }
-
-        // Priority 2: Fallback to District Data
-        const filteredAquifers = AQUIFER_DATA.filter(aq =>
-            aq.districts.some(d => normalize(d) === targetNorm)
-        );
-
-        // Return top 10 by area
-        return filteredAquifers
-            .sort((a, b) => b.area - a.area)
-            .slice(0, 10)
-            .map((aq, i) => ({
-                name: aq.type,
-                value: aq.area,
-                area: aq.area.toLocaleString(),
-                percent: aq.percent,
-                color: colors[i % colors.length]
-            }));
-    }, [displayRegion, displayBlock, data]);
+        return [];
+    }, [data]);
 
     if (aquiferData.length === 0) {
         return (

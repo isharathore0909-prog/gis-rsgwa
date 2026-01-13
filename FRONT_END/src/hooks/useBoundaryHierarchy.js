@@ -104,20 +104,20 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
     const getParentInfo = useCallback(async (filters) => {
         try {
             // Village selected -> Show that village or all villages of GP
-            if (filters?.village && filters?.gramPanchayat && filters?.block && filters?.district) {
-                const gpId = await getGpId(filters.district, filters.block, filters.gramPanchayat);
+            if (filters?.village && filters?.gramPanchayat && filters?.taluka && filters?.district) {
+                const gpId = await getGpId(filters.district, filters.taluka, filters.gramPanchayat);
                 return { level: 'village', parentId: gpId };
             }
 
             // GP selected -> Show villages of that GP
-            if (filters?.gramPanchayat && filters?.block && filters?.district) {
-                const gpId = await getGpId(filters.district, filters.block, filters.gramPanchayat);
+            if (filters?.gramPanchayat && filters?.taluka && filters?.district) {
+                const gpId = await getGpId(filters.district, filters.taluka, filters.gramPanchayat);
                 return { level: 'village', parentId: gpId };
             }
 
             // Block selected -> Show GPs of that block
-            if (filters?.block && filters?.district) {
-                const blockId = await getBlockId(filters.district, filters.block);
+            if (filters?.taluka && filters?.district) {
+                const blockId = await getBlockId(filters.district, filters.taluka);
                 return { level: 'gp', parentId: blockId };
             }
 
@@ -180,7 +180,7 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
         fetchBoundaries();
     }, [
         filters?.district,
-        filters?.block,
+        filters?.taluka,
         filters?.gramPanchayat,
         filters?.village,
         rajasthanId,

@@ -529,12 +529,12 @@
     border-color: var(--secondary-blue);
 }
 
-.map-legend-toggle.active .legend-label {
+.map-legend-toggle.active .toggle-text {
     color: white;
 }
 
 .map-legend-toggle.active span:last-child {
-    color: rgba(255, 255, 255, 0.7);
+    color: #ffffff;
 }
 
 .legend-widget {

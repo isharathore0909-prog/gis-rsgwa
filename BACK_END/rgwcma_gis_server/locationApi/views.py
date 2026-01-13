@@ -210,12 +210,14 @@ class PincodeView(APIView):
         if address: return Response(address)
         return Response({"error": "Coordinates not mapped"}, status=404)
 
-
 class BoundaryCollectionView(APIView):
     """Service for fetching bulk geometries for a specific administrative level."""
     authentication_classes = []  # Public access
     permission_classes = [permissions.AllowAny]
     
+    # Simple in-memory cache for external boundaries
+    _external_cache = {}
+
     def get(self, request):
         layer = request.query_params.get('layer', 'district').lower()
         parent_id = request.query_params.get('parent_id')
@@ -232,19 +234,48 @@ class BoundaryCollectionView(APIView):
 
         fields = ['id', 'name', 'code']
         if layer == 'village': 
-            fields.extend(['latitude', 'longitude', 'grampanchayat__name'])
+            fields.extend(['latitude', 'longitude', 'grampanchayat__name', 'grampanchayat_id'])
             # Ensure we can follow the relationship
             queryset = queryset.select_related('grampanchayat')
         
         if connection.vendor == 'postgresql': fields.append('geometry_geojson')
             
+        # Optimization: Bulk lookup from LocationCode for villages
+        location_code_map = {}
+        if layer == 'village' and fetch:
+            vlg_names = [item['name'].strip() for item in queryset.values('name')]
+            # Limit list size to avoid extreme query length
+            if len(vlg_names) < 1000:
+                loc_codes = LocationCode.objects.filter(vlg_name__in=vlg_names).values('vlg_name', 'gp_name', 'vlg_code')
+                for lc in loc_codes:
+                    key = (lc['vlg_name'].strip().lower(), lc['gp_name'].strip().lower())
+                    location_code_map[key] = lc['vlg_code']
+                    # Also store by just name for fallback
+                    if lc['vlg_name'].strip().lower() not in location_code_map:
+                        location_code_map[lc['vlg_name'].strip().lower()] = lc['vlg_code']
+
         features = []
         for item in queryset.values(*fields):
             geom = item.get('geometry_geojson')
             
             # Fidelity enrichment
             if fetch:
-                geom = self._fetch_layer_boundary(model, layer, item)
+                # Optimized boundary fetch
+                if layer == 'village':
+                    name = item['name'].strip().lower()
+                    gp_name = item.get('grampanchayat__name', '').strip().lower()
+                    code = item.get('code') or location_code_map.get((name, gp_name)) or location_code_map.get(name)
+                    
+                    if code:
+                        cache_key = f"{layer}_{code}"
+                        if cache_key in self._external_cache:
+                            geom = self._external_cache[cache_key]
+                        else:
+                            geom = BoundaryByCodeView.fetch_external_boundary(layer, code)
+                            if geom: self._external_cache[cache_key] = geom
+                else:
+                    # Non-village layers usually don't have 'fetch' enabled in frontend but handled for consistency
+                    geom = self._fetch_layer_boundary(model, layer, item)
             
             # Fallback for village centroids
             if not geom and layer == 'village' and item.get('latitude'):

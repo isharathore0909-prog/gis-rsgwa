@@ -6,7 +6,7 @@
     height: auto;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-x: hidden;
     gap: 15px;
 }
 
@@ -62,8 +62,24 @@
 .chart-wrapper {
     width: 100%;
     height: 300px;
-    /* Fixed height for the chart */
 }
+
+/* Expanded Grid Layouts */
+.data-analysis-sidebar.expanded-layout .well-inventory-section.detailed-view {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+.data-analysis-sidebar.expanded-layout .detailed-view .well-profile-card {
+    grid-column: 1;
+}
+
+.data-analysis-sidebar.expanded-layout .detailed-view .well-chart-container {
+    grid-column: 1;
+}
+
+/* For truly wide displays, we could go 2-column but 900px is tight for side-by-side detail */
 
 /* List View Styles (Fallback) */
 .well-count-header {
@@ -154,7 +170,49 @@
 /* Aggregated Dashboard View */
 .well-inventory-section.dashboard-view {
     overflow-y: auto;
-    gap: 20px;
+    gap: 1.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.data-analysis-sidebar.expanded-layout .well-inventory-section.dashboard-view,
+.data-analysis-sidebar[data-expanded="true"] .well-inventory-section.dashboard-view {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.data-analysis-sidebar.expanded-layout .well-count-header,
+.data-analysis-sidebar[data-expanded="true"] .well-count-header {
+    grid-column: span 2;
+    padding-bottom: 0.5rem;
+}
+
+.data-analysis-sidebar.expanded-layout .aggregated-chart-section,
+.data-analysis-sidebar[data-expanded="true"] .aggregated-chart-section {
+    grid-column: 1;
+    background: #fff;
+    padding: 1.25rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.data-analysis-sidebar.expanded-layout .aquifer-stats-card,
+.data-analysis-sidebar[data-expanded="true"] .aquifer-stats-card {
+    grid-column: 2;
+    background: #fff;
+    padding: 1.25rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.data-analysis-sidebar.expanded-layout .selection-summary-card,
+.data-analysis-sidebar[data-expanded="true"] .selection-summary-card {
+    grid-column: span 2;
 }
 
 .aggregated-chart-section h5,
@@ -287,4 +345,419 @@
     font-size: 0.85rem;
     color: #334155;
     font-weight: 700;
+}
+
+/* Table Section Styles */
+.well-table-container {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.table-header h5 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #475569;
+    font-weight: 600;
+}
+
+.download-btn-small {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.download-btn-small:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #3b82f6;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+}
+
+.download-btn-small svg {
+    transition: transform 0.2s;
+}
+
+.download-btn-small:hover svg {
+    transform: translateY(1px);
+}
+
+.data-table-wrapper {
+    overflow-x: hidden;
+    border-radius: 10px;
+    border: 1px solid #f1f5f9;
+}
+
+.analysis-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.analysis-table th {
+    background: #f8fafc;
+    padding: 12px;
+    text-align: left;
+    color: #64748b;
+    font-weight: 600;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+.analysis-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f8fafc;
+    color: #1e293b;
+    font-weight: 500;
+}
+
+.analysis-table tr:last-child td {
+    border-bottom: none;
+}
+
+.analysis-table tr:hover td {
+    background: #f8fafc;
+}
+
+/* Integrated Batch Actions in Table Headers */
+.table-header.selection-integrated {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.table-header.selection-integrated .title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Compact Batch Selection Controls */
+.table-batch-actions-compact {
+    display: flex;
+    align-items: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+}
+
+.batch-action-btn-primary {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.batch-action-btn-primary:hover {
+    background: #2563eb;
+}
+
+/* Well Registry Table */
+.well-registry-card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    margin-top: 16px;
+    overflow: hidden;
+}
+
+.registry-table th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    z-index: 10;
+}
+
+.registry-table tr.selected-row {
+    background-color: #f0f9ff;
+}
+
+.registry-table tr:hover {
+    background-color: #f8fafc;
+}
+
+.registry-table input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.selection-toggle-btn {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+    margin-left: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.selection-toggle-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.selection-toggle-btn.add {
+    color: #10b981;
+}
+
+.selection-toggle-btn.add:hover {
+    background: #ecfdf5;
+    border-color: #10b981;
+}
+
+.selection-toggle-btn.remove {
+    color: #ef4444;
+    background: #fef2f2;
+    border-color: #fee2e2;
+}
+
+.selection-toggle-btn.remove:hover {
+    background: #fee2e2;
+    border-color: #ef4444;
+}
+
+/* Selection Summary Table (Wide Format) */
+.selection-summary-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    border-top: 4px solid #3b82f6;
+}
+
+.horizontal-scroll {
+    overflow-x: hidden;
+    width: 100%;
+}
+
+.wide-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+}
+
+.wide-table th,
+.wide-table td {
+    padding: 8px 4px !important;
+    font-size: 10px !important;
+    border-right: 1px solid #f1f5f9;
+    white-space: nowrap;
+}
+
+.table-header.selection-integrated {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.table-batch-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.batch-count-indicator {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #3b82f6;
+    background: #eff6ff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #dbeafe;
+    white-space: nowrap;
+}
+
+.batch-action-btn {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.batch-action-btn.download-all {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    box-shadow: 0 1px 2px rgba(59, 130, 246, 0.2);
+}
+
+.batch-action-btn.download-all:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.batch-action-btn.clear-all {
+    background: white;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+.batch-action-btn.clear-all:hover {
+    background: #fef2f2;
+    color: #ef4444;
+    border-color: #fecaca;
+}
+
+/* Full Screen Modal Styles */
+.well-inventory-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    backdrop-filter: blur(4px);
+}
+
+.well-inventory-modal-content {
+    background: white;
+    width: 90%;
+    height: 90%;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #1e293b;
+    font-weight: 700;
+}
+
+.modal-close-btn {
+    background: white;
+    border: 1px solid #cbd5e1;
+    color: #64748b;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+    background: #fef2f2;
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.modal-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: white;
+}
+
+.modal-body .data-table-wrapper {
+    height: 100%;
+    overflow-y: auto;
+    border: none;
+    border-radius: 0;
+}
+
+.modal-body .analysis-table th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background-color: #f8fafc;
+}
+
+.batch-action-btn-secondary {
+    background: white;
+    color: #64748b;
+    border: none;
+    border-left: 1px solid #e2e8f0;
+    padding: 8px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.batch-action-btn-secondary:hover {
+    background: #f1f5f9;
+    color: #3b82f6;
 }

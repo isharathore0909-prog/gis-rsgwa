@@ -12,8 +12,13 @@
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.data-analysis-sidebar.expanded-layout {
-    width: 840px;
+.data-analysis-sidebar.expanded-layout,
+.data-analysis-sidebar[data-expanded="true"] {
+    width: 900px !important;
+    min-width: 900px !important;
+    max-width: 50vw !important;
+    flex-basis: 900px !important;
+    border-left: 2px solid var(--secondary-blue);
 }
 
 .sidebar-content {
@@ -22,7 +27,8 @@
     padding: 1.5rem;
 }
 
-.data-analysis-sidebar.expanded-layout .sidebar-content {
+.data-analysis-sidebar.expanded-layout .sidebar-content,
+.data-analysis-sidebar[data-expanded="true"] .sidebar-content {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
@@ -37,9 +43,11 @@
 .data-analysis-sidebar.expanded-layout .aquifer-section,
 .data-analysis-sidebar.expanded-layout .rainfall-grid,
 .data-analysis-sidebar.expanded-layout .groundwater-analysis-grid,
-.data-analysis-sidebar.expanded-layout .well-inventory-section {
+.data-analysis-sidebar.expanded-layout .well-inventory-section,
+.data-analysis-sidebar.expanded-layout .well-inventory-section-wrapper {
     grid-column: span 2;
     margin-bottom: 1rem;
+    width: 100%;
 }
 
 
@@ -443,22 +451,25 @@
 .groundwater-analysis-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1.5rem;
+    gap: 1rem;
+    overflow-x: hidden;
 }
 
 /* If the sidebar is expanded, use 2 columns for Ground Water and Rainfall (2x2) */
 .data-analysis-sidebar.expanded-layout .groundwater-analysis-grid,
-.data-analysis-sidebar.expanded-layout .rainfall-grid {
-    grid-template-columns: repeat(2, 1fr);
+.data-analysis-sidebar[data-expanded="true"] .groundwater-analysis-grid,
+.data-analysis-sidebar.expanded-layout .rainfall-grid,
+.data-analysis-sidebar[data-expanded="true"] .rainfall-grid,
+.data-analysis-sidebar.expanded-layout .water-quality-grid,
+.data-analysis-sidebar[data-expanded="true"] .water-quality-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
     grid-column: span 2;
     display: grid;
     gap: 1.5rem;
 }
 
-.data-analysis-sidebar.expanded-layout .water-quality-grid {
-    grid-template-columns: repeat(3, 1fr);
-    grid-column: span 2;
-}
+/* Removed the 3-column override for water quality to maintain 2x2 consistency */
+
 
 .data-analysis-sidebar.expanded-layout .analysis-card.full-width {
     grid-column: 1 / -1;

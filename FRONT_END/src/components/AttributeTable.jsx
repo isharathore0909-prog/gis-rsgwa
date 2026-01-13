@@ -8,6 +8,7 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
     // Resizable State
     const [height, setHeight] = useState(320); // Default open height
     const [isDragging, setIsDragging] = useState(false);
+    const [activeTab, setActiveTab] = useState('All');
 
     const toggleCollapse = () => {
         setIsCollapsed(!isCollapsed);
@@ -93,10 +94,28 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
         );
     }
 
-    // Extract headers from the first feature's properties
-    const headers = Object.keys(data.features[0].properties);
-    const allIds = data.features.map(f => f.id);
-    const isAllSelected = allIds.length > 0 && allIds.every(id => selectedIds.includes(id));
+    // Tab State
+    // Tab State (moved to top)
+
+    // Extract categories
+    const categories = ['All', ...new Set(data.features.map(f => f.properties.Category || f.properties.category).filter(Boolean))];
+
+    // Filter data based on active tab
+    const filteredFeatures = activeTab === 'All'
+        ? data.features
+        : data.features.filter(f => (f.properties.Category || f.properties.category) === activeTab);
+
+    // Dynamic headers based on visible data
+    const headers = filteredFeatures.length > 0 ? Object.keys(filteredFeatures[0].properties) : [];
+
+    const visibleIds = filteredFeatures.map(f => f.id);
+    const isAllVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+
+    const handleSelectAllVisible = () => {
+        if (onToggleSelection) {
+            onToggleSelection(visibleIds);
+        }
+    }
 
     return (
         <div
@@ -125,6 +144,22 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
             </div>
 
             <div className={`collapsible-content ${isCollapsed ? 'hidden' : ''}`}>
+
+                {/* Tabs */}
+                {categories.length > 2 && (
+                    <div className="table-tabs">
+                        {categories.map(cat => (
+                            <button
+                                key={cat}
+                                className={`table-tab-btn ${activeTab === cat ? 'active' : ''}`}
+                                onClick={() => setActiveTab(cat)}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 <div className="table-wrapper">
                     <table className="attribute-table">
                         <thead>
@@ -132,8 +167,8 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
                                 <th style={{ width: '40px' }}>
                                     <input
                                         type="checkbox"
-                                        checked={isAllSelected}
-                                        onChange={() => onToggleSelection && onToggleSelection('all')}
+                                        checked={isAllVisibleSelected}
+                                        onChange={handleSelectAllVisible}
                                     />
                                 </th>
                                 {headers.map(header => (
@@ -143,7 +178,7 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
                             </tr>
                         </thead>
                         <tbody>
-                            {data.features.map((feature, index) => {
+                            {filteredFeatures.map((feature, index) => {
                                 const isSelected = selectedIds.includes(feature.id);
                                 return (
                                     <tr

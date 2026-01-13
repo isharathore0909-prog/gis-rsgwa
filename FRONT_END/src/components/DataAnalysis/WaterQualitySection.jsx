@@ -81,7 +81,7 @@ const WaterQualitySection = ({
                                 style={{
                                     background: 'white',
                                     padding: '1.5rem',
-                                    gridColumn: isControlsSidebarCollapsed ? 'span 2' : '1 / -1',
+                                    gridColumn: isControlsSidebarCollapsed ? 'span 1' : '1 / -1',
                                     boxShadow: 'var(--shadow-sm)'
                                 }}
                             />

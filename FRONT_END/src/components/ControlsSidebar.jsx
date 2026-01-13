@@ -34,11 +34,12 @@ const ControlsSidebar = ({
     currentBasemap,
     blockBoundaryData,
     isCollapsed,
-    setIsCollapsed
+    setIsCollapsed,
+    handleExportData: handleExportDataFromProps
 }) => {
 
     // Active tab state - Default to Location
-    const [activeTab, setActiveTab] = useState('location');
+    const [activeTab, setActiveTab] = useState('layers_spec');
 
     // Unitwise filters
     const [filters, setFilters] = useState({
@@ -51,7 +52,12 @@ const ControlsSidebar = ({
         dataRangeStart: '',
         dataRangeEnd: '',
         stationType: 'All',
-        type: ''
+        type: '',
+        showRaingaugeStations: false,
+        showDams: false,
+        showCanals: false,
+        showWaterbodies: false,
+        showMicro: false
     });
 
     const [apiDistricts, setApiDistricts] = useState([]);
@@ -82,7 +88,7 @@ const ControlsSidebar = ({
     // Helper for Title Case
     const toTitleCase = (str) => {
         if (!str) return '';
-        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        return str.toLowerCase().replace(/\b\w/g, s => s.toUpperCase());
     };
 
     // Fetch blocks when district changes (Using API with direct DB query)
@@ -153,16 +159,19 @@ const ControlsSidebar = ({
 
     // List of districts to show in dropdown
     const availableDistricts = useMemo(() => {
+        let items = [];
         if (apiDistricts && apiDistricts.length > 0) {
-            return [...new Set(apiDistricts.map(d => d.name))].sort();
+            items = apiDistricts.map(d => toTitleCase(d.name));
+        } else {
+            items = DISTRICTS.map(d => toTitleCase(d));
         }
-        return DISTRICTS;
+        return [...new Set(items)].sort((a, b) => a.localeCompare(b));
     }, [apiDistricts]);
 
     // List of blocks to show in dropdown
     const availableBlocks = useMemo(() => {
         if (apiBlocks && apiBlocks.length > 0) {
-            return [...new Set(apiBlocks.map(b => b.name))].sort();
+            return [...new Set(apiBlocks.map(b => toTitleCase(b.name)))].sort((a, b) => a.localeCompare(b));
         }
         return [];
     }, [apiBlocks]);
@@ -170,7 +179,7 @@ const ControlsSidebar = ({
     // List of GPs to show in dropdown
     const availableGPs = useMemo(() => {
         if (apiGPs && apiGPs.length > 0) {
-            return [...new Set(apiGPs.map(g => g.name))].sort();
+            return [...new Set(apiGPs.map(g => toTitleCase(g.name)))].sort((a, b) => a.localeCompare(b));
         }
         return [];
     }, [apiGPs]);
@@ -178,7 +187,7 @@ const ControlsSidebar = ({
     // List of Villages to show in dropdown
     const availableVillages = useMemo(() => {
         if (apiVillages && apiVillages.length > 0) {
-            return [...new Set(apiVillages.map(v => v.name))].sort();
+            return [...new Set(apiVillages.map(v => toTitleCase(v.name)))].sort((a, b) => a.localeCompare(b));
         }
         return [];
     }, [apiVillages]);
@@ -209,6 +218,19 @@ const ControlsSidebar = ({
             newFilters.block = '';
             newFilters.gramPanchayat = '';
             newFilters.village = '';
+
+            // Reset raingauge stations checkbox if moving away from Rainfall
+            if (value !== 'Rainfall') {
+                newFilters.showRaingaugeStations = false;
+            }
+
+            // Reset Water Resources sub-layers if moving away from Water Resources
+            if (value !== 'Water Resources') {
+                newFilters.showDams = false;
+                newFilters.showCanals = false;
+                newFilters.showWaterbodies = false;
+                newFilters.showMicro = false;
+            }
         }
 
         setFilters(newFilters);
@@ -225,29 +247,34 @@ const ControlsSidebar = ({
         }
     };
 
-    const handleExportData = () => {
-        const csvContent = [
-            ['Well ID', 'Location', 'Latitude', 'Longitude', 'Water Level (m)', 'pH', 'TDS (mg/L)', 'Nitrate (mg/L)', 'Fluoride (mg/L)'],
-            ...groundwaterData.map(well => [
-                well.id,
-                well.location,
-                well.lat,
-                well.lng,
-                well.waterLevel,
-                well.ph,
-                well.tds,
-                well.nitrate,
-                well.fluoride
-            ])
-        ].map(row => row.join(',')).join('\n');
+    const handleExportDataLocal = () => {
+        if (handleExportDataFromProps) {
+            handleExportDataFromProps();
+        } else {
+            // Fallback to dummy data if no prop provided (legacy)
+            const csvContent = [
+                ['Well ID', 'Location', 'Latitude', 'Longitude', 'Water Level (m)', 'pH', 'TDS (mg/L)', 'Nitrate (mg/L)', 'Fluoride (mg/L)'],
+                ...groundwaterData.map(well => [
+                    well.id,
+                    well.location,
+                    well.lat,
+                    well.lng,
+                    well.waterLevel,
+                    well.ph,
+                    well.tds,
+                    well.nitrate,
+                    well.fluoride
+                ])
+            ].map(row => row.join(',')).join('\n');
 
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'groundwater_data.csv';
-        a.click();
-        window.URL.revokeObjectURL(url);
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'groundwater_data.csv';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
     };
 
     const handleTabChange = (tabId) => {
@@ -411,7 +438,7 @@ const ControlsSidebar = ({
                     )}
 
                     {activeTab === 'download' && (
-                        <ExportReporting handleExportData={handleExportData} />
+                        <ExportReporting handleExportData={handleExportDataLocal} />
                     )}
 
                     {activeTab === 'manual' && (

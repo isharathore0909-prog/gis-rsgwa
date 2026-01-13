@@ -28,6 +28,56 @@ const AnalysisFilters = ({
                             <option key={t} value={t}>{t}</option>
                         ))}
                     </select>
+
+                    {filters.type === 'Rainfall' && (
+                        <div style={{ marginTop: '1rem' }}>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showRaingaugeStations}
+                                    onChange={e => handleFilterChange('showRaingaugeStations', e.target.checked)}
+                                />
+                                Raingauge Stations
+                            </label>
+                        </div>
+                    )}
+
+                    {filters.type === 'Water Resources' && (
+                        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showDams}
+                                    onChange={e => handleFilterChange('showDams', e.target.checked)}
+                                />
+                                Dams
+                            </label>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showCanals}
+                                    onChange={e => handleFilterChange('showCanals', e.target.checked)}
+                                />
+                                Canals
+                            </label>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showWaterbodies}
+                                    onChange={e => handleFilterChange('showWaterbodies', e.target.checked)}
+                                />
+                                Waterbodies
+                            </label>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showMicro}
+                                    onChange={e => handleFilterChange('showMicro', e.target.checked)}
+                                />
+                                Micro
+                            </label>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -76,25 +126,23 @@ const AnalysisFilters = ({
                             </select>
                         </div>
 
-                        {filters.type !== 'Ground Water Resource Estimation' && (
-                            <div className="field-row">
-                                <span className="field-label">Block</span>
-                                <select
-                                    className="select-input"
-                                    value={filters.block}
-                                    onChange={e => handleFilterChange('block', e.target.value)}
-                                    disabled={!filters.district}
-                                >
-                                    <option value="">-- All Blocks --</option>
-                                    {availableBlocks.map(t => (
-                                        <option key={t} value={t}>{t}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+                        <div className="field-row">
+                            <span className="field-label">Block</span>
+                            <select
+                                className="select-input"
+                                value={filters.block}
+                                onChange={e => handleFilterChange('block', e.target.value)}
+                                disabled={!filters.district}
+                            >
+                                <option value="">-- All Blocks --</option>
+                                {availableBlocks.map(t => (
+                                    <option key={t} value={t}>{t}</option>
+                                ))}
+                            </select>
+                        </div>
 
                         <div className="field-row">
-                            <span className="field-label">GP</span>
+                            <span className="field-label">Gram Panchayat</span>
                             <select
                                 className="select-input"
                                 value={filters.gramPanchayat}

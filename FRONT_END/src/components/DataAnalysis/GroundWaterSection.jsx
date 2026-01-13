@@ -44,9 +44,26 @@ const GroundWaterSection = ({
                                 {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                             </Pie>
                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                            <Legend verticalAlign="bottom" height={36} />
                         </PieChart>
                     </ResponsiveContainer>
+
+                </div>
+
+                {/* Custom Legend moved OUTSIDE wrapper to ensure stacking */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '12px', marginBottom: '20px' }}>
+                    {pieData.map((entry, index) => (
+                        <div key={index} style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                            <span style={{
+                                width: '10px',
+                                height: '10px',
+                                borderRadius: '50%',
+                                backgroundColor: entry.color,
+                                marginRight: '6px',
+                                border: '1px solid rgba(0,0,0,0.1)'
+                            }}></span>
+                            {entry.name}
+                        </div>
+                    ))}
                 </div>
                 <div className="status-summary-grid">
                     {isGWRE && (
@@ -71,6 +88,11 @@ const GroundWaterSection = ({
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
+                </div>
+                <div className="status-summary-grid" style={{ marginTop: '1rem' }}>
+                    {waterLevelChartData.map((d, i) => (
+                        <MiniStatusCard key={i} value={d.value} label={d.name} color={d.color} />
+                    ))}
                 </div>
             </AnalysisCard>
 
@@ -142,6 +164,11 @@ const GroundWaterSection = ({
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
+                <div className="status-summary-grid" style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                    {qualityData.map((d, i) => (
+                        <MiniStatusCard key={i} value={`${d.value}%`} label={d.subject} color="#f4a261" />
+                    ))}
+                </div>
                 <div className="quality-legend-simple">
                     <div className="legend-label">% Stations Exceeding Permissible Limits</div>
                 </div>
@@ -155,7 +182,7 @@ const GroundWaterSection = ({
                                 value={blockWaterQualityData.wqi.value}
                                 label={`WQI - ${blockWaterQualityData.wqi.classification}`}
                                 color={blockWaterQualityData.wqi.value < 100 ? '#2a9d8f' : blockWaterQualityData.wqi.value < 200 ? '#f4a261' : '#e63946'}
-                                style={{ gridColumn: '1 / -1' }}
+                                style={{ gridColumn: isExpanded ? 'span 1' : '1 / -1' }}
                             />
                         )}
                         {blockWaterQualityData.status && (
@@ -165,7 +192,7 @@ const GroundWaterSection = ({
                                     ? blockWaterQualityData.status.issues.join(', ')
                                     : 'All parameters within safe limits'}
                                 color={blockWaterQualityData.status.status === 'good' ? '#2a9d8f' : blockWaterQualityData.status.status === 'warning' ? '#f4a261' : '#e63946'}
-                                style={{ gridColumn: '1 / -1' }}
+                                style={{ gridColumn: isExpanded ? 'span 1' : '1 / -1' }}
                             />
                         )}
                     </div>

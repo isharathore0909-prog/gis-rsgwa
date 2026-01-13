@@ -11,7 +11,7 @@ class Rainfall(models.Model):
     village = models.ForeignKey(Village, related_name='rainfall_records', on_delete=models.CASCADE)
     gauge_type = models.CharField(max_length=50, choices=GAUGE_TYPE_CHOICES, default='manual')
     rainfall_mm = models.FloatField(help_text="Rainfall in millimeters")
-    date = models.DateField()
+    date = models.DateField(db_index=True)
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

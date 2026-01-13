@@ -14,52 +14,49 @@ export const reprojectGeoJSON = (geoJSON) => {
 
     try {
         const newFeatures = geoJSON.features.map(feature => {
-            if (!feature.geometry) return feature;
+            if (!feature || !feature.geometry) return feature;
 
             let geometry = feature.geometry;
 
             // If geometry is WKT string, parse it first
             if (typeof geometry === 'string') {
-                const parsed = parseWKT(geometry);
-                if (parsed) {
-                    geometry = parsed;
-                } else {
-                    return feature; // Can't parse, return as is
+                try {
+                    // Remove SRID prefix if present e.g. "SRID=4326;MULTIPOLYGON..."
+                    const wkt = geometry.replace(/^SRID=\d+;/, '');
+                    const parsed = parseWKT(wkt);
+                    if (parsed) {
+                        geometry = parsed;
+                    } else {
+                        console.warn("Could not parse WKT geometry string:", geometry);
+                        return feature;
+                    }
+                } catch (e) {
+                    console.error("Error parsing WKT in reprojector:", e);
+                    return feature;
                 }
             }
 
             let newCoordinates;
 
-            if (geometry.type === 'Polygon') {
-                newCoordinates = geometry.coordinates.map(ring => {
-                    return ring.map(coord => {
-                        // Check if already WGS84 (longitude usually 68-97 for India, latitude 8-37)
-                        if (Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90) {
-                            return coord;
-                        }
-                        return proj4(utm43n, wgs84, coord);
-                    });
-                });
-            } else if (geometry.type === 'MultiPolygon') {
-                newCoordinates = geometry.coordinates.map(polygon => {
-                    return polygon.map(ring => {
-                        return ring.map(coord => {
-                            if (Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90) {
-                                return coord;
-                            }
-                            return proj4(utm43n, wgs84, coord);
-                        });
-                    });
-                });
-            } else if (geometry.type === 'Point') {
-                const coord = geometry.coordinates;
-                if (Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90) {
-                    newCoordinates = coord;
-                } else {
-                    newCoordinates = proj4(utm43n, wgs84, coord);
+            const transformCoords = (coords) => {
+                if (!Array.isArray(coords)) return coords;
+                // If it's a coordinate pair [x, y]
+                if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+                    // Check if already WGS84 (longitude usually 68-97 for India, latitude 8-37)
+                    if (Math.abs(coords[0]) <= 180 && Math.abs(coords[1]) <= 90) {
+                        return coords;
+                    }
+                    return proj4(utm43n, wgs84, coords);
                 }
+                // Recursively handle nested arrays
+                return coords.map(c => transformCoords(c));
+            };
+
+            if (['Point', 'Polygon', 'MultiPolygon', 'LineString', 'MultiLineString'].includes(geometry.type)) {
+                newCoordinates = transformCoords(geometry.coordinates);
             } else {
-                return { ...feature, geometry }; // Not a polygon/point, but return parsed geometry if it was WKT
+                console.warn(`Geometry type ${geometry.type} not explicitly handled for reprojection`);
+                return { ...feature, geometry };
             }
 
             return {

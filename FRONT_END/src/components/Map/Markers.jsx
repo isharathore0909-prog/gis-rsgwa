@@ -19,6 +19,8 @@ export const DamMarker = ({ dam, coordinate, onDamClick, onAddToTable }) => {
         popupAnchor: [0, -32]
     });
 
+    if (!coordinate || !coordinate.lat || !coordinate.lng) return null;
+
     return (
         <Marker
             position={[coordinate.lat, coordinate.lng]}
@@ -44,6 +46,8 @@ export const WellMarker = ({ well, color, onMarkerClick }) => {
         iconSize: [20, 20],
         iconAnchor: [10, 10]
     });
+
+    if (!well || !well.lat || !well.lng) return null;
 
     return (
         <Marker
@@ -73,6 +77,8 @@ export const AquiferWellMarker = ({ record, onMarkerClick }) => {
         iconAnchor: [12, 12],
         popupAnchor: [0, -12]
     });
+
+    if (!record.latitude || !record.longitude) return null;
 
     return (
         <Marker
@@ -112,6 +118,8 @@ export const RainfallMarker = ({ record, onMarkerClick }) => {
         iconAnchor: [size / 2, size / 2],
         popupAnchor: [0, -size / 2]
     });
+
+    if (!record.latitude || !record.longitude) return null;
 
     return (
         <Marker
@@ -157,6 +165,8 @@ export const WaterQualityMarker = ({ record, onMarkerClick }) => {
         iconAnchor: [14, 14],
         popupAnchor: [0, -14]
     });
+
+    if (!record.latitude || !record.longitude) return null;
 
     return (
         <Marker

@@ -28,7 +28,7 @@ class WaterQuality(models.Model):
     well_depth = models.FloatField(null=True, blank=True, help_text="Depth of well in meters")
     
     # Metadata
-    meta_date = models.DateField(help_text="Date of water quality measurement")
+    meta_date = models.DateField(db_index=True, help_text="Date of water quality measurement")
     
     # Water Quality Parameters
     ph = models.FloatField(null=True, blank=True, help_text="pH level")

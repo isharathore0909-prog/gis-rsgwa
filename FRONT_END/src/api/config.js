@@ -28,6 +28,7 @@ export const BACKEND_API = {
         RAINFALL_STATISTICS: '/rainfall/records/statistics/',
         RAINFALL_SUMMARY: '/rainfall/records/summary/',
         RAINFALL_NEARBY: '/rainfall/records/nearby/',
+        RAINFALL_DISTRICT_WISE: '/rainfall/records/district_wise/',
         WATER_QUALITY: '/water-quality/',
         WATER_QUALITY_STATISTICS: '/water-quality/statistics/',
         AQUIFER: '/aquifer/',

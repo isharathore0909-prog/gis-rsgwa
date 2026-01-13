@@ -14,14 +14,13 @@ export const TIMESTEPS = ['All', 'Daily', 'Monthly', 'Quarterly', 'Yearly'];
 export const STATION_TYPES = ['All', 'Manual', 'Telemetry'];
 
 export const TYPE_OPTIONS = [
-    'Rainfall',
-
+    'Aquifer',
     'Ground Water Resource Estimation', // Matches GW Assessment
-    'Well Inventory',
+    'Rainfall',
+    'Recharge Structure',
     'Water Quality',
     'Water Resources',
-    'Aquifer',
-    'Recharge Structure',
+    'Well Inventory',
 ];
 
 export const BASEMAPS = [
@@ -44,5 +43,10 @@ export const BASEMAPS = [
         id: 'imagery',
         name: 'Imagery',
         thumbnail: 'https://js.arcgis.com/4.29/esri/images/basemap/satellite.jpg'
+    },
+    {
+        id: 'osm',
+        name: 'OpenStreetMap',
+        thumbnail: 'https://a.tile.openstreetmap.org/0/0/0.png'
     }
 ];

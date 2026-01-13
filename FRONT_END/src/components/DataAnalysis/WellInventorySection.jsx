@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import {
     LineChart,
     Line,
@@ -34,14 +35,19 @@ const WellInventorySection = ({
     analysisLevel,
     globalFilters,
     selectedWell,
+    selectedFeature,
     clickedLocation,
-    isExpanded
+    isExpanded,
+    selectedWellInventory = [],
+    onToggleWellInventory,
+    onClearWellInventory
 }) => {
     const [loading, setLoading] = useState(false);
     const [listData, setListData] = useState([]); // Data for aggregation
     const [nearbyData, setNearbyData] = useState(null);
     const [nearbyLoading, setNearbyLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Fetch List Data ONLY if not already loaded or if filters changed
     useEffect(() => {
@@ -110,7 +116,6 @@ const WellInventorySection = ({
 
     // Prepare Aggregated Chart Data (Average Water Levels)
     const aggregatedChartData = useMemo(() => {
-        // ... (existing aggregation logic)
         if (!listData || listData.length === 0) return [];
 
         const years = Array.from({ length: 10 }, (_, i) => 2015 + i);
@@ -172,228 +177,509 @@ const WellInventorySection = ({
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-    // Render Selected Well View
-    if (selectedWell) {
-        // ... (existing selected well view)
-        const chartData = (() => {
+    // Helper to download single record as CSV
+    const handleDownload = (data, filename = 'data') => {
+        if (!data) return;
+        const csvContent = "data:text/csv;charset=utf-8,"
+            + Object.entries(data).map(([k, v]) => `${k},${v}`).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `${filename}_${new Date().getTime()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // Helper to download array of records as CSV
+    const handleDownloadCSV = (data, filename = 'well_history_data') => {
+        if (!data || data.length === 0) return;
+
+        const headers = Object.keys(data[0]);
+        const csvRows = [];
+
+        // Add Header Row
+        csvRows.push(headers.map(h => `"${h}"`).join(","));
+
+        // Add Data Rows
+        data.forEach(row => {
+            const values = headers.map(header => {
+                const val = row[header];
+                const escaped = ('' + (val === null || val === undefined ? "" : val)).replace(/"/g, '""');
+                return `"${escaped}"`;
+            });
+            csvRows.push(values.join(","));
+        });
+
+        const csvString = csvRows.join("\n");
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${filename}_${new Date().getTime()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // Check if current feature/location is in selection
+    const isSelected = (well) => {
+        if (!well) return false;
+        return selectedWellInventory.some(w =>
+            (well.well_id && w.well_id === well.well_id) ||
+            (well.lat && w.lat === well.lat && well.lng === well.lng) ||
+            (well.latitude && w.latitude === well.latitude && w.longitude === well.longitude)
+        );
+    };
+
+    const handleBatchDownload = () => {
+        if (selectedWellInventory.length === 0) return;
+
+        const batchData = [];
+        let globalIndex = 1;
+
+        selectedWellInventory.forEach(well => {
             const years = Array.from({ length: 10 }, (_, i) => 2015 + i);
-            return years.map(year => ({
-                year: year.toString(),
-                'Pre-Monsoon': selectedWell[`pre_${year}`],
-                'Post-Monsoon': selectedWell[`pst_${year}`]
-            }));
-        })();
+            const lat = well.latitude || well.lat || '-';
+            const lon = well.longitude || well.lng || '-';
+            const village = well.village_name || well.village?.name || '-';
+            const wellId = well.well_id || 'N/A';
+
+            years.forEach(year => {
+                batchData.push({
+                    'S.No.': globalIndex++,
+                    'Well ID': wellId,
+                    'Lat': typeof lat === 'number' ? lat.toFixed(6) : lat,
+                    'Lon': typeof lon === 'number' ? lon.toFixed(6) : lon,
+                    'Village': village,
+                    'Year': year,
+                    'Pre-Monsoon (m bgl)': well[`pre_${year}`] || well.averages?.[year]?.pre || '-',
+                    'Post-Monsoon (m bgl)': well[`pst_${year}`] || well.averages?.[year]?.pst || '-'
+                });
+            });
+        });
+
+        handleDownloadCSV(batchData, 'well_inventory_batch_export');
+    };
+
+    // --- Automatic Selection Logic ---
+    useEffect(() => {
+        if (selectedWell && !isSelected(selectedWell)) {
+            onToggleWellInventory(selectedWell);
+        }
+    }, [selectedWell]);
+
+    useEffect(() => {
+        if (nearbyData && clickedLocation && !selectedFeature) {
+            const lat = clickedLocation.lat;
+            const lon = clickedLocation.lng;
+            const currentLoc = {
+                lat,
+                lng: lon,
+                well_id: `Nearby_${lat.toFixed(2)}_${lon.toFixed(2)}`,
+                ...nearbyData
+            };
+            if (!isSelected(currentLoc)) {
+                onToggleWellInventory(currentLoc);
+            }
+        }
+    }, [nearbyData, clickedLocation, selectedFeature]);
+
+    // --- Sub-renderers for UI Parts ---
+    const renderBatchControls = () => {
+        if (selectedWellInventory.length === 0) return null;
 
         return (
-            <div className="well-inventory-section detailed-view">
-                {/* 1. Well Profile Header */}
-                <div className="well-profile-card">
-                    <div className="profile-header">
-                        <div className="profile-icon">💧</div>
-                        <div className="profile-info">
-                            <h4>{selectedWell.well_id}</h4>
-                            <p>{selectedWell.village_name || selectedWell.village?.name || 'Unknown Village'}, {selectedWell.block || selectedWell.taluka || '-'}</p>
+            <div className="table-batch-actions-compact">
+                <button
+                    className="batch-action-btn-primary"
+                    onClick={handleBatchDownload}
+                    title="Download historical data for all selected locations"
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                </button>
+                <button
+                    className="batch-action-btn-secondary"
+                    onClick={() => setIsModalOpen(true)}
+                    title="View full screen"
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 3h6v6" />
+                        <path d="M9 21H3v-6" />
+                        <path d="M21 3l-7 7" />
+                        <path d="M3 21l7-7" />
+                    </svg>
+                </button>
+            </div>
+        );
+    };
+
+    const renderTableContent = () => {
+        const years = Array.from({ length: 10 }, (_, i) => 2015 + i);
+
+        const getCellValue = (item, year, type) => {
+            if (item.averages) {
+                const val = item.averages[year]?.[type === 'pre' ? 'pre' : 'pst'];
+                return val ? val.toFixed(1) : '-';
+            }
+            const key = `${type === 'pre' ? 'pre' : 'pst'}_${year}`;
+            const val = item[key];
+            return (val !== null && val !== undefined) ? val : '-';
+        };
+
+        return (
+            <table className="analysis-table wide-table">
+                <thead>
+                    <tr>
+                        <th rowSpan="2" style={{ width: '30px', background: '#f8fafc' }}>
+                            <input
+                                type="checkbox"
+                                checked={true}
+                                onChange={onClearWellInventory}
+                                title="Clear all"
+                            />
+                        </th>
+                        <th rowSpan="2" style={{ background: '#f8fafc' }}>S.No.</th>
+                        <th rowSpan="2" style={{ background: '#f8fafc' }}>Lat</th>
+                        <th rowSpan="2" style={{ background: '#f8fafc' }}>Lon</th>
+                        {years.map(year => (
+                            <th key={year} colSpan="2" style={{ textAlign: 'center', borderLeft: '1px solid #e2e8f0', background: '#f1f5f9' }}>{year}</th>
+                        ))}
+                    </tr>
+                    <tr>
+                        {years.map(year => (
+                            <React.Fragment key={year}>
+                                <th style={{ fontSize: '9px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', padding: '4px 2px' }}>Pr(m)</th>
+                                <th style={{ fontSize: '9px', background: '#f8fafc', padding: '4px 2px' }}>Ps(m)</th>
+                            </React.Fragment>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {selectedWellInventory.map((item, idx) => {
+                        const lat = item.latitude || item.lat || '-';
+                        const lon = item.longitude || item.lng || '-';
+                        return (
+                            <tr key={idx}>
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        checked={true}
+                                        onChange={() => onToggleWellInventory(item)}
+                                    />
+                                </td>
+                                <td>{idx + 1}</td>
+                                <td>{typeof lat === 'number' ? lat.toFixed(4) : lat}</td>
+                                <td>{typeof lon === 'number' ? lon.toFixed(4) : lon}</td>
+                                {years.map(year => (
+                                    <React.Fragment key={year}>
+                                        <td style={{ borderLeft: '1px solid #f1f5f9' }}>{getCellValue(item, year, 'pre')}</td>
+                                        <td>{getCellValue(item, year, 'pst')}</td>
+                                    </React.Fragment>
+                                ))}
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        );
+    };
+
+    const renderFullScreenModal = () => {
+        if (!isModalOpen) return null;
+
+        return ReactDOM.createPortal(
+            <div className="well-inventory-modal-overlay">
+                <div className="well-inventory-modal-content">
+                    <div className="modal-header">
+                        <h2>Selected Locations Data</h2>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                                className="batch-action-btn-primary"
+                                onClick={handleBatchDownload}
+                                title="Download historical data"
+                                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                                    <path d="M21 15V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                                Download
+                            </button>
+                            <button className="modal-close-btn" onClick={() => setIsModalOpen(false)} title="Close">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
                         </div>
                     </div>
-
-                    <div className="profile-stats-grid">
-                        <div className="stat-item">
-                            <label>Depth</label>
-                            <strong>{selectedWell.well_depth ? `${selectedWell.well_depth} m` : 'N/A'}</strong>
-                        </div>
-                        <div className="stat-item">
-                            <label>Aquifer</label>
-                            <strong>{selectedWell.aquifer || 'N/A'}</strong>
-                        </div>
-                        <div className="stat-item">
-                            <label>District</label>
-                            <strong>{selectedWell.district || '-'}</strong>
+                    <div className="modal-body">
+                        <div className="data-table-wrapper">
+                            {renderTableContent()}
                         </div>
                     </div>
                 </div>
+            </div>,
+            document.body
+        );
+    };
 
-                {/* 2. Graph Section */}
-                <div className="well-chart-container" style={{ height: isExpanded ? '400px' : '300px' }}>
-                    <h5>Water Level History (2015-2024)</h5>
-                    <div className="chart-wrapper">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} dy={5} />
-                                <YAxis
-                                    label={{ value: 'Depth (m bgl)', angle: -90, position: 'insideLeft', style: { fontSize: '10px', fill: '#94a3b8' }, dx: 0 }}
-                                    reversed={true}
-                                    tick={{ fontSize: 10, fill: '#64748b' }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                    domain={['auto', 'auto']}
-                                />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.85rem' }}
-                                    formatter={(value) => [`${value} m`, 'Depth']}
-                                    labelStyle={{ color: '#1e293b', fontWeight: 600, marginBottom: '4px' }}
-                                />
-                                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
-                                <Line
-                                    name="Pre-Monsoon"
-                                    type="monotone"
-                                    dataKey="Pre-Monsoon"
-                                    stroke="#f59e0b"
-                                    strokeWidth={2.5}
-                                    dot={{ r: 3, fill: '#f59e0b', strokeWidth: 0 }}
-                                    activeDot={{ r: 5, strokeWidth: 0 }}
-                                    connectNulls
-                                />
-                                <Line
-                                    name="Post-Monsoon"
-                                    type="monotone"
-                                    dataKey="Post-Monsoon"
-                                    stroke="#3b82f6"
-                                    strokeWidth={2.5}
-                                    dot={{ r: 3, fill: '#3b82f6', strokeWidth: 0 }}
-                                    activeDot={{ r: 5, strokeWidth: 0 }}
-                                    connectNulls
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
+    const renderSelectionSummaryTable = () => {
+        if (selectedWellInventory.length === 0) return null;
+
+        return (
+            <div className="selection-summary-card">
+                <div className="table-header selection-integrated" style={{ marginBottom: '12px' }}>
+                    <div className="title-group">
+                        <h5>Selected Locations Data</h5>
                     </div>
+                    {renderBatchControls()}
+                </div>
+                <div className="data-table-wrapper">
+                    {renderTableContent()}
                 </div>
             </div>
         );
-    }
+    };
 
-    // Render Nearby estimation view
-    if (nearbyData) {
-        return (
-            <div className="well-inventory-section detailed-view nearby-view">
-                <div className="well-profile-card nearby-profile-card">
-                    <div className="profile-header">
-                        <div className="profile-icon">📍</div>
-                        <div className="profile-info">
-                            <h4>Nearby Estimation</h4>
-                            <p>Lat: {clickedLocation.lat.toFixed(4)}, Lon: {clickedLocation.lng.toFixed(4)}</p>
+    const renderMainContent = () => {
+        if (loading || nearbyLoading) {
+            return <div className="well-inventory-loading">Loading specific area data...</div>;
+        }
+
+        if (error) {
+            return <div className="well-inventory-error">{error}</div>;
+        }
+
+        // 1. Selected Aquifer Feature View
+        if (selectedFeature && selectedFeature.type === 'aquifer_feature') {
+            const aquiferName = selectedFeature.Aquifer || selectedFeature.aquifer || 'Unknown Aquifer';
+            const displayProps = Object.entries(selectedFeature).filter(([key]) =>
+                !['type', 'fid', 'geom', 'geometry', '_leaflet_id'].includes(key.toLowerCase())
+            );
+
+            return (
+                <div className="well-inventory-section detailed-view">
+                    <div className="well-profile-card">
+                        <div className="profile-header">
+                            <div className="profile-icon" style={{ backgroundColor: '#3b82f6' }}>🌊</div>
+                            <div className="profile-info">
+                                <h4>Aquifer Details</h4>
+                                <p>{aquiferName}</p>
+                            </div>
+                        </div>
+
+                        <div className="data-table-container" style={{ marginTop: '16px' }}>
+                            <div className="table-header selection-integrated">
+                                <h5>Feature Attributes</h5>
+                                {renderBatchControls()}
+                            </div>
+                            <table className="analysis-table">
+                                <tbody>
+                                    {displayProps.map(([key, value]) => (
+                                        <tr key={key}>
+                                            <td style={{ color: '#64748b' }}>{key}</td>
+                                            <td style={{ textAlign: 'right' }}>{value?.toString() || '-'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-
-                    <div className="profile-stats-grid">
-                        <div className="stat-item">
-                            <label>Wells in Radius</label>
-                            <strong>{nearbyData.count}</strong>
-                        </div>
-                        <div className="stat-item">
-                            <label>Radius</label>
-                            <strong>~10 km</strong>
-                        </div>
-                        <div className="stat-item">
-                            <label>Data Type</label>
-                            <strong>Spatial Average</strong>
-                        </div>
-                    </div>
+                    {renderSelectionSummaryTable()}
                 </div>
+            );
+        }
 
-                <div className="well-chart-container" style={{ height: isExpanded ? '400px' : '300px' }}>
-                    <h5>Estimated Water Level (Avg of {nearbyData.count} Wells)</h5>
-                    <div className="chart-wrapper">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={nearbyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                <YAxis reversed={true} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.85rem' }}
-                                    formatter={(value) => [`${value} m`, 'Avg Depth']}
-                                />
-                                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
-                                <Line name="Pre-Monsoon (Avg)" type="monotone" dataKey="Pre-Monsoon" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
-                                <Line name="Post-Monsoon (Avg)" type="monotone" dataKey="Post-Monsoon" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
-                            </LineChart>
-                        </ResponsiveContainer>
+        // 2. Selected Well View
+        if (selectedWell) {
+            const chartData = (() => {
+                const years = Array.from({ length: 10 }, (_, i) => 2015 + i);
+                return years.map(year => ({
+                    year: year.toString(),
+                    'Pre-Monsoon': selectedWell[`pre_${year}`],
+                    'Post-Monsoon': selectedWell[`pst_${year}`]
+                }));
+            })();
+
+            const lat = selectedWell.latitude || selectedWell.lat || '-';
+            const lon = selectedWell.longitude || selectedWell.lng || '-';
+
+            return (
+                <div className="well-inventory-section detailed-view">
+                    <div className="well-profile-card">
+                        <div className="profile-header">
+                            <div className="profile-icon">💧</div>
+                            <div className="profile-info">
+                                <h4>{selectedWell.well_id}</h4>
+                                <p>{selectedWell.village_name || selectedWell.village?.name || 'Unknown Village'}, {selectedWell.block || selectedWell.taluka || '-'}</p>
+                            </div>
+                        </div>
+
+                        <div className="profile-stats-grid">
+                            <div className="stat-item">
+                                <label>Depth</label>
+                                <strong>{selectedWell.well_depth ? `${selectedWell.well_depth} m` : 'N/A'}</strong>
+                            </div>
+                            <div className="stat-item">
+                                <label>Aquifer</label>
+                                <strong>{selectedWell.aquifer || 'N/A'}</strong>
+                            </div>
+                            <div className="stat-item">
+                                <label>District</label>
+                                <strong>{selectedWell.district || '-'}</strong>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-        );
-    }
 
-    if (loading || nearbyLoading) return <div className="well-inventory-loading">Loading specific area data...</div>;
-    if (error) return <div className="well-inventory-error">{error}</div>;
-
-    // Render Aggregated Dashboard (Default State)
-    return (
-        <div className="well-inventory-section dashboard-view">
-            <div className="well-count-header">
-                <h3>Regional Overview</h3>
-                <span className="region-badge">{listData.length} Wells Analyzed</span>
-            </div>
-
-            {listData.length > 0 ? (
-                <>
-                    <div className="aggregated-chart-section">
-                        <h5>Average Water Level Trends</h5>
-                        <div className="chart-wrapper small-chart" style={{ height: isExpanded ? '300px' : '220px' }}>
+                    <div className="well-chart-container" style={{ height: isExpanded ? '400px' : '300px', marginBottom: '16px' }}>
+                        <h5>Water Level History (2015-2024)</h5>
+                        <div className="chart-wrapper">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={aggregatedChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                                    <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} dy={5} />
                                     <YAxis
+                                        label={{ value: 'Depth (m bgl)', angle: -90, position: 'insideLeft', style: { fontSize: '10px', fill: '#94a3b8' }, dx: 0 }}
                                         reversed={true}
-                                        tick={{ fontSize: 10 }}
+                                        tick={{ fontSize: 10, fill: '#64748b' }}
                                         axisLine={false}
                                         tickLine={false}
                                         domain={['auto', 'auto']}
                                     />
                                     <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.8rem' }}
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.85rem' }}
                                         formatter={(value) => [`${value} m`, 'Depth']}
+                                        labelStyle={{ color: '#1e293b', fontWeight: 600, marginBottom: '4px' }}
                                     />
-                                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                                    <Line type="monotone" dataKey="Pre-Monsoon" stroke="#f59e0b" strokeWidth={2} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="Post-Monsoon" stroke="#3b82f6" strokeWidth={2} dot={false} connectNulls />
+                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
+                                    <Line name="Pre-Monsoon" type="monotone" dataKey="Pre-Monsoon" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: '#f59e0b', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} connectNulls />
+                                    <Line name="Post-Monsoon" type="monotone" dataKey="Post-Monsoon" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3, fill: '#3b82f6', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} connectNulls />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
+                    {renderSelectionSummaryTable()}
+                </div>
+            );
+        }
 
-                    <div className="aquifer-stats-card">
-                        <h5>Aquifer Distribution</h5>
-                        <div className="pie-chart-wrapper">
-                            <ResponsiveContainer width="100%" height={160}>
-                                <PieChart>
-                                    <Pie
-                                        data={aquiferDistribution}
-                                        cx="50%"
-                                        cy="50%"
-                                        labelLine={false}
-                                        label={renderCustomizedLabel}
-                                        innerRadius={40} // Creates the donut effect
-                                        outerRadius={60}
-                                        fill="#8884d8"
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                    >
-                                        {aquiferDistribution.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip />
-                                </PieChart>
-                            </ResponsiveContainer>
-                            <div className="aquifer-legend">
-                                {aquiferDistribution.map((entry, index) => (
-                                    <div key={index} className="legend-item">
-                                        <span className="color-dot" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
-                                        <span>{entry.name}: {entry.value}</span>
-                                    </div>
-                                ))}
+        // 3. Nearby Estimation View
+        if (nearbyData && !selectedFeature) {
+            const lat = clickedLocation.lat;
+            const lon = clickedLocation.lng;
+            const currentLoc = { lat, lng: lon, well_id: `Nearby_${lat.toFixed(2)}_${lon.toFixed(2)}`, ...nearbyData };
+
+            return (
+                <div className="well-inventory-section detailed-view nearby-view">
+                    <div className="well-profile-card nearby-profile-card">
+                        <div className="profile-header">
+                            <div className="profile-icon">📍</div>
+                            <div className="profile-info">
+                                <h4>Nearby Estimation</h4>
+                                <p>Lat: {lat.toFixed(4)}, Lon: {lon.toFixed(4)}</p>
                             </div>
                         </div>
+                        <div className="profile-stats-grid">
+                            <div className="stat-item"><label>Wells in Radius</label><strong>{nearbyData.count}</strong></div>
+                            <div className="stat-item"><label>Radius</label><strong>~10 km</strong></div>
+                            <div className="stat-item"><label>Data Type</label><strong>Spatial Average</strong></div>
+                        </div>
                     </div>
-                </>
-            ) : (
-                <div className="well-inventory-empty" style={{ flexDirection: 'column', gap: '10px', padding: '40px 0' }}>
-                    <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📉</div>
-                    <p style={{ margin: 0, color: '#94a3b8' }}>Data is not available. Please select another location.</p>
+
+                    <div className="well-chart-container" style={{ height: isExpanded ? '400px' : '300px', marginBottom: '16px' }}>
+                        <h5>Estimated Water Level (Avg of {nearbyData.count} Wells)</h5>
+                        <div className="chart-wrapper">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={nearbyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                    <YAxis reversed={true} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.85rem' }} formatter={(value) => [`${value} m`, 'Avg Depth']} />
+                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
+                                    <Line name="Pre-Monsoon (Avg)" type="monotone" dataKey="Pre-Monsoon" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                                    <Line name="Post-Monsoon (Avg)" type="monotone" dataKey="Post-Monsoon" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                    {renderSelectionSummaryTable()}
                 </div>
-            )}
+            );
+        }
+
+        // 4. Default Dashboard View
+        return (
+            <div className="well-inventory-section dashboard-view">
+                <div className="well-count-header">
+                    <div className="title-group">
+                        <h3>Regional Overview</h3>
+                        <span className="region-badge">{listData.length} Wells</span>
+                    </div>
+                    {renderBatchControls()}
+                </div>
+
+                {listData.length > 0 ? (
+                    <>
+                        <div className="aggregated-chart-section">
+                            <h5>Average Water Level Trends</h5>
+                            <div className="chart-wrapper small-chart" style={{ height: isExpanded ? '300px' : '220px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={aggregatedChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                        <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                        <YAxis reversed={true} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+                                        <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.8rem' }} formatter={(value) => [`${value} m`, 'Depth']} />
+                                        <Legend wrapperStyle={{ fontSize: '10px' }} />
+                                        <Line type="monotone" dataKey="Pre-Monsoon" stroke="#f59e0b" strokeWidth={2} dot={false} connectNulls />
+                                        <Line type="monotone" dataKey="Post-Monsoon" stroke="#3b82f6" strokeWidth={2} dot={false} connectNulls />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        <div className="aquifer-stats-card">
+                            <h5>Aquifer Distribution</h5>
+                            <div className="pie-chart-wrapper">
+                                <ResponsiveContainer width="100%" height={isExpanded ? 240 : 160}>
+                                    <PieChart>
+                                        <Pie data={aquiferDistribution} cx="50%" cy="50%" labelLine={false} label={renderCustomizedLabel} innerRadius={40} outerRadius={60} fill="#8884d8" paddingAngle={5} dataKey="value">
+                                            {aquiferDistribution.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                        </Pie>
+                                        <Tooltip />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="aquifer-legend">
+                                    {aquiferDistribution.map((entry, index) => (
+                                        <div key={index} className="legend-item"><span className="color-dot" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span><span>{entry.name}: {entry.value}</span></div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {renderSelectionSummaryTable()}
+
+                    </>
+                ) : (
+                    <div className="well-inventory-empty" style={{ flexDirection: 'column', gap: '10px', padding: '40px 0' }}>
+                        <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📉</div>
+                        <p style={{ margin: 0, color: '#94a3b8' }}>Data is not available. Please select another location.</p>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="well-inventory-section-wrapper">
+            {renderMainContent()}
+            {renderFullScreenModal()}
         </div>
     );
 };

@@ -6,6 +6,18 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-leaflet': ['leaflet', 'react-leaflet'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2', 'recharts'],
+          'vendor-utils': ['proj4']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000
   }
 })
 

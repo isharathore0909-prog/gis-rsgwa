@@ -55,6 +55,7 @@ export default {
         getStatistics: (params) => backendApi.getRainfallStatistics(params),
         getSummary: (params) => backendApi.getRainfallSummary(params),
         getNearby: (params) => backendApi.getRainfallNearby(params),
+        getDistrictWise: (params) => backendApi.getRainfallDistrictWise(params),
     },
 
     // Water Quality API

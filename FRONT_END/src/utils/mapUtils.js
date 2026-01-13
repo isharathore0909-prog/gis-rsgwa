@@ -40,8 +40,12 @@ export const getFeatureColor = (value, legendData) => {
 
     // Numeric Range Check
     for (const cls of legendData) {
-        if (!cls.isCategorical && value >= cls.min && value <= cls.max + 0.01) { // 0.01 tolerance
-            return cls.color;
+        if (!cls.isCategorical) {
+            const min = cls.min !== undefined ? cls.min : (cls.range ? cls.range[0] : -Infinity);
+            const max = cls.max !== undefined ? cls.max : (cls.range ? cls.range[1] : Infinity);
+            if (value >= min && value <= max + 0.001) {
+                return cls.color;
+            }
         }
     }
 

@@ -1,0 +1,262 @@
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.export-modal {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 12px;
+    width: 480px;
+    max-width: 90vw;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    color: white;
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    padding: 20px 24px;
+    background: #252525;
+    border-bottom: 1px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-icon {
+    width: 24px;
+    height: 24px;
+    color: #0088fe;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.close-btn:hover {
+    color: white;
+    background: #333;
+}
+
+.modal-content {
+    padding: 24px;
+}
+
+.export-info-card {
+    background: #252525;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-row.highlighted {
+    background: rgba(0, 136, 254, 0.1);
+    margin: 4px -16px;
+    padding: 8px 16px;
+    color: #0088fe;
+}
+
+.info-label {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.info-value {
+    font-weight: 500;
+}
+
+.options-title {
+    font-size: 0.9rem;
+    color: #888;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.format-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.format-item {
+    background: #252525;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.format-item.active {
+    border-color: #0088fe;
+    background: rgba(0, 136, 254, 0.05);
+}
+
+.format-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #151515;
+}
+
+.format-icon {
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 4px;
+    color: #ccc;
+}
+
+.format-item.active .format-icon {
+    color: #0088fe;
+}
+
+.format-name {
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.export-notice {
+    display: flex;
+    gap: 12px;
+    background: rgba(255, 187, 40, 0.05);
+    border: 1px solid rgba(255, 187, 40, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.notice-icon {
+    width: 20px;
+    height: 20px;
+    color: #ffbb28;
+    flex-shrink: 0;
+}
+
+.export-notice p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #ccc;
+    line-height: 1.4;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    background: #252525;
+    border-top: 1px solid #333;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.cancel-btn {
+    background: transparent;
+    border: 1px solid #444;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+    background: #333;
+    border-color: #555;
+}
+
+.confirm-export-btn {
+    background: #0088fe;
+    border: none;
+    color: white;
+    padding: 10px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.confirm-export-btn:hover:not(:disabled) {
+    background: #0077dd;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 136, 254, 0.3);
+}
+
+.confirm-export-btn:disabled {
+    background: #333;
+    color: #666;
+    cursor: not-allowed;
+}
+
+.confirm-export-btn svg {
+    width: 18px;
+    height: 18px;
+}

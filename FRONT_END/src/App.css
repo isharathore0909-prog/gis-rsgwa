@@ -63,8 +63,8 @@ body {
 }
 
 .main-layout {
-    display: grid;
-    grid-template-columns: 1fr auto;
+    display: flex;
+    flex-direction: row;
     height: calc(100vh - var(--header-height));
     width: 100%;
     overflow: hidden;
@@ -72,8 +72,8 @@ body {
 }
 
 .workspace-container {
-    display: grid;
-    grid-template-rows: 1fr auto;
+    display: flex;
+    flex-direction: row;
     /* Workspace Main gets the remaining space */
     height: 100%;
     overflow: hidden;
@@ -82,12 +82,18 @@ body {
 
 .workspace-main {
     display: flex;
-    flex-direction: row;
-    /* Remove fixed 100% to allow grid to control height */
+    flex-direction: column;
     overflow: hidden;
-    /* Allow shrinking below 500px if needed, but flex-grow will fill space */
     flex: 1;
     min-height: 0;
+    min-width: 0;
+}
+
+.map-viewport {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    display: flex;
 }
 
 .workspace-bottom {
@@ -100,14 +106,7 @@ body {
     overflow-y: hidden;
 }
 
-/* Data Analysis Sidebar */
-.data-analysis-sidebar {
-    height: 100%;
-    width: var(--sidebar-right-width);
-    background: white;
-    border-left: 2px solid var(--border-strong);
-    z-index: 20;
-}
+/* Data Analysis Sidebar styles are managed in DataAnalysisSidebar.css */
 
 /* Professional Scrollbar Interaction */
 ::-webkit-scrollbar {

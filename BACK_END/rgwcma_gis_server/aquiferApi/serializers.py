@@ -10,12 +10,8 @@ class AquiferDataSerializer(serializers.ModelSerializer):
     grampanchayat = serializers.CharField(read_only=True)
     village_name = serializers.CharField(read_only=True)
     
-    # Optional nested village details
-    village_details = VillageSerializer(source='village', read_only=True)
-    
-    # Computed fields
-    all_years_data = serializers.SerializerMethodField()
-    trend_data = serializers.SerializerMethodField()
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
 
     class Meta:
         model = AquiferData
@@ -23,7 +19,6 @@ class AquiferDataSerializer(serializers.ModelSerializer):
             'id',
             'well_id',
             'village',
-            'village_details',
             'state',
             'district',
             'block',
@@ -54,20 +49,21 @@ class AquiferDataSerializer(serializers.ModelSerializer):
             # 2024
             'pre_2024', 'pst_2024',
             # Metadata
-            'all_years_data',
-            'trend_data',
             'created_at',
             'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_all_years_data(self, obj):
-        """Get structured data for all years"""
-        return obj.get_all_years_data()
-    
-    def get_trend_data(self, obj):
-        """Get trend analysis data"""
-        return obj.get_trend_data()
+
+    def get_latitude(self, obj):
+        if obj.latitude:
+            return obj.latitude
+        return obj.village.latitude if obj.village else None
+
+    def get_longitude(self, obj):
+        if obj.longitude:
+            return obj.longitude
+        return obj.village.longitude if obj.village else None
 
 
 class AquiferDataListSerializer(serializers.ModelSerializer):
@@ -76,6 +72,8 @@ class AquiferDataListSerializer(serializers.ModelSerializer):
     district = serializers.CharField(read_only=True)
     block = serializers.CharField(read_only=True)
     village_name = serializers.CharField(read_only=True)
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
     
     # Latest measurements
     latest_pre = serializers.SerializerMethodField()
@@ -96,6 +94,16 @@ class AquiferDataListSerializer(serializers.ModelSerializer):
             'latest_pre',
             'latest_pst',
         ]
+    
+    def get_latitude(self, obj):
+        if obj.latitude:
+            return obj.latitude
+        return obj.village.latitude if obj.village else None
+
+    def get_longitude(self, obj):
+        if obj.longitude:
+            return obj.longitude
+        return obj.village.longitude if obj.village else None
     
     def get_latest_pre(self, obj):
         """Get the most recent pre-monsoon measurement"""

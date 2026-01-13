@@ -16,13 +16,34 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
+
+
+def home(request):
+    return JsonResponse({
+        "status": "RGWCMA GIS Server running",
+        "endpoints": {
+            "location": "/api/location/",
+            "account": "/api/account/",
+            "rainfall": "/api/rainfall/",
+            "raingauge": "/api/raingauge/",
+            "water_quality": "/api/water-quality/",
+            "aquifer": "/api/aquifer/",
+            "recharge_structure": "/api/recharge-structure/"
+        }
+    })
+
 
 urlpatterns = [
+    path('', home),  # ✅ ROOT FIX
+
     path('admin/', admin.site.urls),
+
     path('api/location/', include('locationApi.urls')),
     path('api/account/', include('account_app.urls')),
     path('api/rainfall/', include('rainfallApi.urls')),
     path('api/raingauge/', include('raingaugeApi.urls')),
+
     path('api/', include('water_qualityApi.urls')),
     path('api/', include('aquiferApi.urls')),
     path('api/', include('rechargeStructureApi.urls')),

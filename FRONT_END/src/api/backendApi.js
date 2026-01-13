@@ -204,6 +204,10 @@ class BackendAPIClient {
         return this.get(BACKEND_API.ENDPOINTS.RAINFALL_NEARBY, params, true);
     }
 
+    async getRainfallDistrictWise(params = {}) {
+        return this.get(BACKEND_API.ENDPOINTS.RAINFALL_DISTRICT_WISE, params, true);
+    }
+
     async getWaterQualityRecords(params = {}) {
         return this.get(BACKEND_API.ENDPOINTS.WATER_QUALITY, params, true);
     }

@@ -196,6 +196,41 @@
     background-color: rgba(239, 68, 68, 0.1);
 }
 
+/* Tabs */
+.table-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 1rem;
+    background: var(--bg-muted);
+    border-bottom: 1px solid var(--border-light);
+    overflow-x: auto;
+}
+
+.table-tab-btn {
+    padding: 0.75rem 1.25rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.table-tab-btn:hover {
+    color: var(--dark-blue);
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.table-tab-btn.active {
+    color: var(--secondary-blue);
+    border-bottom-color: var(--secondary-blue);
+    background: white;
+}
+
 /* Custom Scrollbar for the table */
 .table-wrapper::-webkit-scrollbar {
     width: 8px;
