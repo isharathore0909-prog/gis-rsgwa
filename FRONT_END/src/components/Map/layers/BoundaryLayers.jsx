@@ -19,7 +19,7 @@ export const StateBoundaryLayer = ({
 
     return (
         <GeoJSON
-            key={`rajasthan-boundary-${filters?.type}-${filters?.district || 'state'}-${Object.keys(districtRainfall || {}).length}`}
+            key={`rajasthan-boundary-${filters?.type}-${filters?.district || 'state'}-${filters?.block || 'all'}-${filters?.gramPanchayat || 'all'}-${filters?.village || 'all'}-${Object.keys(districtRainfall || {}).length}`}
             ref={geoJsonRef}
             data={data}
             style={(feature) => {
@@ -31,7 +31,7 @@ export const StateBoundaryLayer = ({
                 return {
                     fillColor: isRainfall ? getFeatureColor(val, legendData) : '#64748b',
                     fillOpacity: isRainfall ? 0.75 : 0.05,
-                    color: isRainfall ? 'black' : '#1e293b',
+                    color: isRainfall ? '#475569' : '#1e293b',
                     weight: isRainfall ? 1 : 2,
                     dashArray: isRainfall ? '' : '5, 5'
                 };
@@ -53,7 +53,7 @@ export const StateBoundaryLayer = ({
                     layer.on({
                         mouseover: e => {
                             const l = e.target;
-                            l.setStyle({ weight: 3, color: 'black', fillOpacity: 0.9 });
+                            l.setStyle({ weight: 2.5, color: '#475569', fillOpacity: 0.9 });
                             l.bringToFront();
                         },
                         mouseout: e => {
@@ -82,6 +82,7 @@ export const DistrictHighlightLayer = ({ data, district }) => {
             data={data}
             style={{
                 fillColor: 'transparent',
+                fillOpacity: 0,
                 color: '#2563eb',
                 weight: 4,
                 opacity: 0.8

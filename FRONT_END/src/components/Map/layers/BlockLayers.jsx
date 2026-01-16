@@ -19,7 +19,7 @@ export const BlockBoundaryLayer = ({
 
     return (
         <GeoJSON
-            key={`geojson-${filters?.type}-${legendFeature}-${filters?.district || 'all'}-${filters?.block || 'all'}`}
+            key={`geojson-${filters?.type}-${legendFeature}-${filters?.district || 'all'}`}
             ref={geoJsonRef}
             data={data}
             style={(feature) => {
@@ -28,6 +28,7 @@ export const BlockBoundaryLayer = ({
                 // Check if this block is selected
                 const blockName = feature.properties.BLOCK_NAME || feature.properties.Block;
                 const isSelected = filters?.block && blockName &&
+                    filters?.type !== 'Ground Water Resource Estimation' &&
                     blockName.toString().trim().toUpperCase() === filters.block.toString().trim().toUpperCase();
 
                 let val;
@@ -36,21 +37,23 @@ export const BlockBoundaryLayer = ({
                     val = getFeatureProperty(feature, propKey);
                 }
 
+                const hasData = val !== null && val !== undefined && val !== "No Data";
+
                 if (isSelected) {
                     return {
                         fillColor: isThematic ? getFeatureColor(val, legendData) : 'transparent',
                         weight: 4,
                         color: '#00ffff', // Cyan highlight
-                        fillOpacity: isThematic ? 0.9 : 0.2, // Slightly more opaque to stand out
+                        fillOpacity: isThematic ? (hasData ? 0.9 : 0) : 0.2,
                         dashArray: ''
                     };
                 }
 
                 return {
-                    fillColor: isThematic ? getFeatureColor(val, legendData) : 'transparent',
+                    fillColor: isThematic ? (hasData ? getFeatureColor(val, legendData) : 'transparent') : 'transparent',
                     weight: 1,
-                    color: isThematic ? 'black' : '#cbd5e1',
-                    fillOpacity: isThematic ? 0.75 : 0
+                    color: isThematic ? '#64748b' : '#cbd5e1',
+                    fillOpacity: isThematic ? (hasData ? 0.75 : 0) : 0
                 };
             }}
             onEachFeature={(feature, layer) => {
@@ -73,7 +76,7 @@ export const BlockBoundaryLayer = ({
                 layer.on({
                     mouseover: e => {
                         const l = e.target;
-                        l.setStyle({ weight: 3, color: 'black', fillOpacity: 1 });
+                        l.setStyle({ weight: 2.5, color: '#475569', fillOpacity: 1 });
                         l.bringToFront();
                     },
                     mouseout: e => {
@@ -140,7 +143,7 @@ export const DrillDownBoundariesLayer = ({
                         l.setStyle({
                             fillOpacity: 0.7,
                             weight: isDist ? 5 : 3.5,
-                            color: isDist ? '#0c0a09' : '#047857'
+                            color: isDist ? '#27272a' : '#047857'
                         });
                         l.bringToFront();
                     },

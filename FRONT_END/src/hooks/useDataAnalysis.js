@@ -99,7 +99,10 @@ export const useDataAnalysis = ({
     }, [blockData, globalFilters, isDistrictOnly, filterBlock]);
 
     const totalBlocks = useMemo(() => {
-        if (!blockData || !blockData.features) return 0;
+        if (!blockData || !blockData.features) {
+            // Fallback: use sum of pieData (likely static data)
+            return pieData.reduce((sum, item) => sum + (item.value || 0), 0);
+        }
 
         const features = globalFilters?.district
             ? blockData.features.filter(f => {
@@ -110,7 +113,7 @@ export const useDataAnalysis = ({
             : blockData.features;
 
         return features.length;
-    }, [blockData, globalFilters, isDistrictOnly, filterBlock]);
+    }, [blockData, globalFilters, isDistrictOnly, filterBlock, pieData]);
 
     const waterLevelChartData = useMemo(() => {
         if (displayRegion && DISTRICT_WATER_LEVEL_DATA[displayRegion]) {
@@ -183,6 +186,7 @@ export const useDataAnalysis = ({
     }, [displayRegion]);
 
     useEffect(() => {
+        let ignore = false;
         if (!isWaterQuality) {
             setWaterQualityStats(null);
             return;
@@ -197,17 +201,24 @@ export const useDataAnalysis = ({
                 if (displayBlock) params.block = displayBlock;
 
                 const data = await api.waterQuality.getStatistics(params);
-                setWaterQualityStats(data.summary || null);
+                if (!ignore) {
+                    setWaterQualityStats(data.summary || null);
+                }
             } catch (error) {
-                console.error('Error fetching water quality data:', error);
-                setWaterQualityError(error.message);
-                setWaterQualityStats(null);
+                if (!ignore) {
+                    console.error('Error fetching water quality data:', error);
+                    setWaterQualityError(error.message);
+                    setWaterQualityStats(null);
+                }
             } finally {
-                setWaterQualityLoading(false);
+                if (!ignore) {
+                    setWaterQualityLoading(false);
+                }
             }
         };
 
         fetchWaterQuality();
+        return () => { ignore = true; };
     }, [isWaterQuality, displayRegion, displayBlock]);
 
     const blockWaterQualityData = useMemo(() => {
@@ -275,15 +286,22 @@ export const useDataAnalysis = ({
     const [aquiferGeoJson, setAquiferGeoJson] = useState(null);
 
     useEffect(() => {
-        if ((isAquifer || isGWRE) && !aquiferGeoJson) {
+        let ignore = false;
+        // Optimization: Only fetch aquifer GeoJSON if explicitly in 'Aquifer' mode.
+        // GWRE Analysis uses block boundary colors and doesn't need this heavy file.
+        if (isAquifer && !aquiferGeoJson) {
             fetch('/data/aquifer_opt.json')
                 .then(res => res.json())
-                .then(data => setAquiferGeoJson(data))
+                .then(data => {
+                    if (!ignore) setAquiferGeoJson(data);
+                })
                 .catch(err => console.error("Failed to load aquifer GeoJSON:", err));
         }
-    }, [isAquifer, isGWRE, aquiferGeoJson]);
+        return () => { ignore = true; };
+    }, [isAquifer, aquiferGeoJson]);
 
     useEffect(() => {
+        let ignore = false;
         const showAquiferData = isAquifer || isGWRE || (!isRainfall && !isWaterQuality && !isWellInventory && !isRechargeStructure);
         if (!showAquiferData) {
             setAquiferStats(null);
@@ -300,16 +318,19 @@ export const useDataAnalysis = ({
                 if (globalFilters?.village) params.village_name = globalFilters.village;
 
                 const data = await api.aquifer.getStatistics(params);
-                setAquiferStats(data);
+                if (!ignore) setAquiferStats(data);
             } catch (error) {
-                console.error('Error fetching aquifer data:', error);
-                setAquiferStats(null);
+                if (!ignore) {
+                    console.error('Error fetching aquifer data:', error);
+                    setAquiferStats(null);
+                }
             } finally {
-                setAquiferLoading(false);
+                if (!ignore) setAquiferLoading(false);
             }
         };
 
         fetchAquiferData();
+        return () => { ignore = true; };
     }, [isAquifer, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, isGWRE, isRainfall, isWaterQuality, isWellInventory, isRechargeStructure]);
 
     const aquiferData = useMemo(() => {
@@ -364,6 +385,7 @@ export const useDataAnalysis = ({
     const [rainfallLoading, setRainfallLoading] = useState(false);
 
     useEffect(() => {
+        let ignore = false;
         if (!isRainfall) {
             setRainfallStatsData(null);
             setRainfallSummaryData([]);
@@ -388,7 +410,7 @@ export const useDataAnalysis = ({
                     if (globalFilters?.dataRangeEnd) nearbyParams.end_date = globalFilters.dataRangeEnd;
 
                     const nearbyData = await api.rainfall.getNearby(nearbyParams);
-                    if (nearbyData.stats) {
+                    if (!ignore && nearbyData.stats) {
                         setRainfallStatsData({
                             ...nearbyData.stats,
                             maxVillage: nearbyData.stats.max_village,
@@ -399,33 +421,56 @@ export const useDataAnalysis = ({
                     }
                 } else {
                     const baseParams = {};
-                    if (displayRegion) baseParams.district = displayRegion;
-                    if (displayBlock) baseParams.block = displayBlock;
-                    if (globalFilters?.gramPanchayat) baseParams.gram_panchayat = globalFilters.gramPanchayat;
-                    if (globalFilters?.village) baseParams.village = globalFilters.village;
+
+                    const toTitleCase = (str) => {
+                        if (!str) return str;
+                        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                    };
+
+                    // If no district is selected, it's effectively Rajasthan (Statewide)
+                    if (displayRegion && displayRegion !== 'Rajasthan') {
+                        baseParams.district = toTitleCase(displayRegion.trim());
+                    }
+
+                    if (displayBlock) baseParams.block = toTitleCase(displayBlock.trim());
+                    if (globalFilters?.gramPanchayat) baseParams.gram_panchayat = globalFilters.gramPanchayat.trim();
+                    if (globalFilters?.village) baseParams.village = globalFilters.village.trim();
                     if (globalFilters?.dataRangeStart) baseParams.start_date = globalFilters.dataRangeStart;
                     if (globalFilters?.dataRangeEnd) baseParams.end_date = globalFilters.dataRangeEnd;
 
-                    const stats = await api.rainfall.getStatistics(baseParams);
-                    setRainfallStatsData({
-                        ...stats,
-                        maxVillage: stats.max_village,
-                        maxDate: stats.max_date
-                    });
+                    console.log('Fetching Rainfall Stats with params:', baseParams);
 
-                    const summaryParams = { ...baseParams, timestep: globalFilters?.timestep || 'monthly' };
-                    const summary = await api.rainfall.getSummary(summaryParams);
-                    setRainfallSummaryData(summary);
+                    const stats = await api.rainfall.getStatistics(baseParams);
+                    if (!ignore) {
+                        const hasData = stats && stats.count > 0;
+                        setRainfallStatsData({
+                            ...stats,
+                            maxVillage: stats.max_village,
+                            maxDate: stats.max_date,
+                            isEmpty: !hasData
+                        });
+
+                        if (hasData) {
+                            const summaryParams = { ...baseParams, timestep: globalFilters?.timestep || 'monthly' };
+                            const summary = await api.rainfall.getSummary(summaryParams);
+                            setRainfallSummaryData(summary);
+                        } else {
+                            setRainfallSummaryData([]);
+                        }
+                    }
                 }
             } catch (error) {
-                console.error('Error fetching rainfall stats:', error);
-                setRainfallError(error.message);
+                if (!ignore) {
+                    console.error('Error fetching rainfall stats:', error);
+                    setRainfallError(error.message);
+                }
             } finally {
-                setRainfallLoading(false);
+                if (!ignore) setRainfallLoading(false);
             }
         };
 
         fetchRainfallStats();
+        return () => { ignore = true; };
     }, [isRainfall, displayRegion, displayBlock, globalFilters, clickedLocation]);
 
     const rainfallStatsMemo = useMemo(() => {
@@ -464,6 +509,7 @@ export const useDataAnalysis = ({
     const [rechargeLoading, setRechargeLoading] = useState(false);
 
     useEffect(() => {
+        let ignore = false;
         if (!isRechargeStructure) {
             setRechargeStats(null);
             return;
@@ -480,16 +526,19 @@ export const useDataAnalysis = ({
                 else if (analysisLevel === 'Gram Panchayat') params.gp_name = analysisName;
 
                 const data = await api.rechargeStructure.getStatistics(params);
-                setRechargeStats(data);
+                if (!ignore) setRechargeStats(data);
             } catch (error) {
-                console.error('Error fetching recharge stats:', error);
-                setRechargeStats(null);
+                if (!ignore) {
+                    console.error('Error fetching recharge stats:', error);
+                    setRechargeStats(null);
+                }
             } finally {
-                setRechargeLoading(false);
+                if (!ignore) setRechargeLoading(false);
             }
         };
 
         fetchRechargeStats();
+        return () => { ignore = true; };
     }, [isRechargeStructure, analysisLevel, analysisName]);
 
     return {

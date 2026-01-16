@@ -8,6 +8,7 @@ export const useDistrictRainfall = (isActive) => {
     const [districtRainfall, setDistrictRainfall] = useState({});
 
     useEffect(() => {
+        let ignore = false;
         if (!isActive) {
             setDistrictRainfall({});
             return;
@@ -15,23 +16,24 @@ export const useDistrictRainfall = (isActive) => {
 
         const fetchData = async () => {
             try {
-                // Data source: D:\GIS_RSGWA_ANALYSIS\BACK_END\rgwcma_gis_server\db.sqlite3
-                // Table: rainfallApi_rainfall, Column: rainfall_mm (averaged)
                 const data = await api.rainfall.getDistrictWise();
-                console.log('[useDistrictRainfall] Fetched district data:', data?.length);
-                const stats = {};
-                data.forEach(item => {
-                    if (item.district) {
-                        stats[item.district.toUpperCase()] = item.average_rainfall;
-                    }
-                });
-                setDistrictRainfall(stats);
+                if (!ignore) {
+                    console.log('[useDistrictRainfall] Fetched district data:', data?.length);
+                    const stats = {};
+                    data.forEach(item => {
+                        if (item.district) {
+                            stats[item.district.toUpperCase()] = item.average_rainfall;
+                        }
+                    });
+                    setDistrictRainfall(stats);
+                }
             } catch (error) {
-                console.error('[useDistrictRainfall] Error:', error);
+                if (!ignore) console.error('[useDistrictRainfall] Error:', error);
             }
         };
 
         fetchData();
+        return () => { ignore = true; };
     }, [isActive]);
 
     return districtRainfall;
@@ -44,6 +46,7 @@ export const useWaterQuality = (isActive, filters) => {
     const [records, setRecords] = useState([]);
 
     useEffect(() => {
+        let ignore = false;
         if (!isActive) {
             setRecords([]);
             window.waterQualityRecords = [];
@@ -59,22 +62,29 @@ export const useWaterQuality = (isActive, filters) => {
                 if (filters?.village) params.village_name = filters.village;
 
                 if (!params.district) {
-                    setRecords([]);
-                    window.waterQualityRecords = [];
+                    if (!ignore) {
+                        setRecords([]);
+                        window.waterQualityRecords = [];
+                    }
                     return;
                 }
 
                 const data = await api.waterQuality.getRecords(params);
-                const results = data.results || data || [];
-                setRecords(results);
-                window.waterQualityRecords = results;
+                if (!ignore) {
+                    const results = data.results || data || [];
+                    setRecords(results);
+                    window.waterQualityRecords = results;
+                }
             } catch (error) {
-                console.error('[useWaterQuality] Error:', error);
-                setRecords([]);
+                if (!ignore) {
+                    console.error('[useWaterQuality] Error:', error);
+                    setRecords([]);
+                }
             }
         };
 
         fetchData();
+        return () => { ignore = true; };
     }, [isActive, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
 
     return records;
@@ -87,6 +97,7 @@ export const useAquiferData = (isActive, filters) => {
     const [records, setRecords] = useState([]);
 
     useEffect(() => {
+        let ignore = false;
         if (!isActive) {
             setRecords([]);
             return;
@@ -103,19 +114,24 @@ export const useAquiferData = (isActive, filters) => {
                 };
 
                 if (!params.district) {
-                    setRecords([]);
+                    if (!ignore) setRecords([]);
                     return;
                 }
 
                 const data = await api.aquifer.getRecords(params);
-                setRecords(data.results || data || []);
+                if (!ignore) {
+                    setRecords(data.results || data || []);
+                }
             } catch (error) {
-                console.error('[useAquiferData] Error:', error);
-                setRecords([]);
+                if (!ignore) {
+                    console.error('[useAquiferData] Error:', error);
+                    setRecords([]);
+                }
             }
         };
 
         fetchData();
+        return () => { ignore = true; };
     }, [isActive, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
 
     return records;
@@ -128,12 +144,15 @@ export const useGeoJSONData = (url, isActive) => {
     const [data, setData] = useState(null);
 
     useEffect(() => {
+        let ignore = false;
         if (!isActive || !url) return;
 
         fetch(url)
             .then(res => res.json())
-            .then(setData)
-            .catch(err => console.error(`[useGeoJSONData] Error loading ${url}:`, err));
+            .then(data => { if (!ignore) setData(data); })
+            .catch(err => { if (!ignore) console.error(`[useGeoJSONData] Error loading ${url}:`, err); });
+
+        return () => { ignore = true; };
     }, [url, isActive]);
 
     return data;

@@ -132,7 +132,7 @@ const AnalysisFilters = ({
                                 className="select-input"
                                 value={filters.block}
                                 onChange={e => handleFilterChange('block', e.target.value)}
-                                disabled={!filters.district}
+                                disabled={!filters.district || filters.type === 'Ground Water Resource Estimation'}
                             >
                                 <option value="">-- All Blocks --</option>
                                 {availableBlocks.map(t => (

@@ -61,7 +61,7 @@ const VectorGridSlicer = ({ dataUrl, style, active, layerName, filter, onFeature
 
             // VectorGrid Options
             const vectorGrid = L.vectorGrid.slicer(filteredData, {
-                rendererFactory: L.canvas.tile,
+                rendererFactory: L.svg.tile,
                 vectorTileLayerStyles: {
                     sliced: style
                 },

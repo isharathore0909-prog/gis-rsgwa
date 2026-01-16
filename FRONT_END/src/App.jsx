@@ -12,6 +12,9 @@ import { useBoundaryHierarchy, useAppLogic } from './hooks';
 // Styles
 import './App.css';
 
+// Context
+import { AppContextProvider } from './context/AppContext';
+
 // Utils
 import { getAttributeData } from './utils/dataProcessors';
 import { exportToCSV } from './utils/exportUtils';
@@ -27,9 +30,10 @@ function App() {
         isProceedClicked, isControlsSidebarCollapsed, setIsControlsSidebarCollapsed,
         rainfallPoints, selectedDams, tableSelection, rajasthanId,
         canalData, waterbodyData, microData, selectedWellInventory,
-        aquiferRecords, waterQualityRecords,
+        aquiferRecords, waterQualityRecords, rainfallLoading, waterResourcesLoading,
         handleLayerChange, handleFiltersApply, handleBasemapChange, handleAddToTable,
-        handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory
+        handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory,
+        handleSetWellInventory
     } = useAppLogic();
 
     // Use hierarchical boundary hook
@@ -68,97 +72,113 @@ function App() {
     const hideTableForLayers = ['Aquifer', 'Recharge Structure'].includes(filters?.type);
     const hideSidebarForLayers = filters?.type === 'Water Resources';
 
-    return (
-        <div className="app-container">
-            <Header />
-            {boundariesLoading && (
-                <div className="global-loader-overlay">
-                    <div className="loader-content">
-                        <div className="spinner"></div>
-                        <p>Fetching boundary data...</p>
-                    </div>
-                </div>
-            )}
+    // Calculate empty table message
+    const emptyMessage = useMemo(() => {
+        if (filters?.type === 'Water Resources') {
+            if (!filters.showDams && !filters.showCanals && !filters.showWaterbodies && !filters.showMicro) {
+                return "Select from checkboxes in the sidebar to view data.";
+            }
+        }
+        return "No features found.";
+    }, [filters]);
 
-            <div className="main-layout">
-                {(!activeCategory || activeCategory.uiConfig.showControlsSidebar) && (
-                    <ControlsSidebar
-                        layers={layers}
-                        onLayerChange={handleLayerChange}
-                        onFiltersApply={handleFiltersApply}
-                        onBasemapChange={handleBasemapChange}
-                        handleExportData={onExportData}
-                        currentBasemap={basemap}
-                        blockBoundaryData={processedBlockData}
-                        isCollapsed={isControlsSidebarCollapsed}
-                        setIsCollapsed={setIsControlsSidebarCollapsed}
-                    />
+    return (
+        <AppContextProvider>
+            <div className="app-container">
+                <Header />
+                {(boundariesLoading || rainfallLoading || waterResourcesLoading) && (
+                    <div className="global-loader-overlay">
+                        <div className="loader-content">
+                            <div className="spinner"></div>
+                            <p>{boundariesLoading ? "Fetching boundary data..." : "Loading data..."}</p>
+                        </div>
+                    </div>
                 )}
 
-                <div className="workspace-main">
-                    <div className="map-viewport">
-                        <MapView
+                <div className="main-layout">
+                    {(!activeCategory || activeCategory.uiConfig.showControlsSidebar) && (
+                        <ControlsSidebar
                             layers={layers}
-                            basemap={basemap}
-                            onLocationClick={(latlng, data) => {
-                                setClickedLocation(latlng);
-                                setNeighbors(data || []);
-                            }}
-                            filters={filters}
-                            blockBoundaryData={processedBlockData}
-                            rajasthanData={rajasthanData}
-                            dynamicBoundaries={dynamicBoundaries}
-                            currentLevel={currentLevel}
-                            rainfallPoints={rainfallPoints}
-                            onAddToTable={handleAddToTable}
+                            onLayerChange={handleLayerChange}
                             onFiltersApply={handleFiltersApply}
-                            microData={microData}
-                            selectedWellInventory={selectedWellInventory}
-                            onToggleWellInventory={handleToggleWellInventory}
-                            isControlsSidebarCollapsed={isControlsSidebarCollapsed}
-                            isDataAnalysisSidebarHidden={hideSidebarForLayers}
+                            onBasemapChange={handleBasemapChange}
+                            handleExportData={onExportData}
+                            currentBasemap={basemap}
+                            blockBoundaryData={processedBlockData}
+                            isCollapsed={isControlsSidebarCollapsed}
+                            setIsCollapsed={setIsControlsSidebarCollapsed}
                         />
+                    )}
+
+                    <div className="workspace-main">
+                        <div className="map-viewport">
+                            <MapView
+                                layers={layers}
+                                basemap={basemap}
+                                onLocationClick={(latlng, data) => {
+                                    setClickedLocation(latlng);
+                                    setNeighbors(data || []);
+                                }}
+                                filters={filters}
+                                blockBoundaryData={processedBlockData}
+                                rajasthanData={rajasthanData}
+                                dynamicBoundaries={dynamicBoundaries}
+                                currentLevel={currentLevel}
+                                rainfallPoints={rainfallPoints}
+                                onAddToTable={handleAddToTable}
+                                onFiltersApply={handleFiltersApply}
+                                microData={microData}
+                                selectedWellInventory={selectedWellInventory}
+                                onToggleWellInventory={handleToggleWellInventory}
+                                isControlsSidebarCollapsed={isControlsSidebarCollapsed}
+                                isDataAnalysisSidebarHidden={hideSidebarForLayers}
+                                isLoading={rainfallLoading}
+                            />
+                        </div>
+
+                        {!hideTableForLayers && isProceedClicked && (
+                            <Suspense fallback={<div className="table-loading">Loading Table...</div>}>
+                                <AttributeTable
+                                    data={attributeData}
+                                    onRemoveRow={handleRemoveRow}
+                                    selectedIds={tableSelection}
+                                    onToggleSelection={(id) => handleToggleSelection(id, attributeData)}
+                                    onExportData={onExportData}
+                                    emptyMessage={emptyMessage}
+                                    onRowClick={(feature) => {
+                                        if (feature.geometry && feature.geometry.type === 'Point') {
+                                            setClickedLocation({
+                                                lat: feature.geometry.coordinates[1],
+                                                lng: feature.geometry.coordinates[0]
+                                            });
+                                        }
+                                    }}
+                                />
+                            </Suspense>
+                        )}
                     </div>
 
-                    {!hideTableForLayers && isProceedClicked && (
-                        <Suspense fallback={<div className="table-loading">Loading Table...</div>}>
-                            <AttributeTable
-                                data={attributeData}
-                                onRemoveRow={handleRemoveRow}
-                                selectedIds={tableSelection}
-                                onToggleSelection={(id) => handleToggleSelection(id, attributeData)}
-                                onExportData={onExportData}
-                                onRowClick={(feature) => {
-                                    if (feature.geometry && feature.geometry.type === 'Point') {
-                                        setClickedLocation({
-                                            lat: feature.geometry.coordinates[1],
-                                            lng: feature.geometry.coordinates[0]
-                                        });
-                                    }
-                                }}
-                            />
-                        </Suspense>
+                    {!hideSidebarForLayers && (
+                        <DataAnalysisSidebar
+                            layers={layers}
+                            filters={filters}
+                            neighbors={neighbors}
+                            clickedLocation={clickedLocation}
+                            onAddToTable={handleAddToTable}
+                            selectedDams={selectedDams}
+                            rainfallPoints={rainfallPoints}
+                            onToggleWellInventory={handleToggleWellInventory}
+                            selectedWellInventory={selectedWellInventory}
+                            onClearWellInventory={handleClearWellInventory}
+                            onSetWellInventory={handleSetWellInventory}
+                            onFiltersApply={handleFiltersApply}
+                            blockData={processedBlockData}
+                            isControlsSidebarCollapsed={isControlsSidebarCollapsed}
+                        />
                     )}
                 </div>
-
-                {!hideSidebarForLayers && (
-                    <DataAnalysisSidebar
-                        layers={layers}
-                        filters={filters}
-                        neighbors={neighbors}
-                        clickedLocation={clickedLocation}
-                        onAddToTable={handleAddToTable}
-                        selectedDams={selectedDams}
-                        rainfallPoints={rainfallPoints}
-                        onToggleWellInventory={handleToggleWellInventory}
-                        selectedWellInventory={selectedWellInventory}
-                        onClearWellInventory={handleClearWellInventory}
-                        onFiltersApply={handleFiltersApply}
-                        isControlsSidebarCollapsed={isControlsSidebarCollapsed}
-                    />
-                )}
             </div>
-        </div>
+        </AppContextProvider>
     );
 }
 

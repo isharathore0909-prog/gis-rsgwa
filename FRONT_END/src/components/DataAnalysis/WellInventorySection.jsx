@@ -40,7 +40,8 @@ const WellInventorySection = ({
     isExpanded,
     selectedWellInventory = [],
     onToggleWellInventory,
-    onClearWellInventory
+    onClearWellInventory,
+    onSetWellInventory
 }) => {
     const [loading, setLoading] = useState(false);
     const [listData, setListData] = useState([]); // Data for aggregation
@@ -51,6 +52,7 @@ const WellInventorySection = ({
 
     // Fetch List Data ONLY if not already loaded or if filters changed
     useEffect(() => {
+        let ignore = false;
         const fetchData = async () => {
             setLoading(true);
             setError(null);
@@ -66,23 +68,31 @@ const WellInventorySection = ({
 
                 console.log("WellInventorySection: Fetching with params:", params);
                 const response = await api.aquifer.getRecords(params);
-                console.log("WellInventorySection: Response:", response);
 
-                const records = Array.isArray(response) ? response : (response.results || []);
-                setListData(records);
+                if (!ignore) {
+                    console.log("WellInventorySection: Response:", response);
+                    const records = Array.isArray(response) ? response : (response.results || []);
+                    setListData(records);
+                }
             } catch (err) {
-                console.error("Error fetching well inventory:", err);
-                setError("Failed to load well inventory data.");
+                if (!ignore) {
+                    console.error("Error fetching well inventory:", err);
+                    setError("Failed to load well inventory data.");
+                }
             } finally {
-                setLoading(false);
+                if (!ignore) {
+                    setLoading(false);
+                }
             }
         };
 
         fetchData();
+        return () => { ignore = true; };
     }, [displayRegion, displayBlock, globalFilters]);
 
     // Fetch Nearby Data when location is clicked
     useEffect(() => {
+        let ignore = false;
         if (!clickedLocation || selectedWell) {
             setNearbyData(null);
             return;
@@ -97,21 +107,28 @@ const WellInventorySection = ({
                     radius: 0.1 // ~10km
                 });
 
-                console.log("WellInventorySection: Nearby Data:", response);
-                if (response && response.averages) {
-                    setNearbyData(response);
-                } else {
-                    setNearbyData(null);
+                if (!ignore) {
+                    console.log("WellInventorySection: Nearby Data:", response);
+                    if (response && response.averages) {
+                        setNearbyData(response);
+                    } else {
+                        setNearbyData(null);
+                    }
                 }
             } catch (err) {
-                console.error("Error fetching nearby aquifer data:", err);
-                setNearbyData(null);
+                if (!ignore) {
+                    console.error("Error fetching nearby aquifer data:", err);
+                    setNearbyData(null);
+                }
             } finally {
-                setNearbyLoading(false);
+                if (!ignore) {
+                    setNearbyLoading(false);
+                }
             }
         };
 
         fetchNearbyData();
+        return () => { ignore = true; };
     }, [clickedLocation, selectedWell]);
 
     // Prepare Aggregated Chart Data (Average Water Levels)
@@ -240,10 +257,11 @@ const WellInventorySection = ({
 
         selectedWellInventory.forEach(well => {
             const years = Array.from({ length: 10 }, (_, i) => 2015 + i);
-            const lat = well.latitude || well.lat || '-';
-            const lon = well.longitude || well.lng || '-';
-            const village = well.village_name || well.village?.name || '-';
-            const wellId = well.well_id || 'N/A';
+            const lat = well.latitude || well.lat || well.properties?.latitude || well.properties?.lat || '-';
+            const lon = well.longitude || well.lng || well.properties?.longitude || well.properties?.lng || '-';
+            const village = well.village_name || well.village?.name || well.properties?.village_name || well.properties?.Village || '-';
+            const wellId = well.well_id || well.properties?.['Well ID'] || well.properties?.well_id || 'N/A';
+            const aquifer = well.aquifer || well.Aquifer || well.properties?.aquifer || well.properties?.Aquifer || '-';
 
             years.forEach(year => {
                 batchData.push({
@@ -252,6 +270,7 @@ const WellInventorySection = ({
                     'Lat': typeof lat === 'number' ? lat.toFixed(6) : lat,
                     'Lon': typeof lon === 'number' ? lon.toFixed(6) : lon,
                     'Village': village,
+                    'Aquifer': aquifer,
                     'Year': year,
                     'Pre-Monsoon (m bgl)': well[`pre_${year}`] || well.averages?.[year]?.pre || '-',
                     'Post-Monsoon (m bgl)': well[`pst_${year}`] || well.averages?.[year]?.pst || '-'
@@ -273,17 +292,44 @@ const WellInventorySection = ({
         if (nearbyData && clickedLocation && !selectedFeature) {
             const lat = clickedLocation.lat;
             const lon = clickedLocation.lng;
+
+            // Find nearest well to get Aquifer info
+            let nearestAquifer = '-';
+            if (listData && listData.length > 0) {
+                let minDist = Infinity;
+                let nearestWell = null;
+
+                listData.forEach(w => {
+                    const wLat = w.latitude || w.lat || w.properties?.latitude || w.properties?.lat;
+                    const wLng = w.longitude || w.lng || w.properties?.longitude || w.properties?.lng;
+
+                    if (wLat && wLng) {
+                        // Simple Euclidean distance is sufficient for finding nearest in local area
+                        const dist = Math.pow(wLat - lat, 2) + Math.pow(wLng - lon, 2);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            nearestWell = w;
+                        }
+                    }
+                });
+
+                if (nearestWell) {
+                    nearestAquifer = nearestWell.aquifer || nearestWell.Aquifer || nearestWell.properties?.aquifer || nearestWell.properties?.Aquifer || '-';
+                }
+            }
+
             const currentLoc = {
                 lat,
                 lng: lon,
                 well_id: `Nearby_${lat.toFixed(2)}_${lon.toFixed(2)}`,
+                aquifer: nearestAquifer,
                 ...nearbyData
             };
             if (!isSelected(currentLoc)) {
                 onToggleWellInventory(currentLoc);
             }
         }
-    }, [nearbyData, clickedLocation, selectedFeature]);
+    }, [nearbyData, clickedLocation, selectedFeature, listData]);
 
     // --- Sub-renderers for UI Parts ---
     const renderBatchControls = () => {
@@ -324,18 +370,18 @@ const WellInventorySection = ({
         const getCellValue = (item, year, type) => {
             if (item.averages) {
                 const val = item.averages[year]?.[type === 'pre' ? 'pre' : 'pst'];
-                return val ? val.toFixed(1) : '-';
+                return (val !== null && val !== undefined) ? parseFloat(val).toFixed(1) : '-';
             }
             const key = `${type === 'pre' ? 'pre' : 'pst'}_${year}`;
             const val = item[key];
-            return (val !== null && val !== undefined) ? val : '-';
+            return (val !== null && val !== undefined && val !== '') ? parseFloat(val).toFixed(1) : '-';
         };
 
         return (
             <table className="analysis-table wide-table">
                 <thead>
                     <tr>
-                        <th rowSpan="2" style={{ width: '30px', background: '#f8fafc' }}>
+                        <th rowSpan="2" className="col-check">
                             <input
                                 type="checkbox"
                                 checked={true}
@@ -343,42 +389,45 @@ const WellInventorySection = ({
                                 title="Clear all"
                             />
                         </th>
-                        <th rowSpan="2" style={{ background: '#f8fafc' }}>S.No.</th>
-                        <th rowSpan="2" style={{ background: '#f8fafc' }}>Lat</th>
-                        <th rowSpan="2" style={{ background: '#f8fafc' }}>Lon</th>
+                        <th rowSpan="2" className="col-sno">S.No.</th>
+                        <th rowSpan="2" className="col-lat">Lat</th>
+                        <th rowSpan="2" className="col-lon">Lon</th>
+                        <th rowSpan="2" className="col-aquifer">Aquifer</th>
                         {years.map(year => (
-                            <th key={year} colSpan="2" style={{ textAlign: 'center', borderLeft: '1px solid #e2e8f0', background: '#f1f5f9' }}>{year}</th>
+                            <th key={year} colSpan="2" className="year-header">{year}</th>
                         ))}
                     </tr>
                     <tr>
                         {years.map(year => (
                             <React.Fragment key={year}>
-                                <th style={{ fontSize: '9px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', padding: '4px 2px' }}>Pr(m)</th>
-                                <th style={{ fontSize: '9px', background: '#f8fafc', padding: '4px 2px' }}>Ps(m)</th>
+                                <th className="sub-header pre">Pr(m)</th>
+                                <th className="sub-header pst">Ps(m)</th>
                             </React.Fragment>
                         ))}
                     </tr>
                 </thead>
                 <tbody>
                     {selectedWellInventory.map((item, idx) => {
-                        const lat = item.latitude || item.lat || '-';
-                        const lon = item.longitude || item.lng || '-';
+                        const lat = item.latitude || item.lat || item.properties?.latitude || item.properties?.lat || '-';
+                        const lon = item.longitude || item.lng || item.properties?.longitude || item.properties?.lng || '-';
+                        const aquifer = item.aquifer || item.Aquifer || item.properties?.aquifer || item.properties?.Aquifer || '-';
                         return (
                             <tr key={idx}>
-                                <td>
+                                <td className="col-check">
                                     <input
                                         type="checkbox"
                                         checked={true}
                                         onChange={() => onToggleWellInventory(item)}
                                     />
                                 </td>
-                                <td>{idx + 1}</td>
-                                <td>{typeof lat === 'number' ? lat.toFixed(4) : lat}</td>
-                                <td>{typeof lon === 'number' ? lon.toFixed(4) : lon}</td>
+                                <td className="col-sno">{idx + 1}</td>
+                                <td className="col-lat">{typeof lat === 'number' ? lat.toFixed(4) : lat}</td>
+                                <td className="col-lon">{typeof lon === 'number' ? lon.toFixed(4) : lon}</td>
+                                <td className="col-aquifer">{aquifer}</td>
                                 {years.map(year => (
                                     <React.Fragment key={year}>
-                                        <td style={{ borderLeft: '1px solid #f1f5f9' }}>{getCellValue(item, year, 'pre')}</td>
-                                        <td>{getCellValue(item, year, 'pst')}</td>
+                                        <td className="data-cell pre">{getCellValue(item, year, 'pre')}</td>
+                                        <td className="data-cell pst">{getCellValue(item, year, 'pst')}</td>
                                     </React.Fragment>
                                 ))}
                             </tr>
@@ -397,22 +446,21 @@ const WellInventorySection = ({
                 <div className="well-inventory-modal-content">
                     <div className="modal-header">
                         <h2>Selected Locations Data</h2>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <div className="modal-actions" style={{ display: 'flex', gap: '12px' }}>
                             <button
                                 className="batch-action-btn-primary"
                                 onClick={handleBatchDownload}
                                 title="Download historical data"
-                                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                             >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M21 15V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                                     <polyline points="7 10 12 15 17 10" />
                                     <line x1="12" y1="15" x2="12" y2="3" />
                                 </svg>
-                                Download
+                                <span>Export Data</span>
                             </button>
                             <button className="modal-close-btn" onClick={() => setIsModalOpen(false)} title="Close">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <line x1="18" y1="6" x2="6" y2="18"></line>
                                     <line x1="6" y1="6" x2="18" y2="18"></line>
                                 </svg>
@@ -554,6 +602,7 @@ const WellInventorySection = ({
                                         domain={['auto', 'auto']}
                                     />
                                     <Tooltip
+                                        allowEscapeViewBox={{ x: true, y: true }}
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.85rem' }}
                                         formatter={(value) => [`${value} m`, 'Depth']}
                                         labelStyle={{ color: '#1e293b', fontWeight: 600, marginBottom: '4px' }}
@@ -601,7 +650,7 @@ const WellInventorySection = ({
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                     <YAxis reversed={true} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
-                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.85rem' }} formatter={(value) => [`${value} m`, 'Avg Depth']} />
+                                    <Tooltip allowEscapeViewBox={{ x: true, y: true }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.85rem' }} formatter={(value) => [`${value} m`, 'Avg Depth']} />
                                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
                                     <Line name="Pre-Monsoon (Avg)" type="monotone" dataKey="Pre-Monsoon" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
                                     <Line name="Post-Monsoon (Avg)" type="monotone" dataKey="Post-Monsoon" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
@@ -635,7 +684,11 @@ const WellInventorySection = ({
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                                         <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                         <YAxis reversed={true} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
-                                        <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.8rem' }} formatter={(value) => [`${value} m`, 'Depth']} />
+                                        <Tooltip
+                                            allowEscapeViewBox={{ x: false, y: false }}
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.8rem' }}
+                                            formatter={(value) => [`${value} m`, 'Depth']}
+                                        />
                                         <Legend wrapperStyle={{ fontSize: '10px' }} />
                                         <Line type="monotone" dataKey="Pre-Monsoon" stroke="#f59e0b" strokeWidth={2} dot={false} connectNulls />
                                         <Line type="monotone" dataKey="Post-Monsoon" stroke="#3b82f6" strokeWidth={2} dot={false} connectNulls />
@@ -652,7 +705,7 @@ const WellInventorySection = ({
                                         <Pie data={aquiferDistribution} cx="50%" cy="50%" labelLine={false} label={renderCustomizedLabel} innerRadius={40} outerRadius={60} fill="#8884d8" paddingAngle={5} dataKey="value">
                                             {aquiferDistribution.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                         </Pie>
-                                        <Tooltip />
+                                        <Tooltip allowEscapeViewBox={{ x: true, y: true }} />
                                     </PieChart>
                                 </ResponsiveContainer>
                                 <div className="aquifer-legend">

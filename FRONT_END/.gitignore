@@ -28,3 +28,14 @@ yarn-error.log*
 *.swo
 *~
 
+# Virtual environment
+djenv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+
+# Env files
+.env

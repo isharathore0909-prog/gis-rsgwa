@@ -12,6 +12,26 @@ body {
     height: 100vh;
 }
 
+/* Kill the "black box" Focus Ring on ALL map elements */
+.leaflet-container *:focus,
+.leaflet-container *:active,
+.leaflet-container :focus,
+.leaflet-container :active,
+.leaflet-interactive:focus,
+.leaflet-marker-icon:focus,
+.leaflet-popup-content-wrapper:focus,
+.leaflet-tooltip:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    /* Temporarily test if it's a shadow artifact */
+}
+
+/* Re-enable shadow for popups/tooltips but NOT on focus */
+.leaflet-popup-content-wrapper,
+.leaflet-tooltip {
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+}
+
 #root {
     height: 100vh;
     width: 100vw;
@@ -34,4 +54,3 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
-

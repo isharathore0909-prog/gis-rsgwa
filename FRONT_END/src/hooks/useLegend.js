@@ -36,10 +36,14 @@ export const useLegendData = (
                 ? legendFeature
                 : 'avg_rainfall';
 
-            if (!filters.district && Object.keys(districtRainfall).length > 0) {
-                values = Object.values(districtRainfall);
-            } else if (mapRainfallPoints.length) {
-                values = mapRainfallPoints.map(p => p[feature]);
+            const hasDistStats = Object.keys(districtRainfall).length > 0;
+            const distValues = hasDistStats ? Object.values(districtRainfall) : [];
+            const pointValues = mapRainfallPoints.length ? mapRainfallPoints.map(p => p[feature]) : [];
+
+            if (hasDistStats || pointValues.length > 0) {
+                // Combine both to ensure the legend scale covers the state-wide background 
+                // AND the local details.
+                values = [...distValues, ...pointValues];
             } else {
                 return [];
             }

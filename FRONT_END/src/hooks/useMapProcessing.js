@@ -10,18 +10,35 @@ export const useRainfallStatsByBlock = (rainfallPoints) => {
     return useMemo(() => {
         if (!rainfallPoints || !rainfallPoints.length) return {};
 
-        const stats = {};
+        // Group by Block -> Year
+        const blockYears = {};
+
         rainfallPoints.forEach(p => {
             const block = (p.block_name || p.block || '').toString().trim().toUpperCase();
             const district = (p.district_name || p.district || '').toString().trim().toUpperCase();
             if (!block) return;
 
             const key = `${district}|${block}`;
-            if (!stats[key]) stats[key] = { total: 0, count: 0 };
+            const year = p.date ? new Date(p.date).getFullYear() : 'unknown';
+
+            if (!blockYears[key]) blockYears[key] = {};
+            if (!blockYears[key][year]) blockYears[key][year] = 0;
 
             const val = p.rainfall_mm ?? p.rainfall_in_mm ?? 0;
-            stats[key].total += val;
-            stats[key].count += 1;
+            blockYears[key][year] += val;
+        });
+
+        // Calculate Average Annual Rainfall
+        const stats = {};
+        Object.keys(blockYears).forEach(key => {
+            const years = Object.keys(blockYears[key]);
+            const totalSum = years.reduce((acc, y) => acc + blockYears[key][y], 0);
+
+            // We return { total, count } such that total/count = Average Annual
+            stats[key] = {
+                total: totalSum,
+                count: years.length || 1
+            };
         });
 
         return stats;
@@ -30,6 +47,7 @@ export const useRainfallStatsByBlock = (rainfallPoints) => {
 
 /**
  * Aggregates rainfall points by location (village level)
+ * Calculates Average Annual Rainfall to match District layer scale
  */
 export const useAggregatedRainfallPoints = (rainfallPoints, blockBoundaryData, isActive) => {
     return useMemo(() => {
@@ -45,8 +63,10 @@ export const useAggregatedRainfallPoints = (rainfallPoints, blockBoundaryData, i
             });
         }
 
-        // Aggregate by location
-        const locationStats = {};
+        // Group by Location -> Year
+        const locationYears = {};
+        const locationMeta = {};
+
         rainfallPoints.forEach(p => {
             const vName = (p.village_name || p.village || 'Unknown').toUpperCase();
             const gpName = (p.gram_panchayat_name || p.gram_panchayat || p.gramPanchayat || 'Unknown').toUpperCase();
@@ -54,7 +74,7 @@ export const useAggregatedRainfallPoints = (rainfallPoints, blockBoundaryData, i
             const dName = (p.district_name || p.district || p.DIST_NAME || '').toUpperCase();
             const locKey = `${dName}|${bName}|${gpName}|${vName}`;
 
-            if (!locationStats[locKey]) {
+            if (!locationMeta[locKey]) {
                 let lat = p.latitude;
                 let lng = p.longitude;
 
@@ -68,26 +88,34 @@ export const useAggregatedRainfallPoints = (rainfallPoints, blockBoundaryData, i
                     lng = center ? center.lng + jitterLng : DEFAULT_CENTER[1] + jitterLng;
                 }
 
-                locationStats[locKey] = {
+                locationMeta[locKey] = {
                     ...p,
                     latitude: lat,
                     longitude: lng,
-                    total_rainfall: 0,
-                    count: 0,
                     isAggregated: true
                 };
             }
 
+            const year = p.date ? new Date(p.date).getFullYear() : 'unknown';
+            if (!locationYears[locKey]) locationYears[locKey] = {};
+            if (!locationYears[locKey][year]) locationYears[locKey][year] = 0;
+
             const val = p.rainfall_mm ?? p.rainfall_in_mm ?? 0;
-            locationStats[locKey].total_rainfall += val;
-            locationStats[locKey].count += 1;
+            locationYears[locKey][year] += val;
         });
 
-        return Object.values(locationStats).map(s => ({
-            ...s,
-            avg_rainfall: s.total_rainfall / s.count,
-            rainfall_mm: s.total_rainfall / s.count
-        }));
+        return Object.keys(locationMeta).map(key => {
+            const years = Object.values(locationYears[key]);
+            const totalSum = years.reduce((a, b) => a + b, 0);
+            const avgAnnual = totalSum / (years.length || 1);
+
+            return {
+                ...locationMeta[key],
+                avg_rainfall: avgAnnual,
+                rainfall_mm: avgAnnual,
+                total_records: years.length // Just for reference
+            };
+        });
     }, [rainfallPoints, blockBoundaryData, isActive]);
 };
 

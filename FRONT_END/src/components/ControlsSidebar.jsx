@@ -209,11 +209,7 @@ const ControlsSidebar = ({
             newFilters.village = '';
         }
 
-        // Reset district and other filters when switching into or out of specialized types
-        const isCurrentlySpecial = filters.type === 'Ground Water Resource Estimation' || filters.type === 'Rainfall';
-        const willBeSpecial = value === 'Ground Water Resource Estimation' || value === 'Rainfall';
-
-        if (field === 'type' && (isCurrentlySpecial || willBeSpecial)) {
+        if (field === 'type') {
             newFilters.district = '';
             newFilters.block = '';
             newFilters.gramPanchayat = '';

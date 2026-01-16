@@ -58,7 +58,7 @@ export const useMapView = ({
             return false;
         };
 
-        if (validatedBlockData && filters.block) {
+        if (validatedBlockData && filters.block && filters.type !== 'Ground Water Resource Estimation') {
             if (flyToLayer(validatedBlockData)) return;
         }
 
@@ -112,15 +112,15 @@ export const useMapView = ({
     // --- Data Status ---
     const isRainfallDataEmpty = useMemo(() => {
         if (filters?.type !== 'Rainfall') return false;
-        if (!rainfallPoints || rainfallPoints.length === 0) return true;
 
-        if (filters?.district) {
-            const searchDist = filters.district.trim().toLowerCase();
-            return !rainfallPoints.some(p => (p.district || p.district_name || '').toString().trim().toLowerCase() === searchDist);
-        }
+        // If we have points, it's not empty. 
+        // We trust the backend-filtered rainfallPoints array.
+        if (rainfallPoints && rainfallPoints.length > 0) return false;
 
-        return false;
-    }, [filters?.type, filters?.district, rainfallPoints]);
+        // If we have no points, it's potentially empty, but we might be loading.
+        // For now, if active and truly 0, return true.
+        return true;
+    }, [filters?.type, rainfallPoints]);
 
     const showBlockBoundary = useMemo(() => {
         const isLayerActive = ['Ground Water Resource Estimation', 'Rainfall', 'Water Quality'].includes(filters?.type);

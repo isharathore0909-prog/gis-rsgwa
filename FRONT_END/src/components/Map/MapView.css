@@ -557,3 +557,112 @@
     font-size: 0.7rem;
     font-weight: 600;
 }
+
+/* Color Picker Widget */
+.color-picker-widget {
+    position: absolute;
+    top: 140px;
+    /* Adjust based on icon position */
+    right: 50px;
+    /* To the left of the toolbar */
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 200px;
+    border: 1px solid #e2e8f0;
+}
+
+.color-picker-widget .widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.color-picker-widget .widget-header h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #334155;
+    font-weight: 600;
+}
+
+.color-picker-widget .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0;
+}
+
+.color-picker-widget .close-btn:hover {
+    color: #475569;
+}
+
+.color-picker-widget .color-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.color-picker-widget .color-option:last-child {
+    margin-bottom: 0;
+}
+
+.color-picker-widget label {
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+.color-picker-widget input[type="color"] {
+    -webkit-appearance: none;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+    overflow: hidden;
+    background: none;
+}
+
+.color-picker-widget input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-picker-widget input[type="color"]::-webkit-color-swatch {
+    border: 2px solid #e2e8f0;
+    border-radius: 50%;
+}
+
+/* Export Menu */
+.export-menu {
+    position: absolute;
+    right: 50px;
+    top: 0;
+    width: 200px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 8px 0;
+    z-index: 1000;
+}
+
+.export-option {
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #334155;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.export-option:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}

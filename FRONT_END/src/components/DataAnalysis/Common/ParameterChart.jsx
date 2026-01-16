@@ -21,8 +21,9 @@ const ParameterChart = ({ name, value, limit, unit, status, color }) => {
                 </PieChart>
             </ResponsiveContainer>
             <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{name}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', margin: '2px 0' }}>
-                {value}{unit && `/${limit} ${unit}`}
+            <div style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0', lineHeight: 1.4 }}>
+                <div>Amount: {typeof value === 'number' ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value} {unit}</div>
+                <div>Limit: {limit} {unit}</div>
             </div>
             <div style={{ fontSize: '0.7rem', color: isExceeded ? '#e63946' : '#2a9d8f', fontWeight: 800, textTransform: 'uppercase' }}>
                 {status}

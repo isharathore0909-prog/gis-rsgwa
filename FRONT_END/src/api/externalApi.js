@@ -1,66 +1,28 @@
+import axios from 'axios';
+import { EXTERNAL_API, API_CONFIG } from './config';
+
 /**
- * External Boundary API Client
- * 
- * Handles all requests to the external gpspl.geoplanetsolution.in API.
+ * External Boundary API Client using Axios
  */
-
-import { EXTERNAL_API, getExternalHeaders, buildExternalUrl, API_CONFIG } from './config';
-
 class ExternalAPIClient {
     constructor() {
-        this.baseURL = EXTERNAL_API.BASE_URL;
-        this.apiKey = EXTERNAL_API.API_KEY;
-    }
-
-    /**
-     * Generic request method with retry logic
-     */
-    async request(url, options = {}, retries = API_CONFIG.RETRY_ATTEMPTS) {
-        try {
-            const response = await fetch(url, {
-                ...options,
-                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        this.client = axios.create({
+            baseURL: EXTERNAL_API.BASE_URL,
+            timeout: API_CONFIG.TIMEOUT,
+            headers: {
+                'X-Auth-Key': EXTERNAL_API.API_KEY,
+                'Content-Type': 'application/json',
             }
+        });
 
-            return response.json();
-        } catch (error) {
-            if (retries > 0 && error.name !== 'AbortError') {
-                await new Promise(resolve => setTimeout(resolve, API_CONFIG.RETRY_DELAY));
-                return this.request(url, options, retries - 1);
+        // Response Interceptor for ease of use
+        this.client.interceptors.response.use(
+            (response) => response.data,
+            (error) => {
+                const errorMessage = error.response?.data?.message || error.message;
+                return Promise.reject(new Error(errorMessage));
             }
-            throw error;
-        }
-    }
-
-    /**
-     * GET request
-     */
-    async get(endpoint, params = {}) {
-        const url = buildExternalUrl(endpoint, params);
-        const headers = getExternalHeaders();
-
-        return this.request(url, {
-            method: 'GET',
-            headers,
-        });
-    }
-
-    /**
-     * POST request
-     */
-    async post(endpoint, data) {
-        const url = buildExternalUrl(endpoint);
-        const headers = getExternalHeaders();
-
-        return this.request(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(data),
-        });
+        );
     }
 
     // ==================== Boundary Methods ====================
@@ -70,8 +32,8 @@ class ExternalAPIClient {
      */
     async fetchBoundaryByVillageCode(villageCode) {
         try {
-            const data = await this.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
-                village_code: villageCode
+            const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
+                params: { village_code: villageCode }
             });
             return this.convertToGeoJSON(data, { village_code: villageCode, level: 'village' });
         } catch (error) {
@@ -85,8 +47,8 @@ class ExternalAPIClient {
      */
     async fetchBoundaryByGPCode(gpCode) {
         try {
-            const data = await this.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
-                gpcode: gpCode
+            const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
+                params: { gpcode: gpCode }
             });
             return this.convertToGeoJSON(data, { gp_code: gpCode, level: 'gp' });
         } catch (error) {
@@ -100,8 +62,8 @@ class ExternalAPIClient {
      */
     async fetchBoundaryByBlockCode(blockCode) {
         try {
-            const data = await this.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
-                block_code: blockCode
+            const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
+                params: { block_code: blockCode }
             });
             return this.convertToGeoJSON(data, { block_code: blockCode, level: 'block' });
         } catch (error) {
@@ -115,8 +77,8 @@ class ExternalAPIClient {
      */
     async fetchBoundaryByDistrictCode(districtCode) {
         try {
-            const data = await this.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
-                district_code: districtCode
+            const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
+                params: { district_code: districtCode }
             });
             return this.convertToGeoJSON(data, { district_code: districtCode, level: 'district' });
         } catch (error) {
@@ -140,7 +102,7 @@ class ExternalAPIClient {
                 throw new Error('At least one code parameter must be provided');
             }
 
-            const data = await this.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, params);
+            const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, { params });
             return this.convertToGeoJSON(data, codes);
         } catch (error) {
             console.error('Error fetching boundary:', error);
@@ -156,7 +118,7 @@ class ExternalAPIClient {
             const params = { lat, lon };
             if (includeBoundary) params.boundary = 'true';
 
-            return await this.get(EXTERNAL_API.ENDPOINTS.PINCODE, params);
+            return await this.client.get(EXTERNAL_API.ENDPOINTS.PINCODE, { params });
         } catch (error) {
             console.error(`Error fetching address for coordinates (${lat}, ${lon}):`, error);
             return null;
@@ -168,7 +130,7 @@ class ExternalAPIClient {
      */
     async fetchMultiplePoints(points) {
         try {
-            return await this.post(EXTERNAL_API.ENDPOINTS.MULTIPLE_POINTS, { points });
+            return await this.client.post(EXTERNAL_API.ENDPOINTS.MULTIPLE_POINTS, { points });
         } catch (error) {
             console.error('Error fetching multiple points:', error);
             return null;
@@ -234,5 +196,4 @@ class ExternalAPIClient {
     }
 }
 
-// Export singleton instance
 export default new ExternalAPIClient();

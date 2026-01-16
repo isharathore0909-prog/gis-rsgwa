@@ -192,6 +192,7 @@ const WaterQualitySection = ({
                                         tick={{ fontSize: 11, fontWeight: 500 }}
                                     />
                                     <Tooltip
+                                        allowEscapeViewBox={{ x: true, y: true }}
                                         cursor={{ fill: 'transparent' }}
                                         content={({ active, payload }) => {
                                             if (active && payload && payload.length) {

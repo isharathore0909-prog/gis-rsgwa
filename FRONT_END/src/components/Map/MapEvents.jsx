@@ -24,9 +24,10 @@ export function MapUpdater({ center, zoom, basemap, onMapReady }) {
         }
     }, [map, onMapReady]);
 
-    useEffect(() => {
-        map.setView(center, zoom);
-    }, [center, zoom, map]);
+    // Removed aggressive reset effect
+    // useEffect(() => {
+    //     map.setView(center, zoom);
+    // }, [center, zoom, map]);
 
     return null;
 }

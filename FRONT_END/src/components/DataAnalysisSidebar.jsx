@@ -33,7 +33,8 @@ const DataAnalysisSidebar = ({
     isControlsSidebarCollapsed,
     selectedWellInventory = [],
     onToggleWellInventory,
-    onClearWellInventory
+    onClearWellInventory,
+    onSetWellInventory
 }) => {
     // Delegate data processing to the hook
     const {
@@ -136,6 +137,7 @@ const DataAnalysisSidebar = ({
                         selectedWellInventory={selectedWellInventory}
                         onToggleWellInventory={onToggleWellInventory}
                         onClearWellInventory={onClearWellInventory}
+                        onSetWellInventory={onSetWellInventory}
                     />
                 )}
             </div>

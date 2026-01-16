@@ -38,23 +38,34 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
                 const matchDist = !filters.district || well.district?.toUpperCase() === filters.district.toUpperCase();
                 const matchBlock = !filters.block || (well.block || well.taluka)?.toUpperCase() === filters.block.toUpperCase();
                 return matchDist && matchBlock;
-            }).map((well, idx) => ({
-                type: 'Feature',
-                id: well.id || well.well_id || `well-${idx}`,
-                properties: {
-                    'Category': 'Ground Water Well',
+            }).map((well, idx) => {
+                const props = {
+                    'S.No.': idx + 1,
+                    'Category': 'Ground Water Level',
                     'Well ID': well.well_id || well.id,
                     'District': well.district || '-',
                     'Block': well.block || well.taluka || '-',
                     'Village': well.village || '-',
                     'Depth': well.depth || 'N/A',
                     'Water Level': well.water_level || 'N/A'
-                },
-                geometry: {
-                    type: 'Point',
-                    coordinates: [well.lng, well.lat]
+                };
+
+                // Attempt to add year-wise data if available in neighbors
+                for (let year = 2015; year <= 2024; year++) {
+                    props[`Pre ${year}`] = well[`pre_${year}`] || '-';
+                    props[`Post ${year}`] = well[`pst_${year}`] || '-';
                 }
-            }))
+
+                return {
+                    type: 'Feature',
+                    id: well.id || well.well_id || `well-${idx}`,
+                    properties: props,
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [well.lng, well.lat]
+                    }
+                };
+            })
         };
     }
 
@@ -181,33 +192,52 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
             features: baseFeatures.filter(item => {
                 if (!item) return false;
                 const props = item.properties || item;
-                const dist = (props.district_name || props.district || props.DIST_NAME || props.District || '').toString().toUpperCase();
-                const blk = (props.block_name || props.block || props.BLOCK_NAME || props.Block || props.taluka || '').toString().toUpperCase();
 
-                const matchDist = !filters.district || dist === filters.district.toUpperCase();
-                const matchBlock = !filters.block || blk === filters.block.toUpperCase();
-                return matchDist && matchBlock;
-            }).map((item, idx) => {
-                const props = item.properties || item;
-                const rainValue = props.rainfall_mm !== undefined ? Number(props.rainfall_mm).toFixed(2) : (props['Rainfall (mm)'] || '0.00');
+                const dist = (props.district_name || props.district || props.DIST_NAME || props.District || '').toString().trim().toUpperCase();
+                const blk = (props.block_name || props.block || props.BLOCK_NAME || props.Block || props.taluka || '').toString().trim().toUpperCase();
+                const gp = (props.gram_panchayat_name || props.gram_panchayat || props.GP_NAME || props.GramPanchayat || '').toString().trim().toUpperCase();
+                const vill = (props.village_name || props.village || props.VILL_NAME || props.Village || '').toString().trim().toUpperCase();
 
-                return {
-                    type: 'Feature',
-                    id: item.id || props.id || `rain-${idx}`,
-                    properties: {
-                        'Category': 'Rainfall',
-                        'Date': props.date || props.rainfall_date || (props['Date'] || '-'),
-                        'Rainfall (mm)': rainValue,
-                        'District': props.district_name || props.district || props.DIST_NAME || props.District || '-',
-                        'Block': props.block_name || props.block || props.BLOCK_NAME || props.Block || '-',
-                        'Village': props.village_name || props.village || (props['Village'] || '-')
-                    },
-                    geometry: item.geometry || ((props.longitude && props.latitude) ? {
-                        type: 'Point',
-                        coordinates: [props.longitude, props.latitude]
-                    } : null)
-                };
-            }).filter(f => f.geometry)
+                const matchDist = !filters.district || dist === filters.district.trim().toUpperCase();
+                const matchBlock = !filters.block || blk === filters.block.trim().toUpperCase();
+                const matchGP = !filters.gramPanchayat || gp === filters.gramPanchayat.trim().toUpperCase();
+                const matchVillage = !filters.village || vill === filters.village.trim().toUpperCase();
+
+                // If specialized filters (GP/Village) are active, and we have records, 
+                // we should be careful not to filter out records that the backend specifically returned for us.
+                // If the records don't have district/block names but are already in the array 
+                // (because the backend filtered them for us), we might want to include them.
+                if ((filters.village || filters.gramPanchayat) && rainfallPoints.length > 0) {
+                    const villageMatch = !filters.village || vill === filters.village.trim().toUpperCase();
+                    const gpMatch = !filters.gramPanchayat || gp === filters.gramPanchayat.trim().toUpperCase();
+                    return villageMatch && gpMatch;
+                }
+
+                return matchDist && matchBlock && matchGP && matchVillage;
+            })
+                .map((item, idx) => {
+                    const props = item.properties || item;
+                    const rainValue = props.rainfall_mm !== undefined ?
+                        Number(props.rainfall_mm).toFixed(2) :
+                        (props['Rainfall (mm)'] !== undefined ? Number(props['Rainfall (mm)']).toFixed(2) : '0.00');
+
+                    return {
+                        type: 'Feature',
+                        id: item.id || props.id || `rain-${idx}`,
+                        properties: {
+                            'Category': 'Rainfall',
+                            'Date': props.date || props.rainfall_date || (props['Date'] || '-'),
+                            'Rainfall (mm)': rainValue,
+                            'District': props.district_name || props.district || props.DIST_NAME || props.District || '-',
+                            'Block': props.block_name || props.block || props.BLOCK_NAME || props.Block || '-',
+                            'Village': props.village_name || props.village || (props['Village'] || '-')
+                        },
+                        geometry: item.geometry || ((props.longitude && props.latitude) ? {
+                            type: 'Point',
+                            coordinates: [props.longitude, props.latitude]
+                        } : null)
+                    };
+                })
         };
     }
 
@@ -244,25 +274,35 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
     if (filters.type === 'Well Inventory') {
         return {
             type: 'FeatureCollection',
-            features: aquiferRecords.map((p, idx) => ({
-                type: 'Feature',
-                id: p.id || p.well_id || `well-inv-${idx}`,
-                properties: {
-                    'Category': 'Well Inventory',
-                    'Well ID': p.well_id,
+            features: aquiferRecords.map((p, idx) => {
+                const props = {
+                    'S.No.': idx + 1,
+                    'Category': 'Well Inventory (Detailed)',
+                    'Well ID': p.well_id || '-',
                     'District': p.district || filters.district || '-',
                     'Block': p.block || filters.block || '-',
                     'Village': p.village_details?.name || p.village_name || '-',
                     'Aquifer': p.aquifer || '-',
                     'Depth (m)': p.well_depth || '-',
-                    'Static WL': p.static_water_level || '-',
-                    'Source': p.source || '-'
-                },
-                geometry: {
-                    type: 'Point',
-                    coordinates: [p.longitude, p.latitude]
+                    'Static WL': p.static_water_level || '-'
+                };
+
+                // Add year-wise water level data
+                for (let year = 2015; year <= 2024; year++) {
+                    props[`Pre ${year}`] = p[`pre_${year}`] || '-';
+                    props[`Post ${year}`] = p[`pst_${year}`] || '-';
                 }
-            }))
+
+                return {
+                    type: 'Feature',
+                    id: p.id || p.well_id || `well-inv-${idx}`,
+                    properties: props,
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [p.longitude, p.latitude]
+                    }
+                };
+            })
         };
     }
 

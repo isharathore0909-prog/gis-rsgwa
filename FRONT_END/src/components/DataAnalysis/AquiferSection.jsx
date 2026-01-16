@@ -12,7 +12,7 @@ import {
 import AnalysisCard from './Common/AnalysisCard';
 import './AquiferSection.css';
 
-const AquiferSection = ({ displayRegion, displayBlock, data, isExpanded }) => {
+const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpanded }) => {
     // Process data based on selected region
     const aquiferData = useMemo(() => {
         // Strictly use Database Data passed via props
@@ -21,6 +21,36 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isExpanded }) => {
         }
         return [];
     }, [data]);
+
+    if (isLoading) {
+        return (
+            <div className="aquifer-section">
+                <AnalysisCard style={{ textAlign: 'center', padding: '3rem', marginTop: '1rem' }}>
+                    <div className="spinner" style={{
+                        width: '40px',
+                        height: '40px',
+                        border: '4px solid #f3f3f3',
+                        borderTop: '4px solid #3498db',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite',
+                        margin: '0 auto 1rem auto'
+                    }}></div>
+                    <h3 style={{ color: '#64748b' }}>Loading Aquifer Data...</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+                        Please wait while we fetch the latest data.
+                    </p>
+                    <style>
+                        {`
+                            @keyframes spin {
+                                0% { transform: rotate(0deg); }
+                                100% { transform: rotate(360deg); }
+                            }
+                        `}
+                    </style>
+                </AnalysisCard>
+            </div>
+        );
+    }
 
     if (aquiferData.length === 0) {
         return (
@@ -52,7 +82,7 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isExpanded }) => {
                         </div>
                     </div>
 
-                    <div className="aquifer-chart-wrapper" style={{ width: '100%', overflow: 'hidden' }}>
+                    <div className="aquifer-chart-wrapper" style={{ width: '100%' }}>
                         <div
                             className="aquifer-chart-container"
                             style={{
@@ -79,6 +109,7 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isExpanded }) => {
                                     />
                                     <Tooltip
                                         cursor={{ fill: '#f8fafc', opacity: 0.4 }}
+                                        allowEscapeViewBox={{ x: true, y: true }}
                                         contentStyle={{
                                             borderRadius: '12px',
                                             border: 'none',

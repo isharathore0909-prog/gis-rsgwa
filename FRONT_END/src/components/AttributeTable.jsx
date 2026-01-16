@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IconChevronDown, IconMap, IconTrash } from './Icons';
 import './AttributeTable.css';
 
-const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection, onRemoveRow }) => {
+const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection, onRemoveRow, emptyMessage }) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     // Resizable State
@@ -59,8 +59,9 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
         };
     }, [isDragging, isCollapsed]);
 
+
     if (!data || !data.features || data.features.length === 0) {
-        const msg = !data ? "Loading attribute data..." : "No features found.";
+        const msg = !data ? "Loading attribute data..." : (emptyMessage || "No features found.");
         return (
             <div
                 className={`attribute-table-container ${isCollapsed ? 'collapsed' : ''}`}
@@ -110,6 +111,13 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
 
     const visibleIds = filteredFeatures.map(f => f.id);
     const isAllVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+
+    console.log('AttributeTable Debug:', {
+        totalFeatures: data.features.length,
+        filteredFeaturesLength: filteredFeatures.length,
+        firstFeatureProps: filteredFeatures[0]?.properties,
+        headers
+    });
 
     const handleSelectAllVisible = () => {
         if (onToggleSelection) {

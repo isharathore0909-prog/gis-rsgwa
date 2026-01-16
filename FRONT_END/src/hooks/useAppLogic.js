@@ -33,6 +33,8 @@ export const useAppLogic = () => {
     const [selectedWellInventory, setSelectedWellInventory] = useState([]);
     const [aquiferRecords, setAquiferRecords] = useState([]);
     const [waterQualityRecords, setWaterQualityRecords] = useState([]);
+    const [rainfallLoading, setRainfallLoading] = useState(false);
+    const [waterResourcesLoading, setWaterResourcesLoading] = useState(false);
 
     // Handlers
     const handleLayerChange = useCallback((layerName, checked) => {
@@ -40,12 +42,10 @@ export const useAppLogic = () => {
     }, []);
 
     const handleFiltersApply = useCallback((appliedFilters) => {
-        setFilters(prev => {
-            if (prev?.type !== appliedFilters?.type) {
-                setTableSelection([]);
-            }
-            return appliedFilters;
-        });
+        if (appliedFilters?.type === 'Rainfall') {
+            setRainfallLoading(true);
+        }
+        setFilters(appliedFilters);
         setIsProceedClicked(true);
     }, []);
 
@@ -134,29 +134,61 @@ export const useAppLogic = () => {
 
     const handleClearWellInventory = useCallback(() => setSelectedWellInventory([]), []);
 
+    const handleSetWellInventory = useCallback((well) => {
+        if (!well) return;
+        setSelectedWellInventory([well]);
+    }, []);
+
     // Initial Data Fetching
     useEffect(() => {
+        let ignore = false;
         fetch('/Final_Dist_Boundary.geojson')
             .then(res => res.json())
-            .then(data => setRajasthanData(data))
+            .then(data => { if (!ignore) setRajasthanData(data); })
             .catch(err => console.error('Error loading Rajasthan boundary:', err));
 
         api.location.getStates({ name: 'Rajasthan' })
             .then(res => {
-                const states = res.results || res;
-                if (states && states.length > 0) setRajasthanId(states[0].id);
+                if (!ignore) {
+                    const states = res.results || res;
+                    if (states && states.length > 0) setRajasthanId(states[0].id);
+                }
             })
             .catch(err => console.error("Error fetching state ID:", err));
 
         fetch('/groundwater_zone.json')
-            .then(res => res.json())
-            .then(data => setProcessedBlockData(reprojectGeoJSON(data)))
-            .catch(() => {
+            .then(res => {
+                if (!res.ok) throw new Error(`Status ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                console.log('Successfully loaded groundwater_zone.json:', data);
+                if (!ignore) {
+                    const reprojected = reprojectGeoJSON(data);
+                    if (reprojected) {
+                        console.log('Reprojected block data success');
+                        setProcessedBlockData(reprojected);
+                    } else {
+                        console.warn('Reprojection failed for groundwater_zone.json. Using raw data for stats (Map may not render blocks).');
+                        setProcessedBlockData(data);
+                    }
+                }
+            })
+            .catch(err => {
+                console.warn('Failed to load groundwater_zone.json, falling back:', err);
                 fetch('/block_boundary_updated.json')
                     .then(res => res.json())
-                    .then(data => setProcessedBlockData(reprojectGeoJSON(data)))
-                    .catch(err => console.error("Could not load block data:", err));
+                    .then(data => {
+                        console.log('Loaded fallback block_boundary_updated.json');
+                        if (!ignore) {
+                            const reprojected = reprojectGeoJSON(data);
+                            setProcessedBlockData(reprojected || data);
+                        }
+                    })
+                    .catch(err2 => console.error("Could not load block data (fallback failed):", err2));
             });
+
+        return () => { ignore = true; };
     }, []);
 
     // URL Params Handling
@@ -196,27 +228,56 @@ export const useAppLogic = () => {
         }
     }, []);
 
+
     // Rainfall Data Fetching
+    const toTitleCase = (str) => {
+        if (!str) return str;
+        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    };
+
     useEffect(() => {
+        let ignore = false;
         const fetchRainfall = async () => {
             if (filters?.type === 'Rainfall') {
+                setRainfallLoading(true);
                 try {
-                    const params = { limit: 5000, ...filters };
+                    const params = { limit: 5000 };
+                    if (filters.district) params.district = toTitleCase(filters.district);
+                    if (filters.block) params.block = toTitleCase(filters.block);
+                    if (filters.gramPanchayat) params.gram_panchayat = filters.gramPanchayat;
+                    if (filters.village) params.village = filters.village;
+                    if (filters.dataRangeStart) params.start_date = filters.dataRangeStart;
+                    if (filters.dataRangeEnd) params.end_date = filters.dataRangeEnd;
+
+                    console.log('Fetching rainfall records with params:', params);
                     const response = await api.rainfall.getRecords(params);
-                    setRainfallPoints(response.results || response || []);
+                    const records = response.results || response || [];
+                    console.log(`Fetched ${records.length} rainfall records`);
+                    if (!ignore) {
+                        setRainfallPoints(records);
+                        setRainfallLoading(false);
+                    }
                 } catch (err) {
-                    console.error("Error fetching rainfall data:", err);
-                    setRainfallPoints([]);
+                    if (!ignore) {
+                        console.error("Error fetching rainfall data:", err);
+                        setRainfallPoints([]);
+                        setRainfallLoading(false);
+                    }
                 }
             } else {
-                setRainfallPoints([]);
+                if (!ignore) {
+                    setRainfallPoints([]);
+                    setRainfallLoading(false);
+                }
             }
         };
         fetchRainfall();
+        return () => { ignore = true; };
     }, [filters]);
 
     // Aquifer Data Fetching
     useEffect(() => {
+        let ignore = false;
         if (filters?.type !== 'Well Inventory' && filters?.type !== 'Aquifer') {
             setAquiferRecords([]);
             return;
@@ -231,17 +292,21 @@ export const useAppLogic = () => {
                     detailed: 'true'
                 };
                 const data = await api.aquifer.getRecords(params);
-                setAquiferRecords(data.results || data || []);
+                if (!ignore) setAquiferRecords(data.results || data || []);
             } catch (err) {
-                console.error('Error fetching aquifer records:', err);
-                setAquiferRecords([]);
+                if (!ignore) {
+                    console.error('Error fetching aquifer records:', err);
+                    setAquiferRecords([]);
+                }
             }
         };
         fetchAquifer();
+        return () => { ignore = true; };
     }, [filters]);
 
     // Water Quality Data Fetching
     useEffect(() => {
+        let ignore = false;
         if (filters?.type !== 'Water Quality') {
             setWaterQualityRecords([]);
             return;
@@ -252,32 +317,90 @@ export const useAppLogic = () => {
                 const params = {
                     district: filters.district || neighbor?.district || neighbor?.properties?.district,
                     block: filters.block || neighbor?.block || neighbor?.properties?.block,
-                    village: filters.village || neighbor?.village || neighbor?.properties?.village
+                    grampanchayat: filters.gramPanchayat || neighbor?.grampanchayat || neighbor?.properties?.grampanchayat,
+                    village_name: filters.village || neighbor?.village || neighbor?.properties?.village
                 };
                 const response = await api.waterQuality.getRecords(params);
-                setWaterQualityRecords(response.results || response || []);
+                if (!ignore) setWaterQualityRecords(response.results || response || []);
             } catch (err) {
-                console.error('Error fetching water quality records:', err);
-                setWaterQualityRecords([]);
+                if (!ignore) {
+                    console.error('Error fetching water quality records:', err);
+                    setWaterQualityRecords([]);
+                }
             }
         };
         fetchWQ();
+        return () => { ignore = true; };
     }, [filters, neighbors]);
+
+
+    // ... (existing code skipped)
 
     // Secondary Data Fetching (Canals, etc)
     useEffect(() => {
         if (filters?.type === 'Water Resources') {
+            const fetches = [];
+
             if (filters.showCanals && !canalData) {
-                fetch('/data/canals_opt.json').then(res => res.json()).then(setCanalData).catch(console.error);
+                fetches.push(
+                    fetch('/data/canals_opt.json')
+                        .then(res => res.json())
+                        .then(data => {
+                            // Ensure valid GeoJSON structure or array
+                            const validData = data && (data.features || Array.isArray(data)) ? data : { type: "FeatureCollection", features: [] };
+                            setCanalData(validData);
+                        })
+                        .catch(err => {
+                            console.error("Failed to load canals:", err);
+                            setCanalData({ type: "FeatureCollection", features: [] });
+                        })
+                );
             }
+
             if (filters.showWaterbodies && !waterbodyData) {
-                fetch('/data/waterbodies_opt.json').then(res => res.json()).then(setWaterbodyData).catch(console.error);
+                fetches.push(
+                    fetch('/data/waterbodies_opt.json')
+                        .then(res => res.json())
+                        .then(data => {
+                            const validData = data && (data.features || Array.isArray(data)) ? data : { type: "FeatureCollection", features: [] };
+                            setWaterbodyData(validData);
+                        })
+                        .catch(err => {
+                            console.error("Failed to load waterbodies:", err);
+                            setWaterbodyData({ type: "FeatureCollection", features: [] });
+                        })
+                );
             }
+
             if (filters.showMicro && !microData) {
-                fetch('/micro.json').then(res => res.json()).then(setMicroData).catch(console.error);
+                fetches.push(
+                    fetch('/micro.json')
+                        .then(res => res.json())
+                        .then(data => {
+                            const validData = data && (data.features || Array.isArray(data)) ? data : { type: "FeatureCollection", features: [] };
+                            setMicroData(validData);
+                        })
+                        .catch(err => {
+                            console.error("Failed to load micro structures:", err);
+                            setMicroData({ type: "FeatureCollection", features: [] });
+                        })
+                );
+            }
+
+            if (fetches.length > 0) {
+                setWaterResourcesLoading(true);
+                Promise.all(fetches).finally(() => setWaterResourcesLoading(false));
             }
         }
     }, [filters, canalData, waterbodyData, microData]);
+
+    useEffect(() => {
+        setClickedLocation(null);
+        setNeighbors([]);
+        setTableSelection([]);
+        setSelectedWellInventory([]);
+        setSelectedWell(null);
+    }, [filters?.type]);
 
     return {
         layers, setLayers, selectedWell, setSelectedWell, filters, setFilters, basemap, setBasemap,
@@ -285,8 +408,9 @@ export const useAppLogic = () => {
         processedBlockData, rajasthanData, activeCategory, isProceedClicked,
         isControlsSidebarCollapsed, setIsControlsSidebarCollapsed, rainfallPoints,
         selectedDams, tableSelection, rajasthanId, canalData, waterbodyData, microData,
-        selectedWellInventory, aquiferRecords, waterQualityRecords,
+        selectedWellInventory, aquiferRecords, waterQualityRecords, rainfallLoading, waterResourcesLoading,
         handleLayerChange, handleFiltersApply, handleBasemapChange, handleAddToTable,
-        handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory
+        handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory,
+        handleSetWellInventory
     };
 };

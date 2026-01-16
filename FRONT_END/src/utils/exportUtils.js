@@ -15,17 +15,55 @@ export const exportToCSV = async (featuresToExport, filename) => {
         return;
     }
 
-    // Collect all unique headers across all features to export
-    const allHeaderSet = new Set();
-    featuresToExport.forEach(f => {
-        Object.keys(f.properties).forEach(key => allHeaderSet.add(key));
-    });
-    const headers = Array.from(allHeaderSet);
+    // Check if this is Well Inventory data
+    const isWellInventory = featuresToExport.length > 0 &&
+        (featuresToExport[0].properties['Category'] === 'Well Inventory (Detailed)' ||
+            featuresToExport[0].properties['Category'] === 'Ground Water Level');
+
+    let rows = featuresToExport;
+    let headers = [];
+
+    if (isWellInventory) {
+        // Transform to long format: S.No., Well ID, Lat, Lon, Village, Aquifer, Year, Pre-Mons, Post-Monsoon (m bgl)
+        headers = ['S.No.', 'Well ID', 'Lat', 'Lon', 'Village', 'Aquifer', 'Year', 'Pre-Monsoon', 'Post-Monsoon (m bgl)'];
+        rows = [];
+        featuresToExport.forEach((feature, index) => {
+            const p = feature.properties;
+            const lat = feature.geometry?.coordinates[1] || p.lat || '';
+            const lon = feature.geometry?.coordinates[0] || p.lng || '';
+            const wellId = p['Well ID'] || p.well_id || '-';
+            const village = p['Village'] || p.village || '-';
+            const aquifer = p['Aquifer'] || p.aquifer || '-';
+            const sno = index + 1;
+
+            for (let year = 2015; year <= 2024; year++) {
+                const row = {
+                    'S.No.': sno,
+                    'Well ID': wellId,
+                    'Lat': lat,
+                    'Lon': lon,
+                    'Village': village,
+                    'Aquifer': aquifer,
+                    'Year': year,
+                    'Pre-Monsoon': p[`Pre ${year}`] || '-',
+                    'Post-Monsoon (m bgl)': p[`Post ${year}`] || '-'
+                };
+                rows.push({ properties: row });
+            }
+        });
+    } else {
+        // Generic Header Collection
+        const allHeaderSet = new Set();
+        featuresToExport.forEach(f => {
+            Object.keys(f.properties).forEach(key => allHeaderSet.add(key));
+        });
+        headers = Array.from(allHeaderSet);
+    }
 
     const csvRows = [];
     csvRows.push(headers.join(','));
 
-    for (const feature of featuresToExport) {
+    for (const feature of rows) {
         const values = headers.map(header => {
             const val = feature.properties[header];
             // Handle null/undefined and escape quotes

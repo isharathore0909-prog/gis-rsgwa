@@ -76,14 +76,24 @@ const RainfallSection = ({
         );
     }
 
-    if (propViewType === 'loading' || (!rainfallStats && rainfallPoints.length === 0)) {
+    const hasNoData = propViewType === 'loading' ||
+        (!rainfallStats && rainfallPoints.length === 0) ||
+        rainfallStats?.isEmpty;
+
+    if (hasNoData) {
         return (
             <div className="rainfall-grid animated-entry">
-                <AnalysisCard style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
+                <AnalysisCard style={{
+                    gridColumn: '1 / -1',
+                    textAlign: 'center',
+                    padding: isExpanded ? '3rem' : '1.5rem',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                }}>
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🌧️</div>
-                    <h3 style={{ color: '#64748b' }}>Data Not Available</h3>
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
-                        Data is not available. Please select another location.
+                    <h3 style={{ color: '#64748b', fontSize: '1.1rem' }}>Data Not Available</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.85rem', maxWidth: '100%', margin: '0 auto' }}>
+                        Rainfall records for <strong>{displayRegion === 'Rajasthan' ? 'Statewide' : displayRegion}</strong> are not present in the database.
                     </p>
                 </AnalysisCard>
             </div>
@@ -98,16 +108,12 @@ const RainfallSection = ({
                     : `Rainfall Overview: ${analysisLevel === 'State' ? 'Statewide' : displayRegion}`
             }>
                 <div className="status-summary-grid">
-                    {/* For Statewide/Regionwide view (no specific block), show Average Rainfall (of stations) instead of Sum which is meaningless */}
-                    {(analysisLevel === 'State' || displayRegion === 'Rajasthan' || displayRegion === 'Statewide') ? (
-                        <MiniStatusCard
-                            value={`${Number(rainfallStats?.avg_station_total ?? rainfallStats?.avg ?? 0).toFixed(2)} mm`}
-                            label="Average Rainfall"
-                            color="#2a9d8f"
-                        />
-                    ) : (
-                        <MiniStatusCard value={`${Number(rainfallStats?.total ?? 0).toFixed(2)} mm`} label="Total Recorded" color="#2a9d8f" />
-                    )}
+                    {/* Always show Average Rainfall for all levels as requested (Averaging logic) */}
+                    <MiniStatusCard
+                        value={`${Number(rainfallStats?.avg_station_total ?? rainfallStats?.avg ?? 0).toFixed(2)} mm`}
+                        label="Average Rainfall"
+                        color="#2a9d8f"
+                    />
 
                     <MiniStatusCard value={`${Number(rainfallStats?.avg ?? 0).toFixed(2)} mm`} label="Avg Reading" color="#457b9d" />
                     <MiniStatusCard value={`${rainfallStats?.count ?? 0}`} label="Total Records" color="#6366f1" />
@@ -129,7 +135,7 @@ const RainfallSection = ({
                                 }}
                             />
                             <YAxis tick={{ fontSize: 10 }} />
-                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                            <Tooltip allowEscapeViewBox={{ x: true, y: true }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                             <Bar dataKey="average" name="Avg Rain (mm)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
