@@ -14,9 +14,12 @@ RUN apt-get update && apt-get install -y \
     libproj-dev \
     && rm -rf /var/lib/apt/lists/*
 
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+
 COPY . .
+COPY .env /app/.env
 
 CMD ["gunicorn", "rgwcma_gis_server.wsgi:application", "-w", "2", "-b", "0.0.0.0:8030", "--timeout", "300"]
