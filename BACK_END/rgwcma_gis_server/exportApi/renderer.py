@@ -9,16 +9,16 @@ from django.conf import settings
 import math
 import numpy as np
 
-# Map frontend layer keys to physical files in public/
-GEOJSON_PATH = os.path.join(settings.BASE_DIR, '..', '..', 'FRONT_END', 'public')
+# Map frontend layer keys to physical files in data/
+GEOJSON_PATH = os.path.join(settings.BASE_DIR, 'data')
 
 LAYER_MAPPING = {
     'rivers': 'rivers.geojson', 
-    'canals': 'data/canals_opt.json',          
-    'waterbodies': 'data/waterbodies_opt.json',
+    'canals': 'canals_opt.json',          
+    'waterbodies': 'waterbodies_opt.json',
     'groundwater_zones': 'groundwater_zone.json',
     'micro': 'micro.json',
-    'aquifer': 'data/aquifer_opt.json',
+    'aquifer': 'aquifer_opt.json',
     'rainfall': 'rainfall_data.json',
     'dams': 'dams.geojson',
     'state': 'Rajasthan.geojson',
