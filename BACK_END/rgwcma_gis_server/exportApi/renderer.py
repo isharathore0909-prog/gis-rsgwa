@@ -26,6 +26,25 @@ LAYER_MAPPING = {
     'block': 'block_boundary_updated.json'
 }
 
+
+# Palettes
+BLUE_PALETTE = [
+    '#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa',
+    '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'
+]
+
+AQUIFER_COLORS = {
+    'Younger Alluvium': '#f9eb0f', 'Older Alluvium': '#f8b195', 'Alluvium': '#4caf50',
+    'Sandstone': '#f3722c', 'Schist': '#d84315', 'Phyllite & Schist': '#d84315',
+    'Phyllite': '#d84315', 'Gneiss': '#ffb6c1', 'Banded Gneissic Complex': '#ffb6c1',
+    'BGC': '#ffb6c1', 'Bilara Limestone': '#a0cfec', 'Deccan Trap': '#77dd77',
+    'Basalt': '#77dd77', 'Granite': '#ff6961', 'Jodhpur Sandstone': '#fac898',
+    'Lathi Sandstone': '#c1c6fc', 'Nagaur Sandstone': '#b0e0e6', 'Quartzite': '#f49ac2',
+    'Ryolite': '#cb99c9', 'Rhyolite': '#cb99c9', 'Tertiary Sandstone': '#eaddca',
+    'Vindhyan Limestone': '#0abab5', 'Vindhyan Sandstone': '#c23b22',
+    'Limestone': '#98fb98', 'Shale': '#a9a9a9', 'Hills': '#808080', 'Hilly Area': '#808080'
+}
+
 class MapRenderer:
     def __init__(self, width_in=11.7, height_in=8.3): # A4 Landscape
         self.width = width_in
@@ -151,7 +170,18 @@ class MapRenderer:
     def add_legend(self, ax, used_layers):
         """Add legend to bottom-right with nicer styling"""
         handles = []
+        # Custom logic for thematic layers so we don't show generic boxes
+        thematic_present = {
+            'gw': 'groundwater_zones' in used_layers,
+            'rf': 'rainfall' in used_layers,
+            'aq': 'aquifer' in used_layers
+        }
+        
+        # Standard layers (Rivers, State, District, Canals, etc.)
         for layer in used_layers:
+            if layer in ['groundwater_zones', 'rainfall', 'aquifer']:
+                continue
+                
             style = self._get_style(layer)
             label = style.get('label', layer)
             
@@ -163,10 +193,34 @@ class MapRenderer:
                 label=label
             )
             handles.append(p)
+        
+        # Thematic Legends
+        if thematic_present['gw']:
+            handles.append(mpatches.Patch(visible=False, label="Groundwater Status:"))
+            handles.append(mpatches.Patch(facecolor='#28a745', label='Safe', edgecolor='#555'))
+            handles.append(mpatches.Patch(facecolor='#ffc107', label='Semi Critical', edgecolor='#555'))
+            handles.append(mpatches.Patch(facecolor='#fd7e14', label='Critical', edgecolor='#555'))
+            handles.append(mpatches.Patch(facecolor='#dc3545', label='Over Exploited', edgecolor='#555'))
+            handles.append(mpatches.Patch(facecolor='#6c757d', label='Saline', edgecolor='#555'))
+
+        if thematic_present['rf']:
+            handles.append(mpatches.Patch(visible=False, label="Rainfall Intensity:"))
+            # Show a spread of the blue palette
+            handles.append(mpatches.Patch(facecolor=BLUE_PALETTE[0], label='Low', edgecolor='#555'))
+            handles.append(mpatches.Patch(facecolor=BLUE_PALETTE[4], label='Medium', edgecolor='#555'))
+            handles.append(mpatches.Patch(facecolor=BLUE_PALETTE[9], label='High', edgecolor='#555'))
+        
+        if thematic_present['aq']:
+             handles.append(mpatches.Patch(visible=False, label="Aquifer Type (Common):"))
+             handles.append(mpatches.Patch(facecolor='#f9eb0f', label='Younger Alluvium', edgecolor='#555')) # Younger Alluvium
+             handles.append(mpatches.Patch(facecolor='#4caf50', label='Alluvium', edgecolor='#555')) # Alluvium
+             handles.append(mpatches.Patch(facecolor='#f3722c', label='Sandstone', edgecolor='#555')) # Sandstone
+             handles.append(mpatches.Patch(facecolor='#77dd77', label='Basalt', edgecolor='#555')) # Basalt
+
             
         if handles:
             leg = ax.legend(handles=handles, loc='lower right', frameon=True, 
-                      fontsize=10, edgecolor='black', fancybox=False, framealpha=1, borderpad=1)
+                      fontsize=8, edgecolor='black', fancybox=False, framealpha=1, borderpad=0.8)
             leg.get_frame().set_linewidth(1.5)
 
     def render(self, bbox, layers, output_file, title="Map of Study Area", custom_styles=None, filters=None):
@@ -281,6 +335,170 @@ class MapRenderer:
         draw_order = fill_layers + line_layers
         
         for layer_name in draw_order:
+            if layer_name == 'rainfall':
+                # Thematic Coloring for Rainfall (Blue Palette)
+                # Switch to using SQLite DB source
+                try:
+                    import sqlite3
+                    db_path = os.path.join(settings.BASE_DIR, 'db.sqlite3')
+                    
+                    if not os.path.exists(db_path):
+                        print(f"Database not found at {db_path}")
+                        continue
+
+                    # Connect to DB and fetch aggregated data
+                    rain_data = []
+                    try:
+                        conn = sqlite3.connect(db_path)
+                        cursor = conn.cursor()
+                        
+                        # Join: Rainfall -> Village -> GramPanchayat -> Block -> District
+                        # We need Block Name, District Name, and Average Rainfall per block
+                        query = """
+                            SELECT 
+                                lb.name as block_name,
+                                ld.name as district_name,
+                                AVG(rr.rainfall_mm) as avg_rainfall
+                            FROM rainfallApi_rainfall rr
+                            JOIN locationApi_village lv ON rr.village_id = lv.id
+                            JOIN locationApi_grampanchayat lg ON lv.grampanchayat_id = lg.id
+                            JOIN locationApi_block lb ON lg.block_id = lb.id
+                            JOIN locationApi_district ld ON lb.district_id = ld.id
+                            GROUP BY lb.id
+                        """
+                        
+                        cursor.execute(query)
+                        rows = cursor.fetchall()
+                        
+                        # Convert to list of dicts to match previous structure
+                        for row in rows:
+                            rain_data.append({
+                                'block': row[0],
+                                'district': row[1],
+                                'rainfall_mm': row[2]
+                            })
+                            
+                        conn.close()
+                        print(f"DEBUG: Rainfall SQL returned {len(rain_data)} records.")
+                        if len(rain_data) > 0:
+                            print(f"DEBUG: Sample Rainfall Data: {rain_data[0]}")
+
+                    except Exception as e:
+                        print(f"SQL Error: {e}")
+                        continue
+
+                    if not rain_data:
+                        print("No rainfall data found in database")
+                        # Continue to plot outlines at least
+                    
+                    # 2. Aggregate Rainfall by Block
+                    block_stats = {}
+                    for item in rain_data:
+                        # Normalize: Strip and UPPERCASE
+                        b_name = str(item.get('block', '')).strip().upper()
+                        d_name = str(item.get('district', '')).strip().upper()
+                        
+                        # Skip if block is missing
+                        if not b_name: continue
+                        
+                        # Use tuple key for lookup
+                        key = (d_name, b_name)
+                        
+                        # Handle numbers
+                        val = float(item.get('rainfall_mm', 0) or 0)
+                        block_stats[key] = {'total': val, 'count': 1}
+                    
+                    print(f"DEBUG: Block Stats Keys Sample: {list(block_stats.keys())[:5]}")
+
+                    # 3. Load Block Boundaries for geometry
+                    block_filename = LAYER_MAPPING.get('block')
+                    # Ensure we look in the same base path
+                    block_path = os.path.join(GEOJSON_PATH, block_filename)
+                    
+                    if not os.path.exists(block_path):
+                        print(f"Block boundary file not found: {block_path}")
+                        continue
+                        
+                    block_gdf = gpd.read_file(block_path)
+                    if block_gdf.crs != TARGET_CRS:
+                        block_gdf = block_gdf.to_crs(TARGET_CRS)
+                        
+                    # Apply Clipping if needed (e.g. District Filter)
+                    if clip_mask is not None:
+                        try:
+                            block_gdf = gpd.clip(block_gdf, clip_mask)
+                        except: pass
+
+                    # 4. Join Data to Geometry
+                    colors = []
+                    vals = []
+                    
+                    # Pre-calculate averages for determining min/max
+                    # We iterate twice: once to get range, once to assign colors
+                    temp_vals = []
+                    
+                    for idx, row in block_gdf.iterrows():
+                        # Normalize names from GeoDataFrame
+                        # Try common property names found in block_boundary_updated.json
+                        b_prop = row.get('BLOCK_NAME', row.get('Block', row.get('block', '')))
+                        d_prop = row.get('DIST_NAME', row.get('District', row.get('district', '')))
+                        
+                        b_key = str(b_prop).strip().upper()
+                        d_key = str(d_prop).strip().upper()
+                        key = (d_key, b_key)
+                        
+                        avg_val = 0.0
+                        # Exact match attempt
+                        if key in block_stats:
+                            stats = block_stats[key]
+                            avg_val = stats['total'] / max(1, stats['count'])
+                        else:
+                            # Fallback: Try matching just Block Name
+                            found = False
+                            for k_stats, v_stats in block_stats.items():
+                                if k_stats[1] == b_key: 
+                                    avg_val = v_stats['total'] / max(1, v_stats['count'])
+                                    found = True
+                                    break
+                            if not found:
+                                avg_val = 0.0
+
+                        temp_vals.append(avg_val)
+                    
+                    # Determine Range for coloring
+                    non_zero_vals = [v for v in temp_vals if v > 0]
+                    min_val = min(non_zero_vals) if non_zero_vals else 0
+                    max_val = max(temp_vals) if temp_vals else 0
+                    rng = max_val - min_val
+                    
+                    print(f"DEBUG: Rainfall Range: Min={min_val}, Max={max_val}, Rng={rng}")
+
+                    # Assign Colors
+                    for val in temp_vals:
+                        if val == 0:
+                            # Use a very light blue for 0 instead of nothing? 
+                            # Let's use index 0 explicitly.
+                            idx_color = 0
+                        elif rng <= 0.001: 
+                                idx_color = 0 
+                        else:
+                                # Linear interpolation
+                                idx_color = int(((val - min_val) / rng) * (len(BLUE_PALETTE) - 1))
+                        
+                        c_idx = max(0, min(idx_color, len(BLUE_PALETTE)-1))
+                        colors.append(BLUE_PALETTE[c_idx])
+
+                    # 5. Plot
+                    # Use a light edgecolor to distinguish blocks
+                    block_gdf.plot(ax=ax, color=colors, edgecolor='#999999', linewidth=0.3, alpha=0.9)
+                    if layer_name not in used_layers: used_layers.append(layer_name)
+                    
+                except Exception as e:
+                    print(f"Error processing rainfall layer: {e}")
+                
+                # Continue loop to next layer since we handled rainfall completely
+                continue
+
             filename = LAYER_MAPPING.get(layer_name)
             if not filename: filename = f"{layer_name}.geojson"
             
@@ -303,6 +521,53 @@ class MapRenderer:
                              print(f"Clipping failed for {layer_name}: {clip_err}")
 
                     if gdf.empty: continue
+
+                    if layer_name == 'groundwater_zones':
+                        # Thematic Coloring for Groundwater Zones
+                        # Logic matches frontend useLegend.js
+                        colors = []
+                        for idx, row in gdf.iterrows():
+                            # Get GWDL or similar property
+                            val = row.get('GWDL', row.get('Category', ''))
+                            status = str(val).strip().lower()
+                            
+                            color = '#3388ff' # Default
+                            
+                            if 'safe' in status: color = '#28a745'
+                            elif 'semi' in status: color = '#ffc107'
+                            elif 'critical' in status: color = '#fd7e14'
+                            elif 'over' in status: color = '#dc3545'
+                            elif 'saline' in status: color = '#6c757d'
+                            
+                            colors.append(color)
+                        
+                        # Plot
+                        gdf.plot(ax=ax, color=colors, edgecolor='#555555', linewidth=0.5, alpha=0.6)
+                        if layer_name not in used_layers: used_layers.append(layer_name)
+                        continue 
+
+                    if layer_name == 'aquifer':
+                        # Thematic Coloring for Aquifer
+                        colors = []
+                        for idx, row in gdf.iterrows():
+                            # Fix: Check 'Aquifer' (Capitalized) and other variants
+                            # Get value and normalize
+                            aq_raw = row.get('Aquifer', row.get('AQ_NAME', row.get('aquifer', row.get('aquifer_type', ''))))
+                            aq_name = str(aq_raw).strip()
+                            
+                            # Default color
+                            color = '#cccccc' 
+                            
+                            # Try to match key case-insensitive
+                            for k, v in AQUIFER_COLORS.items():
+                                if k.lower() == aq_name.lower():
+                                    color = v
+                                    break
+                            colors.append(color)
+                            
+                        gdf.plot(ax=ax, color=colors, edgecolor='#555555', linewidth=0.2, alpha=0.6)
+                        if layer_name not in used_layers: used_layers.append(layer_name)
+                        continue
 
                     style = self._get_style(layer_name)
                     

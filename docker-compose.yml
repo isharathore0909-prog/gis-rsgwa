@@ -1,0 +1,39 @@
+services:
+  rgw-server:
+    build:
+      context: ./BACK_END/rgwcma_gis_server
+      dockerfile: Dockerfile
+    image: shubhamdata690/rgwcma-gis-server:${RGW_VERSION}
+    container_name: rgwcma-gis-server
+    ports:
+      - "8030:8030"
+    volumes:
+      # Pass environment variables
+      - ./BACK_END/rgwcma_gis_server/.env:/app/.env
+    restart: always
+    networks:
+      - rgw-network
+
+  rgw-client:
+    build:
+      context: ./FRONT_END
+      dockerfile: Dockerfile
+    image: shubhamdata690/rgwcma-gis-client:${RGW_VERSION}
+    container_name: rgwcma-gis-client
+    ports:
+      - "8031:80"
+    volumes:
+      # Optional: only useful for local testing
+      # REMOVE this in pure CI environments
+      # - ./FRONT_END/dist:/usr/share/nginx/html
+      # - ./FRONT_END/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./FRONT_END/.env:/app/.env
+    depends_on:
+      - rgw-server
+    restart: always
+    networks:
+      - rgw-network
+
+networks:
+  rgw-network:
+    driver: bridge

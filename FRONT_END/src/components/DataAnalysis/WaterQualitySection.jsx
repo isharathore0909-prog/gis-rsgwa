@@ -176,7 +176,7 @@ const WaterQualitySection = ({
                     </AnalysisCard>
 
                     <AnalysisCard title="District Water Quality Compliance" className="animated-entry" style={{ animationDelay: '0.2s' }}>
-                        <div className="bar-chart-wrapper">
+                        <div className="bar-chart-wrapper" style={{ minHeight: '300px' }}>
                             <ResponsiveContainer width="100%" height={300}>
                                 <BarChart
                                     data={qualityData}

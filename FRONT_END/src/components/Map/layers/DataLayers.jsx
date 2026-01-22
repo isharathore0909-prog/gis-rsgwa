@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import VectorGridSlicer from '../VectorGridSlicer';
@@ -201,7 +201,8 @@ export const DamMarkersLayer = ({
     isActive,
     damMarkers,
     onDamClick,
-    onAddToTable
+    onAddToTable,
+    color
 }) => {
     if (!isActive || !damMarkers.length) return null;
 
@@ -214,6 +215,7 @@ export const DamMarkersLayer = ({
                     coordinate={dam.coordinate}
                     onDamClick={onDamClick}
                     onAddToTable={onAddToTable}
+                    color={color}
                 />
             ))}
         </>
@@ -270,33 +272,54 @@ export const WaterResourcesLayers = ({
         }
     }, [map]);
 
+    const canalStyle = useMemo(() => ({
+        color: layerColors.canals,
+        weight: 2,
+        opacity: 1
+    }), [layerColors.canals]);
+
+    const waterbodyStyle = useMemo(() => ({
+        fillColor: layerColors.waterbodies,
+        fillOpacity: 0.7,
+        color: layerColors.waterbodies,
+        weight: 1
+    }), [layerColors.waterbodies]);
+
+    const microStyle = useMemo(() => ({
+        color: layerColors.micro,
+        weight: 1,
+        fillOpacity: 0.6
+    }), [layerColors.micro]);
+
     if (!isActive) return null;
 
     return (
         <>
             {showCanals && (
                 <VectorGridSlicer
+                    key={`canals-${layerColors.canals}`}
                     active={true}
                     dataUrl="/data/canals_opt.json"
                     layerName="canals"
                     filter={canalFilter}
-                    style={{ color: layerColors.canals, weight: 2, opacity: 1 }}
+                    style={canalStyle}
                 />
             )}
             {showWaterbodies && (
                 <VectorGridSlicer
+                    key={`waterbodies-${layerColors.waterbodies}`}
                     active={true}
                     dataUrl="/data/waterbodies_opt.json"
                     layerName="waterbodies"
                     filter={waterbodyFilter}
-                    style={{ fillColor: layerColors.waterbodies, fillOpacity: 0.7, color: layerColors.waterbodies, weight: 1 }}
+                    style={waterbodyStyle}
                 />
             )}
             {showMicro && microData && (
                 <GeoJSON
                     key={`micro-layer-${microData.features?.length || 0}-${layerColors.micro}`}
                     data={microData}
-                    style={{ color: layerColors.micro, weight: 1, fillOpacity: 0.6 }}
+                    style={microStyle}
                     onEachFeature={(feature, layer) => {
                         const props = feature.properties;
 

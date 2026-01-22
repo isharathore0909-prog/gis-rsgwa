@@ -7,7 +7,7 @@ import { getFeatureColor } from '../../../utils/mapUtils';
 /**
  * Block Boundary Layer with Thematic Styling
  */
-export const BlockBoundaryLayer = ({
+export const BlockBoundaryLayer = React.memo(({
     data,
     filters,
     legendFeature,
@@ -94,7 +94,7 @@ export const BlockBoundaryLayer = ({
             }}
         />
     );
-};
+});
 
 /**
  * Dynamic Drill-down Boundaries Layer
@@ -104,6 +104,7 @@ export const DrillDownBoundariesLayer = ({
     filters,
     currentLevel,
     onFiltersApply,
+    onLocationClick,
     geoJsonRef
 }) => {
     if (!data || !filters?.village) return null;
@@ -151,6 +152,14 @@ export const DrillDownBoundariesLayer = ({
                         geoJsonRef.current?.resetStyle(e.target);
                     },
                     click: e => {
+                        if (onLocationClick) {
+                            onLocationClick({ lat: e.latlng.lat, lng: e.latlng.lng }, [{
+                                id: name,
+                                location: name,
+                                level: feature.properties.level || currentLevel
+                            }]);
+                        }
+
                         const nextFilters = { ...filters };
                         if (!nextFilters.district) onFiltersApply({ ...nextFilters, district: name });
                         else if (!nextFilters.block) onFiltersApply({ ...nextFilters, block: name });

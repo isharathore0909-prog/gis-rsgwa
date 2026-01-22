@@ -140,17 +140,59 @@ export const useAquiferData = (isActive, filters) => {
 /**
  * Custom hook for loading GeoJSON files
  */
+// Simple in-memory cache to prevent re-fetching static assets
+const geoJSONCache = new Map();
+const pendingRequests = new Map();
+
 export const useGeoJSONData = (url, isActive) => {
-    const [data, setData] = useState(null);
+    const [data, setData] = useState(geoJSONCache.get(url) || null);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         let ignore = false;
         if (!isActive || !url) return;
 
-        fetch(url)
-            .then(res => res.json())
-            .then(data => { if (!ignore) setData(data); })
-            .catch(err => { if (!ignore) console.error(`[useGeoJSONData] Error loading ${url}:`, err); });
+        // excessive logging check - to prevent spamming if needed
+        // console.log(`[useGeoJSONData] Requested: ${url}`);
+
+        if (geoJSONCache.has(url)) {
+            setData(geoJSONCache.get(url));
+            return;
+        }
+
+        if (pendingRequests.has(url)) {
+            // reuse existing promise
+            pendingRequests.get(url)
+                .then(data => {
+                    if (!ignore) setData(data);
+                })
+                .catch(err => {
+                    if (!ignore) setError(err);
+                });
+            return;
+        }
+
+        const fetchPromise = fetch(url)
+            .then(res => {
+                if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
+                return res.json();
+            })
+            .then(jsonData => {
+                geoJSONCache.set(url, jsonData);
+                pendingRequests.delete(url);
+                if (!ignore) setData(jsonData);
+                return jsonData;
+            })
+            .catch(err => {
+                pendingRequests.delete(url);
+                if (!ignore) {
+                    console.error(`[useGeoJSONData] Error loading ${url}:`, err);
+                    setError(err);
+                }
+                throw err;
+            });
+
+        pendingRequests.set(url, fetchPromise);
 
         return () => { ignore = true; };
     }, [url, isActive]);

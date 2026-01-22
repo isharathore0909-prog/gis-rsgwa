@@ -183,7 +183,8 @@ export const MapWarning = ({ layerType, isRainfallDataEmpty, isLoading }) => {
         'Ground Water Resource Estimation',
         'Aquifer',
         'Water Quality',
-        'Well Inventory'
+        'Well Inventory',
+        'Recharge Structure'
     ];
 
     if (isLoading) return null;

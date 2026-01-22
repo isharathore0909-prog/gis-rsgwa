@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../api';
 import mapLayers from '../data/mapLayers.json';
 import pageCategories from '../data/pageCategories.json';
@@ -35,8 +35,14 @@ export const useAppLogic = () => {
     const [waterQualityRecords, setWaterQualityRecords] = useState([]);
     const [rainfallLoading, setRainfallLoading] = useState(false);
     const [waterResourcesLoading, setWaterResourcesLoading] = useState(false);
+    const [searchCoordinates, setSearchCoordinates] = useState(null);
 
     // Handlers
+    const handleCoordinateSearch = useCallback((lat, lng) => {
+        if (lat && lng) {
+            setSearchCoordinates({ lat, lng, timestamp: Date.now() });
+        }
+    }, []);
     const handleLayerChange = useCallback((layerName, checked) => {
         setLayers(prev => ({ ...prev, [layerName]: checked }));
     }, []);
@@ -140,10 +146,25 @@ export const useAppLogic = () => {
     }, []);
 
     // Initial Data Fetching
+    const staticCache = useMemo(() => ({}), []); // or use module level variable if outside component
+
     useEffect(() => {
         let ignore = false;
-        fetch('/Final_Dist_Boundary.geojson')
-            .then(res => res.json())
+
+        // Helper to fetch with simple caching logic
+        const fetchCached = async (url) => {
+            if (window._staticCache && window._staticCache[url]) {
+                return window._staticCache[url];
+            }
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Status ${res.status}`);
+            const data = await res.json();
+            if (!window._staticCache) window._staticCache = {};
+            window._staticCache[url] = data;
+            return data;
+        };
+
+        fetchCached('/Final_Dist_Boundary.geojson')
             .then(data => { if (!ignore) setRajasthanData(data); })
             .catch(err => console.error('Error loading Rajasthan boundary:', err));
 
@@ -156,17 +177,21 @@ export const useAppLogic = () => {
             })
             .catch(err => console.error("Error fetching state ID:", err));
 
-        fetch('/groundwater_zone.json')
-            .then(res => {
-                if (!res.ok) throw new Error(`Status ${res.status}`);
-                return res.json();
-            })
+        fetchCached('/groundwater_zone.json')
             .then(data => {
-                console.log('Successfully loaded groundwater_zone.json:', data);
+                console.log('Successfully loaded groundwater_zone.json');
                 if (!ignore) {
+                    // Check if we have a cached reprojected version
+                    if (data._reprojected) {
+                        setProcessedBlockData(data._reprojected);
+                        return;
+                    }
+
                     const reprojected = reprojectGeoJSON(data);
                     if (reprojected) {
                         console.log('Reprojected block data success');
+                        // Cache the reprojected version too to save CPU
+                        data._reprojected = reprojected;
                         setProcessedBlockData(reprojected);
                     } else {
                         console.warn('Reprojection failed for groundwater_zone.json. Using raw data for stats (Map may not render blocks).');
@@ -176,12 +201,16 @@ export const useAppLogic = () => {
             })
             .catch(err => {
                 console.warn('Failed to load groundwater_zone.json, falling back:', err);
-                fetch('/block_boundary_updated.json')
-                    .then(res => res.json())
+                fetchCached('/block_boundary_updated.json')
                     .then(data => {
                         console.log('Loaded fallback block_boundary_updated.json');
                         if (!ignore) {
+                            if (data._reprojected) {
+                                setProcessedBlockData(data._reprojected);
+                                return;
+                            }
                             const reprojected = reprojectGeoJSON(data);
+                            if (reprojected) data._reprojected = reprojected;
                             setProcessedBlockData(reprojected || data);
                         }
                     })
@@ -411,6 +440,6 @@ export const useAppLogic = () => {
         selectedWellInventory, aquiferRecords, waterQualityRecords, rainfallLoading, waterResourcesLoading,
         handleLayerChange, handleFiltersApply, handleBasemapChange, handleAddToTable,
         handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory,
-        handleSetWellInventory
+        handleSetWellInventory, handleCoordinateSearch, searchCoordinates
     };
 };

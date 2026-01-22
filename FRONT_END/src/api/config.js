@@ -7,7 +7,7 @@
 
 // Backend API Configuration
 export const BACKEND_API = {
-    BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
+    BASE_URL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'https://rgwcma-gis.geoplanetsolution.in/api'),
     API_KEY: import.meta.env.VITE_INTERNAL_API_KEY || 'e32ebc1d-fe04-4bd7-9003-df5274c990e2',
     ENDPOINTS: {
         // Location endpoints
@@ -45,7 +45,7 @@ export const BACKEND_API = {
 };
 
 // External Boundary API Configuration (Now Proxied through Backend)
-const BACKEND_URL_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const BACKEND_URL_BASE = import.meta.env.VITE_API_BASE_URL || 'https://rgwcma-gis.geoplanetsolution.in/api';
 
 export const EXTERNAL_API = {
     BASE_URL: BACKEND_URL_BASE,

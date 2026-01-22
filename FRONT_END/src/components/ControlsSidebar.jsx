@@ -35,7 +35,9 @@ const ControlsSidebar = ({
     blockBoundaryData,
     isCollapsed,
     setIsCollapsed,
-    handleExportData: handleExportDataFromProps
+    handleExportData: handleExportDataFromProps,
+    onCoordinateSearch,
+    onMapExport
 }) => {
 
     // Active tab state - Default to Location
@@ -387,6 +389,7 @@ const ControlsSidebar = ({
                             availableVillages={availableVillages}
                             districts={availableDistricts}
                             section="location"
+                            onCoordinateSearch={onCoordinateSearch}
                         />
                     )}
 
@@ -434,7 +437,11 @@ const ControlsSidebar = ({
                     )}
 
                     {activeTab === 'download' && (
-                        <ExportReporting handleExportData={handleExportDataLocal} />
+                        <ExportReporting
+                            handleExportData={handleExportDataLocal}
+                            handleMapExport={onMapExport}
+                            filters={filters}
+                        />
                     )}
 
                     {activeTab === 'manual' && (

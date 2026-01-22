@@ -5,8 +5,13 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+# System dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
+    gcc \
+    libpq-dev \
+    gdal-bin \
+    libgdal-dev \
+    libproj-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -14,6 +19,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8000
-
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "rgwcma_gis_server.wsgi:application", "-w", "2", "-b", "0.0.0.0:8030", "--timeout", "300"]

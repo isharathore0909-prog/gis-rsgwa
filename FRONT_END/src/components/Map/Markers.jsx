@@ -2,10 +2,10 @@ import React from 'react';
 import { Marker } from 'react-leaflet';
 import L from 'leaflet';
 
-export const DamMarker = ({ dam, coordinate, onDamClick, onAddToTable }) => {
+export const DamMarker = ({ dam, coordinate, onDamClick, onAddToTable, color = '#0ea5e9' }) => {
     const iconHtml = `
         <svg class="dam-icon-svg" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 12 2 12 2C12 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#0ea5e9" stroke="white" stroke-width="2"/>
+            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 12 2 12 2C12 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="${color}" stroke="white" stroke-width="2"/>
             <path d="M7 13C7 13 9.5 15 12 11C14.5 7 17 13 17 13" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M8 16C8 16 10 17 12 15C14 13 16 16 16 16" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
         </svg>

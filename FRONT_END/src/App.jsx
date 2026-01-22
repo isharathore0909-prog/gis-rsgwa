@@ -33,7 +33,7 @@ function App() {
         aquiferRecords, waterQualityRecords, rainfallLoading, waterResourcesLoading,
         handleLayerChange, handleFiltersApply, handleBasemapChange, handleAddToTable,
         handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory,
-        handleSetWellInventory
+        handleSetWellInventory, handleCoordinateSearch, searchCoordinates
     } = useAppLogic();
 
     // Use hierarchical boundary hook
@@ -82,6 +82,13 @@ function App() {
         return "No features found.";
     }, [filters]);
 
+    const handleLocationClick = useCallback((latlng, data) => {
+        setClickedLocation(latlng);
+        setNeighbors(data || []);
+    }, []);
+
+    const [exportTrigger, setExportTrigger] = React.useState(null);
+
     return (
         <AppContextProvider>
             <div className="app-container">
@@ -107,6 +114,8 @@ function App() {
                             blockBoundaryData={processedBlockData}
                             isCollapsed={isControlsSidebarCollapsed}
                             setIsCollapsed={setIsControlsSidebarCollapsed}
+                            onCoordinateSearch={handleCoordinateSearch}
+                            onMapExport={() => setExportTrigger(Date.now())}
                         />
                     )}
 
@@ -115,10 +124,7 @@ function App() {
                             <MapView
                                 layers={layers}
                                 basemap={basemap}
-                                onLocationClick={(latlng, data) => {
-                                    setClickedLocation(latlng);
-                                    setNeighbors(data || []);
-                                }}
+                                onLocationClick={handleLocationClick}
                                 filters={filters}
                                 blockBoundaryData={processedBlockData}
                                 rajasthanData={rajasthanData}
@@ -133,6 +139,8 @@ function App() {
                                 isControlsSidebarCollapsed={isControlsSidebarCollapsed}
                                 isDataAnalysisSidebarHidden={hideSidebarForLayers}
                                 isLoading={rainfallLoading}
+                                searchCoordinates={searchCoordinates}
+                                exportTrigger={exportTrigger}
                             />
                         </div>
 

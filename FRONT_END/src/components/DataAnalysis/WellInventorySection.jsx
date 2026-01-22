@@ -699,7 +699,7 @@ const WellInventorySection = ({
 
                         <div className="aquifer-stats-card">
                             <h5>Aquifer Distribution</h5>
-                            <div className="pie-chart-wrapper">
+                            <div className="pie-chart-wrapper" style={{ minHeight: isExpanded ? '240px' : '160px' }}>
                                 <ResponsiveContainer width="100%" height={isExpanded ? 240 : 160}>
                                     <PieChart>
                                         <Pie data={aquiferDistribution} cx="50%" cy="50%" labelLine={false} label={renderCustomizedLabel} innerRadius={40} outerRadius={60} fill="#8884d8" paddingAngle={5} dataKey="value">

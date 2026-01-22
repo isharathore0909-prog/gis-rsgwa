@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import api from '../api';
 import {
     DISTRICT_QUALITY_DATA,
@@ -384,20 +384,42 @@ export const useDataAnalysis = ({
     const [rainfallError, setRainfallError] = useState(null);
     const [rainfallLoading, setRainfallLoading] = useState(false);
 
+    const lastRainfallParamsRef = useRef(null);
+
     useEffect(() => {
         let ignore = false;
         if (!isRainfall) {
             setRainfallStatsData(null);
             setRainfallSummaryData([]);
             setRainfallError(null);
+            lastRainfallParamsRef.current = null;
             return;
         }
 
         const fetchRainfallStats = async () => {
+            const hasClickedLocation = clickedLocation && clickedLocation.lat && clickedLocation.lng;
+            const currentParams = {
+                district: displayRegion,
+                block: displayBlock,
+                gp: globalFilters?.gramPanchayat,
+                village: globalFilters?.village,
+                start: globalFilters?.dataRangeStart,
+                end: globalFilters?.dataRangeEnd,
+                timestep: globalFilters?.timestep || 'monthly',
+                lat: hasClickedLocation ? clickedLocation.lat.toFixed(6) : null,
+                lng: hasClickedLocation ? clickedLocation.lng.toFixed(6) : null
+            };
+
+            // Stringify for deep comparison to avoid redundant fetches
+            const paramsStr = JSON.stringify(currentParams);
+            if (lastRainfallParamsRef.current === paramsStr) {
+                return;
+            }
+            lastRainfallParamsRef.current = paramsStr;
+
             setRainfallLoading(true);
             setRainfallError(null);
             try {
-                const hasClickedLocation = clickedLocation && clickedLocation.lat && clickedLocation.lng;
                 if (hasClickedLocation && globalFilters?.gramPanchayat) {
                     const nearbyParams = {
                         lat: clickedLocation.lat,
@@ -421,13 +443,11 @@ export const useDataAnalysis = ({
                     }
                 } else {
                     const baseParams = {};
-
                     const toTitleCase = (str) => {
                         if (!str) return str;
                         return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
                     };
 
-                    // If no district is selected, it's effectively Rajasthan (Statewide)
                     if (displayRegion && displayRegion !== 'Rajasthan') {
                         baseParams.district = toTitleCase(displayRegion.trim());
                     }
@@ -471,7 +491,18 @@ export const useDataAnalysis = ({
 
         fetchRainfallStats();
         return () => { ignore = true; };
-    }, [isRainfall, displayRegion, displayBlock, globalFilters, clickedLocation]);
+    }, [
+        isRainfall,
+        displayRegion,
+        displayBlock,
+        globalFilters?.gramPanchayat,
+        globalFilters?.village,
+        globalFilters?.dataRangeStart,
+        globalFilters?.dataRangeEnd,
+        globalFilters?.timestep,
+        clickedLocation?.lat,
+        clickedLocation?.lng
+    ]);
 
     const rainfallStatsMemo = useMemo(() => {
         if (rainfallStatsData) return { ...rainfallStatsData, chartData: rainfallSummaryData };

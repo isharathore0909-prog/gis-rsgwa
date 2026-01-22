@@ -13,13 +13,19 @@ export const StateBoundaryLayer = ({
     legendData,
     districtRainfall,
     onFiltersApply,
+    onLocationClick,
     geoJsonRef
 }) => {
+    // Use a stable ref for filters to access latest state in event handlers without re-rendering
+    const filtersRef = React.useRef(filters);
+    React.useEffect(() => { filtersRef.current = filters; }, [filters]);
+
     if (!data) return null;
 
     return (
         <GeoJSON
-            key={`rajasthan-boundary-${filters?.type}-${filters?.district || 'state'}-${filters?.block || 'all'}-${filters?.gramPanchayat || 'all'}-${filters?.village || 'all'}-${Object.keys(districtRainfall || {}).length}`}
+            // Only re-mount if type changes (e.g. to Rainfall) or data readiness changes
+            key={`rajasthan-boundary-${filters?.type}-${Object.keys(districtRainfall || {}).length}`}
             ref={geoJsonRef}
             data={data}
             style={(feature) => {
@@ -38,6 +44,7 @@ export const StateBoundaryLayer = ({
             }}
             interactive={filters?.type === 'Rainfall'}
             onEachFeature={(feature, layer) => {
+                // If specific interaction is needed, use the ref
                 if (filters?.type === 'Rainfall') {
                     const val = getFeatureProperty(feature, legendFeature);
                     const displayVal = (val !== null && val !== undefined)
@@ -61,7 +68,16 @@ export const StateBoundaryLayer = ({
                         },
                         click: e => {
                             const dName = feature.properties.New_Dist || feature.properties.DIST_NAME || feature.properties.District;
-                            onFiltersApply({ ...filters, district: dName });
+                            // Update coordinate selection
+                            if (onLocationClick) {
+                                onLocationClick({ lat: e.latlng.lat, lng: e.latlng.lng }, [{
+                                    id: dName,
+                                    location: dName,
+                                    district: dName
+                                }]);
+                            }
+                            // Update filters
+                            onFiltersApply({ ...filtersRef.current, district: dName });
                         }
                     });
                 }

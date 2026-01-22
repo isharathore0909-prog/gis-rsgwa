@@ -13,7 +13,8 @@ export const useMapView = ({
     validatedBlockData,
     selectedDistrictData,
     validatedBoundaries,
-    rainfallPoints
+    rainfallPoints,
+    searchCoordinates
 }) => {
     // --- Refs ---
     const mapRef = useRef(null);
@@ -75,8 +76,30 @@ export const useMapView = ({
         }
     }, [validatedBlockData, selectedDistrictData, validatedBoundaries, filters?.district, filters?.block]);
 
+    // --- Coordinate Search Effect ---
+    useEffect(() => {
+        if (!mapRef.current || !searchCoordinates) return;
+        const { lat, lng } = searchCoordinates;
+        if (lat && lng) {
+            mapRef.current.setView([lat, lng], 13, {
+                animate: true,
+                duration: 1.5
+            });
+
+            // Optional: Add a temporary marker or popup
+            L.popup()
+                .setLatLng([lat, lng])
+                .setContent(`Location: ${lat}, ${lng}`)
+                .openOn(mapRef.current);
+        }
+    }, [searchCoordinates]);
+
     // --- Handlers ---
     const handleLocationClick = useCallback((latlng, data) => {
+        // Mark that a location click has been handled to prevent double-triggering from generic map click
+        ignoreMapClickRef.current = true;
+        setTimeout(() => { ignoreMapClickRef.current = false; }, 100);
+
         if (filters?.type === 'Well Inventory') {
             setClickedPosition(latlng);
         }
@@ -87,7 +110,11 @@ export const useMapView = ({
 
     const onMapClick = useCallback((latlng, data) => {
         if (ignoreMapClickRef.current) {
-            ignoreMapClickRef.current = false;
+            return;
+        }
+        // Only process clicks that have associated data (e.g. from layers or nearby markers)
+        // This prevents refreshes when clicking on empty map background or outside Rajasthan
+        if (!data || data.length === 0) {
             return;
         }
         handleLocationClick(latlng, data);

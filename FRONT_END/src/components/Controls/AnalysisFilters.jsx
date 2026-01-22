@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TYPE_OPTIONS, TIMESTEPS, STATION_TYPES } from '../../constants/uiOptions';
 
 const AnalysisFilters = ({
@@ -8,10 +8,13 @@ const AnalysisFilters = ({
     availableGPs = [],
     availableVillages = [],
     districts = [],
-    section = 'all' // 'location', 'layers', 'time', 'all'
+    section = 'all', // 'location', 'layers', 'time', 'all'
+    onCoordinateSearch
 }) => {
 
     const showAll = section === 'all';
+    const [lat, setLat] = useState('');
+    const [lng, setLng] = useState('');
 
     return (
         <>
@@ -98,6 +101,54 @@ const AnalysisFilters = ({
 
             {(showAll || section === 'location') && (
                 <div className="form-group area-selection">
+                    <label>Search by Coordinates</label>
+                    <div className="coordinate-search-grid" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                            <input
+                                type="number"
+                                placeholder="Lat (e.g. 27.0)"
+                                className="select-input"
+                                value={lat}
+                                onChange={e => setLat(e.target.value)}
+                                style={{ width: '100%' }}
+                            />
+                            <input
+                                type="number"
+                                placeholder="Lon (e.g. 74.0)"
+                                className="select-input"
+                                value={lng}
+                                onChange={e => setLng(e.target.value)}
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <button
+                            className="analysis-btn"
+                            style={{
+                                width: '100%',
+                                justifyContent: 'center',
+                                marginTop: '0.25rem',
+                                backgroundColor: '#000000',
+                                color: '#ffffff',
+                                border: '1px solid #000000'
+                            }}
+                            onClick={() => {
+                                const l = parseFloat(lat);
+                                const ln = parseFloat(lng);
+                                if (!isNaN(l) && !isNaN(ln) && onCoordinateSearch) {
+                                    onCoordinateSearch(l, ln);
+                                } else {
+                                    alert("Please enter valid coordinates");
+                                }
+                            }}
+                        >
+                            Search Location
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {(showAll || section === 'location') && (
+                <div className="form-group area-selection" style={{ borderTop: '1px solid #e2e8f01a', paddingTop: '1rem', marginTop: '1rem' }}>
                     <label>Selection Hierarchy</label>
                     <div className="cascading-dropdowns">
                         <div className="field-row">
@@ -172,6 +223,8 @@ const AnalysisFilters = ({
                     </div>
                 </div>
             )}
+
+
 
             {(showAll || section === 'time') && (
                 <>

@@ -8,7 +8,7 @@ const ParameterChart = ({ name, value, limit, unit, status, color }) => {
     // The original code had specific logic for pH.
 
     return (
-        <div className="water-quality-mini-card">
+        <div className="water-quality-mini-card" style={{ minHeight: '150px' }}>
             <ResponsiveContainer width="100%" height={100}>
                 <PieChart>
                     <Pie

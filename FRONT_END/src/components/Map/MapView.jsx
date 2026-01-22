@@ -12,6 +12,7 @@ import L from 'leaflet';
 // --- Styles & Constants ---
 import './MapView.css';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, AQUIFER_COLORS, getAquiferColor } from '../../constants/mapConstants';
+import { BACKEND_API, getBackendHeaders } from '../../api/config';
 
 // --- Data ---
 import { RAJASTHAN_DAMS_DATA } from '../../data/damsData';
@@ -82,7 +83,9 @@ const MapView = ({
     onToggleWellInventory,
     isControlsSidebarCollapsed,
     isDataAnalysisSidebarHidden,
-    isLoading
+    isLoading,
+    searchCoordinates,
+    exportTrigger
 }) => {
     // --- State ---
     const [showLegend, setShowLegend] = useState(false);
@@ -94,7 +97,8 @@ const MapView = ({
     const [layerColors, setLayerColors] = useState({
         canals: "#00bcd4",
         waterbodies: "#0288d1",
-        micro: "#ff5722"
+        micro: "#ff5722",
+        dams: "#0ea5e9"
     });
 
     const handleColorChange = (layer, color) => {
@@ -151,7 +155,8 @@ const MapView = ({
         validatedBlockData,
         selectedDistrictData,
         validatedBoundaries,
-        rainfallPoints
+        rainfallPoints,
+        searchCoordinates
     });
 
     // --- Export Logic ---
@@ -184,8 +189,8 @@ const MapView = ({
             if (filters?.showDams) selectedLayers.push('dams');
         } else if (filters?.type === 'Rainfall') {
             selectedLayers.push('rainfall');
-        } else if (filters?.type === 'Well Inventory') {
-            // For well inventory, we might need actual points or aquifer polygons
+        } else if (filters?.type === 'Well Inventory' || filters?.type === 'Aquifer') {
+            // For well inventory or aquifer visualization
             selectedLayers.push('aquifer');
         } else if (filters?.type === 'Ground Water Resource Estimation') {
             selectedLayers.push('groundwater_zones');
@@ -214,9 +219,9 @@ const MapView = ({
 
         try {
             // Show loading indication (custom or rely on browser download UI)
-            const response = await fetch("http://127.0.0.1:8000/api/export/map/", {
+            const response = await fetch(`${BACKEND_API.BASE_URL}/export/map/`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: getBackendHeaders(true),
                 body: JSON.stringify(payload)
             });
 
@@ -236,6 +241,13 @@ const MapView = ({
             alert("Map export failed. Please try again.");
         }
     };
+
+    // Listen for external export trigger
+    useEffect(() => {
+        if (exportTrigger) {
+            handleExport('state'); // Default to state wide or current based on requirement. 'state' gives a nice PDF usually.
+        }
+    }, [exportTrigger]);
 
     // --- Effects & Logic ---
     useEffect(() => { if (initialShowLegend) setShowLegend(true); }, [initialShowLegend]);
@@ -334,12 +346,20 @@ const MapView = ({
                     legendData={legendData}
                     districtRainfall={districtRainfall}
                     onFiltersApply={onFiltersApply}
+                    onLocationClick={handleLocationClick}
                     geoJsonRef={stateGeoJsonRef}
                 />
 
                 {/* Only show drill-down boundaries if NOT in a thematic view (like rainfall/gwre) */}
                 {!(filters?.type === 'Rainfall' || filters?.type === 'Ground Water Resource Estimation' || filters?.type === 'Water Quality') && (
-                    <DrillDownBoundariesLayer data={validatedBoundaries} filters={filters} currentLevel={currentLevel} onFiltersApply={onFiltersApply} geoJsonRef={drillDownGeoJsonRef} />
+                    <DrillDownBoundariesLayer
+                        data={validatedBoundaries}
+                        filters={filters}
+                        currentLevel={currentLevel}
+                        onFiltersApply={onFiltersApply}
+                        onLocationClick={handleLocationClick}
+                        geoJsonRef={drillDownGeoJsonRef}
+                    />
                 )}
 
                 <DistrictHighlightLayer data={selectedDistrictData} district={filters?.district} />
@@ -356,7 +376,7 @@ const MapView = ({
                     />
                 )}
 
-                <DamMarkersLayer isActive={filters?.showDams} damMarkers={damMarkers} onDamClick={setSelectedDam} onAddToTable={onAddToTable} />
+                <DamMarkersLayer isActive={filters?.showDams} damMarkers={damMarkers} onDamClick={setSelectedDam} onAddToTable={onAddToTable} color={layerColors.dams} />
                 <RainfallMarkersLayer isActive={filters?.type === 'Rainfall'} showVillageLevel={!!filters?.village} rainfallPoints={mapRainfallPoints} onAddToTable={onAddToTable} />
                 <RaingaugeStationsLayer isActive={filters?.type === 'Rainfall'} showStations={filters?.showRaingaugeStations} data={raingaugeStations} district={filters?.district} />
                 <WaterQualityMarkersLayer isActive={filters?.type === 'Water Quality'} records={waterQualityRecords} onLocationClick={handleLocationClick} />

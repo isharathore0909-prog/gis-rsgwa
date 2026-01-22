@@ -1,4 +1,5 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+import { BACKEND_API } from '../api/config';
+const BASE_URL = BACKEND_API.BASE_URL;
 
 const api = {
     baseURL: BASE_URL, // Export baseURL for use in other services

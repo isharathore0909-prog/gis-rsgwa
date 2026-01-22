@@ -37,7 +37,7 @@ const GroundWaterSection = ({
     return (
         <div className="groundwater-analysis-grid animated-entry">
             <AnalysisCard title={isGWRE ? 'Stage of Ground Water Extraction' : 'Ground Water Status'}>
-                <div className="pie-chart-wrapper">
+                <div className="pie-chart-wrapper" style={{ minHeight: isExpanded ? '350px' : '260px' }}>
                     <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
                         <PieChart>
                             <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={5} dataKey="value">
@@ -76,7 +76,7 @@ const GroundWaterSection = ({
             </AnalysisCard>
 
             <AnalysisCard title="Ground Water Level (mbgl)">
-                <div className="bar-chart-wrapper">
+                <div className="bar-chart-wrapper" style={{ minHeight: isExpanded ? '350px' : '260px' }}>
                     <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
                         <BarChart data={waterLevelChartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
@@ -97,7 +97,7 @@ const GroundWaterSection = ({
             </AnalysisCard>
 
             <AnalysisCard title="Aquifers Present">
-                <div className="bar-chart-wrapper">
+                <div className="bar-chart-wrapper" style={{ minHeight: isExpanded ? '350px' : '260px' }}>
                     <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
                         <BarChart data={aquiferData} layout="vertical" margin={{ top: 10, right: 30, left: 100, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
@@ -129,7 +129,7 @@ const GroundWaterSection = ({
             </AnalysisCard>
 
             <AnalysisCard title="Water Quality Compliance">
-                <div className="bar-chart-wrapper">
+                <div className="bar-chart-wrapper" style={{ minHeight: isExpanded ? '400px' : '300px' }}>
                     <ResponsiveContainer width="100%" height={isExpanded ? 400 : 300}>
                         <BarChart
                             data={qualityData}

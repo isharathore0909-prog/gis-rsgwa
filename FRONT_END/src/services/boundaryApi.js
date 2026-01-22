@@ -5,10 +5,12 @@
  * using location codes from the database.
  */
 
+import { BACKEND_API } from '../api/config';
+
 const EXTERNAL_API_CONFIG = {
     // Pointing to local backend proxy for security and to avoid Requestly requirement
-    BASE_URL: 'http://localhost:8000/api',
-    API_KEY: 'a5c8b623-33a2-4ab7-9b75-36589801b6ec',
+    BASE_URL: BACKEND_API.BASE_URL,
+    API_KEY: 'a5c8b623-33a2-4ab7-9b75-36589801b6ec', // Keep this key or move to config if needed
     ENDPOINTS: {
         PINCODE: '/location/pincode/',
         BOUNDARY_BY_CODE: '/location/external-proxy/boundary-by-code/',
@@ -24,6 +26,28 @@ const getHeaders = () => ({
     'Content-Type': 'application/json',
 });
 
+// Simple cache for boundary requests
+const boundaryCache = new Map();
+
+const fetchWithCache = async (url) => {
+    if (boundaryCache.has(url)) {
+        return boundaryCache.get(url);
+    }
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    boundaryCache.set(url, data);
+    return data;
+};
+
 /**
  * Fetch boundary by village code
  * @param {string} villageCode - The village code
@@ -32,16 +56,7 @@ const getHeaders = () => ({
 export const fetchBoundaryByVillageCode = async (villageCode) => {
     try {
         const url = `${EXTERNAL_API_CONFIG.BASE_URL}${EXTERNAL_API_CONFIG.ENDPOINTS.BOUNDARY_BY_CODE}?village_code=${villageCode}`;
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: getHeaders(),
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await fetchWithCache(url);
         return data;
     } catch (error) {
         console.error(`Error fetching boundary for village ${villageCode}:`, error);
@@ -57,16 +72,7 @@ export const fetchBoundaryByVillageCode = async (villageCode) => {
 export const fetchBoundaryByGPCode = async (gpCode) => {
     try {
         const url = `${EXTERNAL_API_CONFIG.BASE_URL}${EXTERNAL_API_CONFIG.ENDPOINTS.BOUNDARY_BY_CODE}?gpcode=${gpCode}`;
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: getHeaders(),
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await fetchWithCache(url);
         return data;
     } catch (error) {
         console.error(`Error fetching boundary for GP ${gpCode}:`, error);
@@ -82,16 +88,7 @@ export const fetchBoundaryByGPCode = async (gpCode) => {
 export const fetchBoundaryByBlockCode = async (blockCode) => {
     try {
         const url = `${EXTERNAL_API_CONFIG.BASE_URL}${EXTERNAL_API_CONFIG.ENDPOINTS.BOUNDARY_BY_CODE}?block_code=${blockCode}`;
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: getHeaders(),
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await fetchWithCache(url);
         return data;
     } catch (error) {
         console.error(`Error fetching boundary for block ${blockCode}:`, error);
@@ -107,16 +104,7 @@ export const fetchBoundaryByBlockCode = async (blockCode) => {
 export const fetchBoundaryByDistrictCode = async (districtCode) => {
     try {
         const url = `${EXTERNAL_API_CONFIG.BASE_URL}${EXTERNAL_API_CONFIG.ENDPOINTS.BOUNDARY_BY_CODE}?district_code=${districtCode}`;
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: getHeaders(),
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await fetchWithCache(url);
         return data;
     } catch (error) {
         console.error(`Error fetching boundary for district ${districtCode}:`, error);
@@ -174,16 +162,7 @@ export const fetchBoundaryByCodes = async (codes) => {
         }
 
         const url = `${EXTERNAL_API_CONFIG.BASE_URL}${EXTERNAL_API_CONFIG.ENDPOINTS.BOUNDARY_BY_CODE}?${params.toString()}`;
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: getHeaders(),
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await fetchWithCache(url);
         return data;
     } catch (error) {
         console.error('Error fetching boundary:', error);

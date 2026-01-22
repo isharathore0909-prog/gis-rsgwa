@@ -23,6 +23,9 @@ class ExternalAPIClient {
                 return Promise.reject(new Error(errorMessage));
             }
         );
+
+        // Simple in-memory cache
+        this.cache = new Map();
     }
 
     // ==================== Boundary Methods ====================
@@ -32,10 +35,15 @@ class ExternalAPIClient {
      */
     async fetchBoundaryByVillageCode(villageCode) {
         try {
+            const cacheKey = `village_${villageCode}`;
+            if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+
             const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
                 params: { village_code: villageCode }
             });
-            return this.convertToGeoJSON(data, { village_code: villageCode, level: 'village' });
+            const result = this.convertToGeoJSON(data, { village_code: villageCode, level: 'village' });
+            this.cache.set(cacheKey, result);
+            return result;
         } catch (error) {
             console.error(`Error fetching boundary for village ${villageCode}:`, error);
             return null;
@@ -47,10 +55,15 @@ class ExternalAPIClient {
      */
     async fetchBoundaryByGPCode(gpCode) {
         try {
+            const cacheKey = `gp_${gpCode}`;
+            if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+
             const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
                 params: { gpcode: gpCode }
             });
-            return this.convertToGeoJSON(data, { gp_code: gpCode, level: 'gp' });
+            const result = this.convertToGeoJSON(data, { gp_code: gpCode, level: 'gp' });
+            this.cache.set(cacheKey, result);
+            return result;
         } catch (error) {
             console.error(`Error fetching boundary for GP ${gpCode}:`, error);
             return null;
@@ -62,10 +75,15 @@ class ExternalAPIClient {
      */
     async fetchBoundaryByBlockCode(blockCode) {
         try {
+            const cacheKey = `block_${blockCode}`;
+            if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+
             const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
                 params: { block_code: blockCode }
             });
-            return this.convertToGeoJSON(data, { block_code: blockCode, level: 'block' });
+            const result = this.convertToGeoJSON(data, { block_code: blockCode, level: 'block' });
+            this.cache.set(cacheKey, result);
+            return result;
         } catch (error) {
             console.error(`Error fetching boundary for block ${blockCode}:`, error);
             return null;
@@ -77,10 +95,15 @@ class ExternalAPIClient {
      */
     async fetchBoundaryByDistrictCode(districtCode) {
         try {
+            const cacheKey = `district_${districtCode}`;
+            if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+
             const data = await this.client.get(EXTERNAL_API.ENDPOINTS.BOUNDARY_BY_CODE, {
                 params: { district_code: districtCode }
             });
-            return this.convertToGeoJSON(data, { district_code: districtCode, level: 'district' });
+            const result = this.convertToGeoJSON(data, { district_code: districtCode, level: 'district' });
+            this.cache.set(cacheKey, result);
+            return result;
         } catch (error) {
             console.error(`Error fetching boundary for district ${districtCode}:`, error);
             return null;

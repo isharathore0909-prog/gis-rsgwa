@@ -122,7 +122,7 @@ const RainfallSection = ({
             </AnalysisCard>
 
             <AnalysisCard title={`${viewType.toUpperCase()} Rainfall Trend (Average)`}>
-                <div className="bar-chart-wrapper">
+                <div className="bar-chart-wrapper" style={{ minHeight: isExpanded ? '320px' : '240px' }}>
                     <ResponsiveContainer width="100%" height={isExpanded ? 320 : 240}>
                         <BarChart data={aggregatedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />

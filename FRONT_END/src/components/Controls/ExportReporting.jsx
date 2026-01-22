@@ -1,17 +1,21 @@
 import React from 'react';
 import { IconDownload, IconPrinter } from '../Icons';
 
-const ExportReporting = ({ handleExportData }) => {
+const ExportReporting = ({ handleExportData, handleMapExport, filters }) => {
+    const showPdfButton = ['Ground Water Resource Estimation', 'Rainfall', 'Aquifer'].includes(filters?.type);
+
     return (
         <>
             <button className="download-btn" onClick={handleExportData}>
                 <IconDownload />
-                <span>Export Raw Observation Data</span>
+                <span>Get Your Data</span>
             </button>
-            <button className="download-btn" onClick={() => window.print()}>
-                <IconPrinter />
-                <span>Generate Geospatial PDF</span>
-            </button>
+            {showPdfButton && (
+                <button className="download-btn" onClick={handleMapExport}>
+                    <IconPrinter />
+                    <span>Generate Geospatial PDF</span>
+                </button>
+            )}
         </>
     );
 };
