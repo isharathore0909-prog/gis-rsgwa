@@ -8,6 +8,9 @@ services:
       - "8030:8000"
     env_file:
       - ./BACK_END/rgwcma_gis_server/.env
+    volumes:
+      - ./BACK_END/rgwcma_gis_server/media:/app/media
+      - ./BACK_END/rgwcma_gis_server/data:/app/data
     restart: always
     networks:
       - rgw-network

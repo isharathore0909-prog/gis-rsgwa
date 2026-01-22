@@ -22,4 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 COPY .env /app/.env
 
+# Create media directory and set permissions
+RUN mkdir -p /app/media /app/data && chmod -R 777 /app/media /app/data
+
 CMD ["gunicorn", "rgwcma_gis_server.wsgi:application", "-w", "2", "-b", "0.0.0.0:8030", "--timeout", "300"]
