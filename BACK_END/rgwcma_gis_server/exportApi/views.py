@@ -64,7 +64,7 @@ class ExportMapView(APIView):
             # Generate absolute URL for the file
             file_url = request.build_absolute_uri(settings.MEDIA_URL + 'temp_exports/' + filename)
 
-            print(file_url, bbox)
+            # print(file_url, bbox)
             
             return Response({
                 'status': 'success',

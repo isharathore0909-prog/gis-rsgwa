@@ -227,15 +227,13 @@ const MapView = ({
 
             if (!response.ok) throw new Error("Export failed");
 
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `MapExport_${type}_${new Date().getTime()}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            const result = await response.json();
+            if (result.url) {
+                // Open the generated PDF in a new tab
+                window.open(result.url, '_blank');
+            } else {
+                throw new Error("No download URL received from server");
+            }
         } catch (err) {
             console.error("Export failed:", err);
             alert("Map export failed. Please try again.");
