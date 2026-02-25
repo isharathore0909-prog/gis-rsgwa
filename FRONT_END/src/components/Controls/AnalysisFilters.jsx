@@ -9,7 +9,10 @@ const AnalysisFilters = ({
     availableVillages = [],
     districts = [],
     section = 'all', // 'location', 'layers', 'time', 'all'
-    onCoordinateSearch
+    onCoordinateSearch,
+    rainfallDataSource,
+    onRainfallDataSourceChange,
+    rainfallLoading
 }) => {
 
     const showAll = section === 'all';
@@ -41,6 +44,14 @@ const AnalysisFilters = ({
                                     onChange={e => handleFilterChange('showRaingaugeStations', e.target.checked)}
                                 />
                                 Raingauge Stations
+                            </label>
+                            <label className="checkbox-container" style={{ marginTop: '0.5rem' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showPiezometers}
+                                    onChange={e => handleFilterChange('showPiezometers', e.target.checked)}
+                                />
+                                piezometer
                             </label>
                         </div>
                     )}

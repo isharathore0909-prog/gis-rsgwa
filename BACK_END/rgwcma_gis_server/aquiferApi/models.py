@@ -24,11 +24,13 @@ class AquiferData(models.Model):
     latitude = models.FloatField(
         null=True, 
         blank=True, 
+        db_index=True,
         help_text="Latitude of the well"
     )
     longitude = models.FloatField(
         null=True, 
         blank=True, 
+        db_index=True,
         help_text="Longitude of the well"
     )
     well_depth = models.FloatField(

@@ -6,20 +6,30 @@ import {
     DamMarker,
     RainfallMarker,
     WaterQualityMarker,
-    AquiferWellMarker
+    AquiferWellMarker,
+    PiezometerMarker
 } from '../Markers';
+import { BACKEND_API } from '../../../api/config';
 
 /**
  * Rainfall Markers Layer
  */
 import { CircleMarker, Tooltip } from 'react-leaflet';
 
+import { BLUE_PALETTE } from '../../../constants/mapConstants';
+
 const getRainfallColor = (mm) => {
-    if (mm === 0) return '#cbd5e1'; // No rain
-    if (mm < 2.5) return '#93c5fd'; // Light rain
-    if (mm < 7.6) return '#3b82f6'; // Moderate rain
-    if (mm < 35.6) return '#2563eb'; // Heavy rain
-    return '#1e40af'; // Very heavy rain
+    if (mm === null || mm === undefined) return '#cbd5e1'; // No data
+    if (mm === 0) return BLUE_PALETTE[0]; // Minimal/no rain
+
+    // Define rainfall intensity thresholds (in mm)
+    // Based on IMD classification: Light (0-2.5), Moderate (2.5-7.6), Rather Heavy (7.6-35.6), Heavy (35.6-64.5), Very Heavy (64.5+)
+    if (mm < 2.5) return BLUE_PALETTE[2];      // Light rain
+    if (mm < 7.6) return BLUE_PALETTE[4];      // Moderate rain
+    if (mm < 15) return BLUE_PALETTE[6];       // Rather heavy rain
+    if (mm < 35.6) return BLUE_PALETTE[8];     // Heavy rain
+    if (mm < 64.5) return BLUE_PALETTE[10];    // Very heavy rain
+    return BLUE_PALETTE[11];                    // Extremely heavy rain
 };
 
 /**
@@ -30,24 +40,42 @@ export const RainfallMarkersLayer = ({
     isActive,
     showVillageLevel,
     rainfallPoints,
+    stationPoints,      // NEW: Station-based rainfall data
+    dataSource = 'village', // NEW: 'village' or 'station'
     onAddToTable
 }) => {
-    if (!isActive || !showVillageLevel || !rainfallPoints.length) return null;
+    if (!isActive || !showVillageLevel) return null;
+
+    // Select data based on source
+    const dataToDisplay = dataSource === 'station' ? stationPoints : rainfallPoints;
+
+    if (!dataToDisplay || !dataToDisplay.length) return null;
 
     return (
         <>
-            {rainfallPoints.map((record, idx) => {
-                if (!record.latitude || !record.longitude) return null;
+            {dataToDisplay.map((record, idx) => {
+                // Handle both village and station data structures
+                const lat = record.latitude || record.station_lat;
+                const lon = record.longitude || record.station_lon;
 
+                if (!lat || !lon) return null;
+
+                // Get rainfall value from appropriate field
                 const rainValue = record.rainfall_mm ?? record.rainfall_in_mm ?? 0;
+
+                // Get display name
+                const displayName = dataSource === 'station'
+                    ? (record.station_name || 'Unknown Station')
+                    : (record.village || record.village_name || 'Unknown Village');
+
                 const color = getRainfallColor(rainValue);
                 // Scale radius slightly with intensity, but keep it small for performance/clutter
                 const radius = rainValue === 0 ? 3 : Math.min(Math.max(4, rainValue / 5), 8);
 
                 return (
                     <CircleMarker
-                        key={`rainfall-${idx}`}
-                        center={[record.latitude, record.longitude]}
+                        key={`rainfall-${dataSource}-${idx}`}
+                        center={[lat, lon]}
                         pathOptions={{
                             fillColor: color,
                             color: 'white',
@@ -65,13 +93,29 @@ export const RainfallMarkersLayer = ({
                     >
                         <Tooltip sticky>
                             <div style={{ textAlign: 'center' }}>
-                                <strong>{record.village || record.village_name || 'Unknown Village'}</strong><br />
+                                <strong>{displayName}</strong><br />
                                 <span style={{ color: color }}>
                                     {rainValue.toFixed(1)} mm
                                 </span><br />
                                 <span style={{ fontSize: '0.8em', color: '#666' }}>
                                     {record.date || record.rainfall_date}
                                 </span>
+                                {dataSource === 'station' && record.station_district && (
+                                    <>
+                                        <br />
+                                        <span style={{ fontSize: '0.8em', color: '#888' }}>
+                                            {record.station_district}
+                                        </span>
+                                    </>
+                                )}
+                                {dataSource === 'station' && record.record_count && (
+                                    <>
+                                        <br />
+                                        <span style={{ fontSize: '0.75em', color: '#999' }}>
+                                            {record.record_count} records
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         </Tooltip>
                     </CircleMarker>
@@ -165,6 +209,36 @@ export const WaterQualityMarkersLayer = ({
 };
 
 /**
+ * Piezometer Markers Layer
+ */
+export const PiezometerMarkersLayer = ({
+    isActive,
+    records,
+    onLocationClick
+}) => {
+    if (!isActive || !records.length) return null;
+
+    return (
+        <>
+            {records.map((record, idx) => (
+                record.latitude && record.longitude && (
+                    <PiezometerMarker
+                        key={`pz-${idx}`}
+                        record={record}
+                        onMarkerClick={(rec, latlng) => onLocationClick(latlng, [{
+                            ...rec,
+                            id: rec.id,
+                            location: rec.piezometer_name || (rec.village && (rec.village.name || rec.village)) || 'Unknown',
+                            type: 'piezometer'
+                        }])}
+                    />
+                )
+            ))}
+        </>
+    );
+};
+
+/**
  * Aquifer/Well Inventory Markers Layer
  */
 export const AquiferMarkersLayer = ({
@@ -224,23 +298,29 @@ export const DamMarkersLayer = ({
 
 /**
  * Aquifer Vector Grid Layer
+ * Uses static GeoJSON (aquifer_opt.json) which has guaranteed New_Dist & Aquifer properties.
  */
 export const AquiferVectorLayer = ({
     isActive,
     filter,
     style,
-    onFeatureClick
+    onFeatureClick,
+    onLoading
 }) => {
     if (!isActive) return null;
 
+    // Use the static optimised aquifer file — guaranteed to have New_Dist / Aquifer properties
+    const dataUrl = '/data/aquifer_opt.json';
+
     return (
         <VectorGridSlicer
-            active={true}
-            dataUrl="/data/aquifer_opt.json"
+            active={isActive}
+            dataUrl={dataUrl}
             layerName="aquifer"
             filter={filter}
             style={style}
             onFeatureClick={onFeatureClick}
+            onLoading={onLoading}
         />
     );
 };
@@ -253,10 +333,13 @@ export const WaterResourcesLayers = ({
     showCanals,
     showWaterbodies,
     showMicro,
+    canalData,
+    waterbodyData,
     canalFilter,
     waterbodyFilter,
     microData,
-    layerColors = { canals: "#00bcd4", waterbodies: "#0288d1", micro: "#ff5722" }
+    layerColors = { canals: "#00bcd4", waterbodies: "#0288d1", micro: "#ff5722" },
+    onLoading
 }) => {
     const map = useMap();
 
@@ -274,7 +357,7 @@ export const WaterResourcesLayers = ({
 
     const canalStyle = useMemo(() => ({
         color: layerColors.canals,
-        weight: 2,
+        weight: 2.5,
         opacity: 1
     }), [layerColors.canals]);
 
@@ -282,7 +365,7 @@ export const WaterResourcesLayers = ({
         fillColor: layerColors.waterbodies,
         fillOpacity: 0.7,
         color: layerColors.waterbodies,
-        weight: 1
+        weight: 1.5
     }), [layerColors.waterbodies]);
 
     const microStyle = useMemo(() => ({
@@ -299,20 +382,24 @@ export const WaterResourcesLayers = ({
                 <VectorGridSlicer
                     key={`canals-${layerColors.canals}`}
                     active={true}
+                    data={canalData}
                     dataUrl="/data/canals_opt.json"
                     layerName="canals"
                     filter={canalFilter}
                     style={canalStyle}
+                    onLoading={onLoading}
                 />
             )}
             {showWaterbodies && (
                 <VectorGridSlicer
                     key={`waterbodies-${layerColors.waterbodies}`}
                     active={true}
+                    data={waterbodyData}
                     dataUrl="/data/waterbodies_opt.json"
                     layerName="waterbodies"
                     filter={waterbodyFilter}
                     style={waterbodyStyle}
+                    onLoading={onLoading}
                 />
             )}
             {showMicro && microData && (

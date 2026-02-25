@@ -1,34 +1,21 @@
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Avg, Max, Min, Count, Q
 from .models import AquiferData
 from .serializers import AquiferDataSerializer, AquiferDataListSerializer, YearDataSerializer
 
-class AquiferDataViewSet(viewsets.ModelViewSet):
+from core.utils import LocationFilterMixin
+
+class AquiferDataViewSet(viewsets.ModelViewSet, LocationFilterMixin):
     """
-    ViewSet for Aquifer groundwater level data.
-    
-    Provides:
-    - List: GET /api/aquifer/
-    - Retrieve: GET /api/aquifer/{id}/
-    - Create: POST /api/aquifer/ (authenticated users only)
-    - Update: PUT/PATCH /api/aquifer/{id}/ (authenticated users only)
-    - Delete: DELETE /api/aquifer/{id}/ (authenticated users only)
-    - Year Data: GET /api/aquifer/year_data/?year=2024
-    - Trends: GET /api/aquifer/trends/
-    - Statistics: GET /api/aquifer/statistics/
+    ViewSet for Aquifer groundwater level data with optimized performance.
     """
-    queryset = AquiferData.objects.select_related(
-        'village',
-        'village__grampanchayat',
-        'village__grampanchayat__block',
-        'village__grampanchayat__block__district',
-        'village__grampanchayat__block__district__state'
-    ).all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    queryset = AquiferData.objects.all()
+    authentication_classes = []
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['aquifer', 'village']
     search_fields = ['well_id', 'village__name', 'aquifer']
@@ -44,98 +31,102 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         return AquiferDataSerializer
 
     def get_queryset(self):
-        """Filter queryset based on query parameters for location hierarchy"""
+        """Standardized location filtering using LocationFilterMixin."""
         queryset = super().get_queryset()
         
-        # Filter by state
-        state = self.request.query_params.get('state', None)
-        if state:
-            queryset = queryset.filter(
-                village__grampanchayat__block__district__state__name__iexact=state
+        # Apply hierarchical location filters
+        queryset = self.filter_location(queryset)
+        
+        # Optimization: Fetch related administrative names ONLY when needed
+        if self.action in ['list', 'retrieve']:
+            queryset = queryset.select_related(
+                'village__grampanchayat__block__district__state'
             )
-        
-        # Filter by district
-        district = self.request.query_params.get('district', None)
-        if district:
-            queryset = queryset.filter(
-                village__grampanchayat__block__district__name__iexact=district
-            )
-        
-        # Filter by block
-        block = self.request.query_params.get('block', None)
-        if block:
-            queryset = queryset.filter(
-                village__grampanchayat__block__name__iexact=block
-            )
-        
-        # Filter by grampanchayat
-        grampanchayat = self.request.query_params.get('grampanchayat', None)
-        if grampanchayat:
-            queryset = queryset.filter(
-                village__grampanchayat__name__iexact=grampanchayat
-            )
-        
-        # Filter by village name
-        village_name = self.request.query_params.get('village_name', None)
-        if village_name:
-            queryset = queryset.filter(village__name__iexact=village_name)
-        
+            
         return queryset
 
     @action(detail=False, methods=['get'])
     def year_data(self, request):
         """
-        Get data for a specific year
-        GET /api/aquifer/year_data/?year=2024
+        Get data for a specific year - Optimized to avoid full object instantiation
         """
         year = request.query_params.get('year', 2024)
         try:
             year = int(year)
-            if year < 2015 or year > 2024:
-                return Response({
-                    'error': 'Year must be between 2015 and 2024'
-                }, status=status.HTTP_400_BAD_REQUEST)
         except ValueError:
-            return Response({
-                'error': 'Invalid year parameter'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            year = 2024
+        
+        pre_field = f'pre_{year}'
+        pst_field = f'pst_{year}'
         
         queryset = self.get_queryset()
-        data = []
         
-        for record in queryset:
-            year_data = record.get_year_data(year)
-            data.append({
-                'well_id': record.well_id,
-                'village_name': record.village_name,
-                'district': record.district,
-                'block': record.block,
-                'latitude': record.latitude,
-                'longitude': record.longitude,
-                **year_data
+        # Use .values() for high performance
+        data = queryset.values(
+            'well_id', 'latitude', 'longitude', 'aquifer',
+            'village__name', 
+            'village__grampanchayat__block__name',
+            'village__grampanchayat__block__district__name',
+            pre_field, pst_field
+        )
+        
+        # Format results in a single pass
+        results = []
+        for item in data:
+            pre_val = item.get(pre_field)
+            pst_val = item.get(pst_field)
+            results.append({
+                'well_id': item['well_id'],
+                'village_name': item['village__name'],
+                'district': item['village__grampanchayat__block__district__name'],
+                'block': item['village__grampanchayat__block__name'],
+                'latitude': item['latitude'],
+                'longitude': item['longitude'],
+                'year': year,
+                'pre_monsoon': pre_val,
+                'post_monsoon': pst_val,
+                'seasonal_change': (pst_val - pre_val) if pre_val is not None and pst_val is not None else None
             })
         
         return Response({
             'year': year,
-            'count': len(data),
-            'data': data
+            'count': len(results),
+            'data': results
         })
 
     @action(detail=False, methods=['get'])
     def trends(self, request):
         """
-        Get trend analysis for all wells
-        GET /api/aquifer/trends/
+        Get trend analysis for all wells - Optimized with .values()
         """
         queryset = self.get_queryset()
+        
+        # Define all the fields we need for trends
+        years = range(2015, 2025)
+        fields = ['well_id', 'village__name', 'village__grampanchayat__block__district__name']
+        for year in years:
+            fields.extend([f'pre_{year}', f'pst_{year}'])
+            
+        data = queryset.values(*fields)
         trends = []
         
-        for record in queryset:
+        for item in data:
+            pre_trend = []
+            pst_trend = []
+            for year in years:
+                pre_val = item.get(f'pre_{year}')
+                pst_val = item.get(f'pst_{year}')
+                if pre_val is not None: pre_trend.append({'year': year, 'value': pre_val})
+                if pst_val is not None: pst_trend.append({'year': year, 'value': pst_val})
+            
             trends.append({
-                'well_id': record.well_id,
-                'village_name': record.village_name,
-                'district': record.district,
-                'trend_data': record.get_trend_data()
+                'well_id': item['well_id'],
+                'village_name': item['village__name'],
+                'district': item['village__grampanchayat__block__district__name'],
+                'trend_data': {
+                    'pre_monsoon_trend': pre_trend,
+                    'post_monsoon_trend': pst_trend
+                }
             })
         
         return Response({
@@ -157,37 +148,50 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         
         queryset = self.get_queryset()
         
-        # Calculate statistics for the specified year
+        # Calculate statistics for the specified year using DB aggregation
+        # This is much faster and avoids loading geometry fields that might be corrupted
         pre_field = f'pre_{year}'
         pst_field = f'pst_{year}'
         
-        # Filter records that have data for this year
-        records_with_pre = queryset.exclude(**{f'{pre_field}__isnull': True})
-        records_with_pst = queryset.exclude(**{f'{pst_field}__isnull': True})
+        # Perform aggregation in one query
+        agg_stats = queryset.aggregate(
+            total_wells=Count('id'),
+            wells_with_pre_data=Count(pre_field),
+            wells_with_pst_data=Count(pst_field),
+            avg_pre=Avg(pre_field),
+            min_pre=Min(pre_field),
+            max_pre=Max(pre_field),
+            avg_pst=Avg(pst_field),
+            min_pst=Min(pst_field),
+            max_pst=Max(pst_field)
+        )
+        
+        # Calculate long-term average across all years for which data exists
+        years = range(2015, 2025)
+        longterm_agg = {}
+        for y in years:
+            longterm_agg[f'pre_{y}'] = Avg(f'pre_{y}')
+            longterm_agg[f'pst_{y}'] = Avg(f'pst_{y}')
+        
+        longterm_results = queryset.aggregate(**longterm_agg)
+        valid_vals = [v for v in longterm_results.values() if v is not None]
+        avg_longterm = sum(valid_vals) / len(valid_vals) if valid_vals else None
         
         stats = {
             'year': year,
-            'total_wells': queryset.count(),
-            'wells_with_pre_data': records_with_pre.count(),
-            'wells_with_pst_data': records_with_pst.count(),
+            'total_wells': agg_stats['total_wells'],
+            'wells_with_pre_data': agg_stats['wells_with_pre_data'],
+            'wells_with_pst_data': agg_stats['wells_with_pst_data'],
+            'avg_pre_monsoon': agg_stats['avg_pre'],
+            'avg_pst_monsoon': agg_stats['avg_pst'],
+            'avg_longterm': round(avg_longterm, 2) if avg_longterm is not None else None,
+            'min_pre_monsoon': agg_stats['min_pre'],
+            'max_pre_monsoon': agg_stats['max_pre'],
+            'min_pst_monsoon': agg_stats['min_pst'],
+            'max_pst_monsoon': agg_stats['max_pst']
         }
         
-        # Calculate averages if data exists
-        if records_with_pre.exists():
-            pre_values = [getattr(r, pre_field) for r in records_with_pre if getattr(r, pre_field) is not None]
-            if pre_values:
-                stats['avg_pre_monsoon'] = sum(pre_values) / len(pre_values)
-                stats['min_pre_monsoon'] = min(pre_values)
-                stats['max_pre_monsoon'] = max(pre_values)
-        
-        if records_with_pst.exists():
-            pst_values = [getattr(r, pst_field) for r in records_with_pst if getattr(r, pst_field) is not None]
-            if pst_values:
-                stats['avg_pst_monsoon'] = sum(pst_values) / len(pst_values)
-                stats['min_pst_monsoon'] = min(pst_values)
-                stats['max_pst_monsoon'] = max(pst_values)
-        
-        # Aquifer type distribution
+        # Aquifer type distribution (already uses .values() which is safe)
         aquifer_dist = queryset.values('aquifer').annotate(
             count=Count('id')
         ).order_by('-count')
@@ -198,9 +202,52 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=False, methods=['get'])
+    def yearly_statistics(self, request):
+        """
+        Get aggregated groundwater level trends (pre/pst/avg) for all years.
+        Aggregates across all wells in the filtered queryset.
+        """
+        queryset = self.get_queryset()
+        years = range(2015, 2025)
+        
+        # Build aggregation map for all years
+        agg_map = {}
+        for year in years:
+            agg_map[f'pre_{year}'] = Avg(f'pre_{year}')
+            agg_map[f'pst_{year}'] = Avg(f'pst_{year}')
+            
+        results = queryset.aggregate(**agg_map)
+        
+        # Format the yearly data
+        yearly_data = []
+        for year in years:
+            pre_val = results[f'pre_{year}']
+            pst_val = results[f'pst_{year}']
+            
+            avg_val = None
+            if pre_val is not None and pst_val is not None:
+                avg_val = round((pre_val + pst_val) / 2, 2)
+            elif pre_val is not None:
+                avg_val = round(pre_val, 2)
+            elif pst_val is not None:
+                avg_val = round(pst_val, 2)
+                
+            yearly_data.append({
+                'year': str(year),
+                'pre_monsoon': round(pre_val, 2) if pre_val is not None else None,
+                'post_monsoon': round(pst_val, 2) if pst_val is not None else None,
+                'average': avg_val
+            })
+            
+        return Response({
+            'total_wells': queryset.count(),
+            'yearly_trends': yearly_data
+        })
+
+    @action(detail=False, methods=['get'])
     def by_location(self, request):
         """
-        Get aquifer data grouped by location
+        Get aquifer data grouped by location using optimized DB aggregation.
         GET /api/aquifer/by_location/?level=district&year=2024
         """
         level = request.query_params.get('level', 'district')
@@ -211,36 +258,24 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         pst_field = f'pst_{year}'
         
         if level == 'district':
-            # Group by district
-            districts = {}
-            for record in queryset:
-                dist_name = record.district
-                if dist_name not in districts:
-                    districts[dist_name] = {
-                        'district': dist_name,
-                        'wells': 0,
-                        'pre_values': [],
-                        'pst_values': []
-                    }
-                
-                districts[dist_name]['wells'] += 1
-                pre_val = getattr(record, pre_field, None)
-                pst_val = getattr(record, pst_field, None)
-                
-                if pre_val is not None:
-                    districts[dist_name]['pre_values'].append(pre_val)
-                if pst_val is not None:
-                    districts[dist_name]['pst_values'].append(pst_val)
+            # Perform grouping and averaging in the database
+            data = queryset.values(
+                'village__grampanchayat__block__district__name'
+            ).annotate(
+                wells=Count('id'),
+                avg_pre=Avg(pre_field),
+                avg_pst=Avg(pst_field)
+            ).order_by('village__grampanchayat__block__district__name')
             
-            # Calculate averages
-            result = []
-            for dist_name, data in districts.items():
-                result.append({
-                    'district': dist_name,
-                    'wells': data['wells'],
-                    'avg_pre': sum(data['pre_values']) / len(data['pre_values']) if data['pre_values'] else None,
-                    'avg_pst': sum(data['pst_values']) / len(data['pst_values']) if data['pst_values'] else None,
-                })
+            result = [
+                {
+                    'district': d['village__grampanchayat__block__district__name'],
+                    'wells': d['wells'],
+                    'avg_pre': round(d['avg_pre'], 2) if d['avg_pre'] is not None else None,
+                    'avg_pst': round(d['avg_pst'], 2) if d['avg_pst'] is not None else None,
+                }
+                for d in data if d['village__grampanchayat__block__district__name']
+            ]
             
             return Response({
                 'level': 'district',
@@ -255,12 +290,12 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def nearby(self, request):
         """
-        Find wells within a radius of a given lat/lon and return their average water level
-        GET /api/aquifer/nearby/?latitude=26.91&longitude=75.78&radius=0.1
+        Optimized nearby search using spatial_nearby utility.
+        Supports both 'radius_km' and 'radius' parameters.
         """
         lat = request.query_params.get('latitude')
         lon = request.query_params.get('longitude')
-        radius_deg = float(request.query_params.get('radius', 0.05)) # ~5km roughly
+        radius = request.query_params.get('radius_km') or request.query_params.get('radius') or 5
 
         if not lat or not lon:
             return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -268,16 +303,12 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         try:
             lat = float(lat)
             lon = float(lon)
-        except ValueError:
-            return Response({'error': 'Invalid coordinate values'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Basic bounding box filter - fast enough for SQLite without spatial extensions
-        nearby_wells = AquiferData.objects.filter(
-            latitude__gte=lat - radius_deg,
-            latitude__lte=lat + radius_deg,
-            longitude__gte=lon - radius_deg,
-            longitude__lte=lon + radius_deg
-        )
+            radius_km = float(radius)
+            
+            queryset = AquiferData.objects.all()
+            nearby_wells = self.spatial_nearby(queryset, lat, lon, radius_km)
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid numeric parameters'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not nearby_wells.exists():
             return Response({
@@ -286,11 +317,8 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
                 'averages': None
             })
 
-        # Calculate averages for each year (2015-2024)
+        # Calculate averages for all years in a single optimized DB query
         years = range(2015, 2025)
-        averages = {}
-        
-        # Prepare annotation mapping
         agg_map = {}
         for year in years:
             agg_map[f'pre_{year}'] = Avg(f'pre_{year}')
@@ -298,17 +326,30 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         
         results = nearby_wells.aggregate(**agg_map)
         
-        # Format the output
+        # Format the output efficiently
+        averages = {}
         for year in years:
+            pre_val = results[f'pre_{year}']
+            pst_val = results[f'pst_{year}']
+            
+            avg_val = None
+            if pre_val is not None and pst_val is not None:
+                avg_val = round((pre_val + pst_val) / 2, 2)
+            elif pre_val is not None:
+                avg_val = round(pre_val, 2)
+            elif pst_val is not None:
+                avg_val = round(pst_val, 2)
+                
             averages[str(year)] = {
-                'pre': results[f'pre_{year}'],
-                'pst': results[f'pst_{year}']
+                'pre': round(pre_val, 2) if pre_val is not None else None,
+                'pst': round(pst_val, 2) if pst_val is not None else None,
+                'avg': avg_val
             }
 
         return Response({
             'latitude': lat,
             'longitude': lon,
             'count': nearby_wells.count(),
-            'radius_deg': radius_deg,
+            'radius_km': radius_km,
             'averages': averages
         })

@@ -1,7 +1,7 @@
 import { RAJASTHAN_DAMS_DATA } from '../data/damsData';
 import { getPolygonCentroid } from './mapUtils';
 
-export const getAttributeData = (filters, processedBlockData, neighbors, rainfallPoints, waterQualityRecords, aquiferRecords, selectedDams, canalData, waterbodyData, microData) => {
+export const getAttributeData = (filters, processedBlockData, neighbors, rainfallPoints, waterQualityRecords, aquiferRecords, selectedDams, canalData, waterbodyData, microData, rainfallStations, rainfallStationRecords) => {
     if (!filters || !filters.type) return null;
 
     if (filters.type === 'Ground Water Resource Estimation') {
@@ -187,6 +187,64 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
     if (filters.type === 'Rainfall') {
         const baseFeatures = (neighbors && neighbors.length > 0) ? neighbors : (rainfallPoints || []);
 
+        // ---------------------------------------------------------------------
+        // PRIORITY: Show Station Data if available (as requested by user)
+        // ---------------------------------------------------------------------
+        if (rainfallStations && rainfallStations.length > 0) {
+
+            // Group records by station for aggregation
+            const recordsByStation = (rainfallStationRecords || []).reduce((acc, record) => {
+                const sId = record.station || record.station_id;
+                if (!acc[sId]) acc[sId] = [];
+                acc[sId].push(record);
+                return acc;
+            }, {});
+
+            const stationFeatures = rainfallStations.filter(station => {
+                // Apply manual filters to stations if needed
+                if (filters.district) {
+                    return (station.district || '').toUpperCase() === filters.district.toUpperCase();
+                }
+                return true;
+            }).map((station, idx) => {
+                const sRecords = recordsByStation[station.id] || [];
+
+                // Calculate stats
+                const totalRainfall = sRecords.reduce((sum, r) => sum + (r.rainfall_mm || 0), 0);
+                const avgRainfall = sRecords.length > 0 ? totalRainfall / sRecords.length : 0;
+
+                // Get latest record
+                const latestRecord = sRecords.length > 0
+                    ? sRecords.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+                    : null;
+
+                return {
+                    type: 'Feature',
+                    id: `station-${station.id}`,
+                    properties: {
+                        'Category': 'Rainfall Station',
+                        'Station Name': station.name,
+                        'District': station.district,
+                        'Latest Date': latestRecord ? latestRecord.date : 'N/A',
+                        'Latest Rainfall (mm)': latestRecord ? Number(latestRecord.rainfall_mm).toFixed(2) : '0.00',
+                        'Total Rainfall (mm)': totalRainfall.toFixed(2),
+                        'Avg Rainfall (mm)': avgRainfall.toFixed(2),
+                        'Record Count': sRecords.length
+                    },
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [station.longitude, station.latitude]
+                    }
+                };
+            });
+
+            return {
+                type: 'FeatureCollection',
+                features: stationFeatures
+            };
+        }
+
+        // Fallback to existing village data logic
         return {
             type: 'FeatureCollection',
             features: baseFeatures.filter(item => {
@@ -203,10 +261,6 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
                 const matchGP = !filters.gramPanchayat || gp === filters.gramPanchayat.trim().toUpperCase();
                 const matchVillage = !filters.village || vill === filters.village.trim().toUpperCase();
 
-                // If specialized filters (GP/Village) are active, and we have records, 
-                // we should be careful not to filter out records that the backend specifically returned for us.
-                // If the records don't have district/block names but are already in the array 
-                // (because the backend filtered them for us), we might want to include them.
                 if ((filters.village || filters.gramPanchayat) && rainfallPoints.length > 0) {
                     const villageMatch = !filters.village || vill === filters.village.trim().toUpperCase();
                     const gpMatch = !filters.gramPanchayat || gp === filters.gramPanchayat.trim().toUpperCase();

@@ -159,22 +159,59 @@
 
 /* Responsiveness */
 @media (max-width: 768px) {
+    .header-container {
+        height: var(--header-height);
+        overflow: hidden;
+    }
+
     .top-bar-content {
         display: none;
-        /* Hide top bar on mobile as per design */
+    }
+
+    .main-content {
+        padding: 0 12px;
+        height: 100%;
     }
 
     .department-name {
-        font-size: 1rem;
+        font-size: 0.85rem;
+        line-height: 1.2;
+        max-width: 200px;
     }
 
     .govt-name {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
+        margin-top: 2px;
     }
 
     .logo-wrapper,
     .emblem-wrapper {
-        width: 48px;
-        height: 48px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .branding-section {
+        gap: 10px;
+    }
+
+    .separator-line {
+        height: 32px !important;
+        width: 2px;
+    }
+}
+
+@media (max-width: 480px) {
+    .department-name {
+        font-size: 0.75rem;
+        max-width: 160px;
+    }
+
+    .logo-wrapper {
+        width: 32px;
+        height: 32px;
+    }
+
+    .emblem-wrapper {
+        display: none;
     }
 }

@@ -44,6 +44,7 @@
 .data-analysis-sidebar.expanded-layout .rainfall-grid,
 .data-analysis-sidebar.expanded-layout .groundwater-analysis-grid,
 .data-analysis-sidebar.expanded-layout .well-inventory-section,
+.data-analysis-sidebar.expanded-layout .well-inventory-container,
 .data-analysis-sidebar.expanded-layout .well-inventory-section-wrapper {
     grid-column: span 2;
     margin-bottom: 1rem;
@@ -166,6 +167,7 @@
 /* Side Sections */
 .sidebar-section {
     margin-bottom: 2.5rem;
+    width: 100%;
 }
 
 .section-header-flat h3 {
@@ -279,15 +281,25 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
+    width: 100%;
 }
 
-.analysis-card {
+.analysis-card,
+.rainfall-card,
+.water-quality-mini-card {
     background: white;
-    padding: 1rem;
-    border-radius: var(--border-radius-md);
+    padding: 1.5rem;
+    border-radius: var(--border-radius-lg);
     border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-smooth);
     display: flex;
     flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+    width: 100%;
 }
 
 .analysis-card.primary {
@@ -445,14 +457,23 @@
     margin-bottom: 2rem;
 }
 
-/* New Grid Layout for Rainfall, Water Quality and Ground Water */
+/* Baseline Grid Layouts */
 .rainfall-grid,
 .water-quality-grid,
 .groundwater-analysis-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 1.25rem;
     overflow-x: hidden;
+    width: 100%;
+}
+
+.water-quality-parameter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.25rem;
+    grid-column: span 1;
+    width: 100%;
 }
 
 /* If the sidebar is expanded, use 2 columns for Ground Water and Rainfall (2x2) */
@@ -466,13 +487,34 @@
     grid-column: span 2;
     display: grid;
     gap: 1.5rem;
+    align-items: start;
+}
+
+/* Water Quality Parameter Grid - Always use auto-fill for many mini-cards */
+.data-analysis-sidebar.expanded-layout .water-quality-parameter-grid,
+.data-analysis-sidebar[data-expanded="true"] .water-quality-parameter-grid {
+    grid-column: span 2;
+}
+
+.wqi-status-card {
+    background: white !important;
+    padding: 1.5rem !important;
+    box-shadow: var(--shadow-sm) !important;
+    grid-column: 1 / -1;
+}
+
+.data-analysis-sidebar.expanded-layout .wqi-status-card,
+.data-analysis-sidebar[data-expanded="true"] .wqi-status-card {
+    grid-column: span 1;
 }
 
 /* Removed the 3-column override for water quality to maintain 2x2 consistency */
 
 
-.data-analysis-sidebar.expanded-layout .analysis-card.full-width {
-    grid-column: 1 / -1;
+.data-analysis-sidebar.expanded-layout .analysis-card.full-width,
+.data-analysis-sidebar.expanded-layout .full-width {
+    grid-column: span 2;
+    width: 100%;
 }
 
 /* Individual Cards */
@@ -484,12 +526,13 @@
     border: 1px solid var(--border-light);
     box-shadow: var(--shadow-sm);
     transition: var(--transition-smooth);
-    margin-bottom: 0;
-    /* Let the grid handle gap */
     display: flex;
     flex-direction: column;
     align-items: center;
+    /* Center-align for parameter charts */
     text-align: center;
+    height: 100%;
+    min-height: 120px;
 }
 
 .rainfall-card:hover,
@@ -613,6 +656,16 @@
     border-radius: var(--border-radius-md);
     box-shadow: var(--shadow-lg);
     border: none;
+    pointer-events: none !important;
+    z-index: 10000 !important;
+    position: relative;
+    border: 1px solid var(--border-light);
+}
+
+/* Global Recharts Tooltip Fix */
+.recharts-tooltip-wrapper {
+    z-index: 10000 !important;
+    pointer-events: none !important;
 }
 
 .tooltip-title {
@@ -628,26 +681,96 @@
     margin: 0.25rem 0;
 }
 
+/* Parameter Chart Specifics */
+.parameter-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 0.5rem;
+}
 
+.parameter-stats {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin: 8px 0;
+    line-height: 1.5;
+}
+
+.parameter-status {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.parameter-status.safe {
+    color: #2a9d8f;
+    background: rgba(42, 157, 143, 0.08);
+}
+
+.parameter-status.exceeded {
+    color: #e63946;
+    background: rgba(230, 57, 70, 0.08);
+}
+
+
+
+.card-legend-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin: 1rem 0 1.5rem 0;
+    width: 100%;
+}
+
+.legend-item-inline {
+    display: flex;
+    align-items: center;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.legend-item-inline .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
 
 .status-summary-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
+    gap: 0.75rem;
     margin-top: 1.5rem;
+    width: 100%;
 }
 
 .status-mini-card {
-    background: var(--bg-muted);
-    padding: 1rem;
+    background: #f8fafc;
+    padding: 1.25rem 0.5rem;
     border-radius: var(--border-radius-md);
+    border: 1px solid var(--border-light);
     border-left: 4px solid #ccc;
     display: flex;
     flex-direction: column;
+    align-items: center;
+    text-align: center;
     justify-content: center;
     transition: var(--transition-smooth);
-    border: 1px solid var(--border-light);
-    border-left-width: 4px;
+    min-height: 80px;
+}
+
+.status-mini-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    background: white;
+    border-color: var(--secondary-blue);
 }
 
 .status-mini-card .mini-val {
@@ -655,6 +778,7 @@
     font-weight: 800;
     color: var(--dark-blue);
     line-height: 1.2;
+    margin-bottom: 0.25rem;
 }
 
 .status-mini-card .mini-label {
@@ -663,7 +787,6 @@
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-top: 0.25rem;
 }
 
 @keyframes slideUp {
@@ -698,4 +821,84 @@
     background-color: #f1f5f9;
     color: #64748b;
     border: 1px solid #cbd5e1;
+}
+
+/* --- Mobile Responsiveness --- */
+@media screen and (max-width: 1024px) {
+
+    .data-analysis-sidebar.expanded-layout,
+    .data-analysis-sidebar[data-expanded="true"] {
+        width: 100vw !important;
+        min-width: 100vw !important;
+        max-width: 100vw !important;
+        flex-basis: 100vw !important;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .data-analysis-sidebar {
+        width: 100vw !important;
+        height: 100% !important;
+    }
+
+    .sidebar-content {
+        padding: 1rem;
+    }
+
+    .overview-stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        padding: 1rem;
+    }
+
+    .stat-card .stat-value {
+        font-size: 1.5rem;
+    }
+
+    .region-header h2 {
+        font-size: 1rem;
+    }
+
+    .analysis-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .data-analysis-sidebar.expanded-layout .sidebar-content,
+    .data-analysis-sidebar[data-expanded="true"] .sidebar-content {
+        grid-template-columns: 1fr;
+    }
+
+    .data-analysis-sidebar.expanded-layout .rainfall-grid,
+    .data-analysis-sidebar[data-expanded="true"] .rainfall-grid,
+    .data-analysis-sidebar.expanded-layout .groundwater-analysis-grid,
+    .data-analysis-sidebar[data-expanded="true"] .groundwater-analysis-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .overview-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .analysis-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .status-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .view-switcher {
+        flex-direction: column;
+        padding: 8px;
+    }
+
+    .view-tab {
+        padding: 10px;
+    }
 }

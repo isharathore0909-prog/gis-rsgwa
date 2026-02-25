@@ -1,6 +1,4 @@
 import React from 'react';
-
-// Styles
 import './DataAnalysisSidebar.css';
 
 // Sub-components
@@ -12,8 +10,9 @@ import AquiferSection from './DataAnalysis/AquiferSection';
 import WellInventorySection from './DataAnalysis/WellInventorySection';
 import RechargeStructureSection from './DataAnalysis/RechargeStructureSection';
 
-// Hooks
+// Hooks & Context
 import { useDataAnalysis } from '../hooks/useDataAnalysis';
+import { useAppContext } from '../context/AppContext';
 
 // Utils
 import { getParameterColor } from '../data/blockWaterQualityData';
@@ -22,27 +21,38 @@ import { getParameterColor } from '../data/blockWaterQualityData';
  * DataAnalysisSidebar Component
  * 
  * Manages the right sidebar for data analysis across different layers.
- * Logic is delegated to the useDataAnalysis hook.
+ * Logic is delegated to the useDataAnalysis hook and AppContext.
  */
 const DataAnalysisSidebar = ({
-    clickedLocation,
     neighbors,
-    filters: globalFilters,
     blockData,
     rainfallPoints = [],
-    isControlsSidebarCollapsed,
     selectedWellInventory = [],
     onToggleWellInventory,
     onClearWellInventory,
-    onSetWellInventory
+    onSetWellInventory,
+    rainfallStations = [],
+    rainfallStationRecords = [],
+    rainfallLoading: parentRainfallLoading,
+    waterQualityLoading: parentWaterQualityLoading,
+    aquiferLoading: parentAquiferLoading,
+    rechargeLoading: parentRechargeLoading,
+    className = ''
 }) => {
+    const {
+        filters: globalFilters,
+        clickedLocation,
+        isControlsSidebarCollapsed
+    } = useAppContext();
+
     // Delegate data processing to the hook
     const {
         isGWRE, isRainfall, isWaterQuality, isAquifer, isWellInventory, isRechargeStructure,
         displayRegion, displayBlock, analysisLevel, analysisName, neighbor,
         pieData, totalBlocks, waterLevelChartData,
-        qualityData, blockWaterQualityData, waterQualityLoading, waterQualityStats,
+        qualityData, blockWaterQualityData, waterQualityLoading, waterQualityStats, waterQualityAvailability,
         aquiferData, aquiferLoading,
+        aquiferSpatialFilterApplied, aquiferTotalArea, aquiferTotalCount,
         rainfallStats, rainfallSummaryData, rainfallLoading,
         rechargeStats, rechargeLoading
     } = useDataAnalysis({
@@ -50,12 +60,18 @@ const DataAnalysisSidebar = ({
         clickedLocation,
         neighbors,
         blockData,
-        rainfallPoints
+        rainfallPoints,
+        rainfallStations,
+        rainfallStationRecords,
+        parentRainfallLoading,
+        parentWaterQualityLoading,
+        parentAquiferLoading,
+        parentRechargeLoading
     });
 
     return (
         <aside
-            className={`data-analysis-sidebar ${isControlsSidebarCollapsed ? 'expanded-layout' : ''}`}
+            className={`data-analysis-sidebar ${isControlsSidebarCollapsed ? 'expanded-layout' : ''} ${className}`}
             data-expanded={isControlsSidebarCollapsed}
         >
             <div className="sidebar-content">
@@ -86,6 +102,7 @@ const DataAnalysisSidebar = ({
                         qualityData={qualityData}
                         isControlsSidebarCollapsed={isControlsSidebarCollapsed}
                         isDatabaseData={waterQualityStats?.total_records > 0}
+                        waterQualityAvailability={waterQualityAvailability}
                         isLoading={waterQualityLoading}
                     />
                 )}
@@ -111,6 +128,7 @@ const DataAnalysisSidebar = ({
                         blockWaterQualityData={blockWaterQualityData}
                         getParameterColor={getParameterColor}
                         isExpanded={isControlsSidebarCollapsed}
+                        isLoading={aquiferLoading}
                     />
                 )}
 
@@ -121,24 +139,40 @@ const DataAnalysisSidebar = ({
                         data={aquiferData}
                         isLoading={aquiferLoading}
                         isExpanded={isControlsSidebarCollapsed}
+                        spatialFilterApplied={aquiferSpatialFilterApplied}
+                        totalArea={aquiferTotalArea}
+                        totalCount={aquiferTotalCount}
                     />
                 )}
 
                 {isWellInventory && (
-                    <WellInventorySection
-                        displayRegion={displayRegion}
-                        displayBlock={displayBlock}
-                        analysisLevel={analysisLevel}
-                        globalFilters={globalFilters}
-                        selectedWell={neighbor?.type === 'well_inventory_well' ? neighbor : null}
-                        selectedFeature={neighbor}
-                        clickedLocation={clickedLocation}
-                        isExpanded={isControlsSidebarCollapsed}
-                        selectedWellInventory={selectedWellInventory}
-                        onToggleWellInventory={onToggleWellInventory}
-                        onClearWellInventory={onClearWellInventory}
-                        onSetWellInventory={onSetWellInventory}
-                    />
+                    <>
+                        <WellInventorySection
+                            displayRegion={displayRegion}
+                            displayBlock={displayBlock}
+                            analysisLevel={analysisLevel}
+                            globalFilters={globalFilters}
+                            selectedWell={neighbor?.type === 'well_inventory_well' ? neighbor : null}
+                            selectedFeature={neighbor}
+                            clickedLocation={clickedLocation}
+                            isExpanded={isControlsSidebarCollapsed}
+                            selectedWellInventory={selectedWellInventory}
+                            onToggleWellInventory={onToggleWellInventory}
+                            onClearWellInventory={onClearWellInventory}
+                            onSetWellInventory={onSetWellInventory}
+                            rainfallStations={rainfallStations}
+                        />
+                        <AquiferSection
+                            displayRegion={displayRegion}
+                            displayBlock={displayBlock}
+                            data={aquiferData}
+                            isLoading={aquiferLoading}
+                            isExpanded={isControlsSidebarCollapsed}
+                            spatialFilterApplied={aquiferSpatialFilterApplied}
+                            totalArea={aquiferTotalArea}
+                            totalCount={aquiferTotalCount}
+                        />
+                    </>
                 )}
             </div>
         </aside>

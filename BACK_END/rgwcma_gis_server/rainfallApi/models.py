@@ -12,8 +12,8 @@ class Rainfall(models.Model):
     gauge_type = models.CharField(max_length=50, choices=GAUGE_TYPE_CHOICES, default='manual')
     rainfall_mm = models.FloatField(help_text="Rainfall in millimeters")
     date = models.DateField(db_index=True)
-    latitude = models.FloatField(null=True, blank=True)
-    longitude = models.FloatField(null=True, blank=True)
+    latitude = models.FloatField(null=True, blank=True, db_index=True)
+    longitude = models.FloatField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -40,3 +40,29 @@ class Rainfall(models.Model):
     def __str__(self):
         return f"{self.village.name} - {self.date} - {self.rainfall_mm}mm"
 
+
+
+class RainfallStation(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    district = models.CharField(max_length=255, null=True, blank=True)
+    latitude = models.FloatField(db_index=True)
+    longitude = models.FloatField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.district})"
+
+class StationRainfall(models.Model):
+    station = models.ForeignKey(RainfallStation, related_name='rainfall_data', on_delete=models.CASCADE)
+    date = models.DateField(db_index=True)
+    rainfall_mm = models.FloatField(help_text="Rainfall in millimeters")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date']
+        unique_together = ('station', 'date')
+
+    def __str__(self):
+        return f"{self.station.name} - {self.date} - {self.rainfall_mm}mm"

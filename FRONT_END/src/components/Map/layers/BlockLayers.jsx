@@ -15,13 +15,25 @@ export const BlockBoundaryLayer = React.memo(({
     geoJsonRef,
     onLocationClick
 }) => {
+    // Filter blocks to only show the selected block if one is selected
+    const filteredData = React.useMemo(() => {
+        if (!data || !filters?.block) return data;
+
+        const features = data.features.filter(f => {
+            const name = f.properties.BLOCK_NAME || f.properties.Block;
+            return name?.toString().toLowerCase() === filters.block.toLowerCase();
+        });
+
+        return { ...data, features };
+    }, [data, filters?.block]);
+
     if (!data) return null;
 
     return (
         <GeoJSON
-            key={`geojson-${filters?.type}-${legendFeature}-${filters?.district || 'all'}`}
+            key={`geojson-${filters?.type}-${legendFeature}-${filters?.district || 'all'}-${filters?.block || 'all'}`}
             ref={geoJsonRef}
-            data={data}
+            data={filteredData}
             style={(feature) => {
                 const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
 
@@ -42,9 +54,9 @@ export const BlockBoundaryLayer = React.memo(({
                 if (isSelected) {
                     return {
                         fillColor: isThematic ? getFeatureColor(val, legendData) : 'transparent',
-                        weight: 4,
-                        color: '#00ffff', // Cyan highlight
-                        fillOpacity: isThematic ? (hasData ? 0.9 : 0) : 0.2,
+                        weight: 3.5,
+                        color: '#059669', // Emerald highlight to match SelectionHighlightLayer
+                        fillOpacity: isThematic ? (hasData ? 0.9 : 0) : 0, // No fill for selection unless thematic
                         dashArray: ''
                     };
                 }
@@ -76,7 +88,12 @@ export const BlockBoundaryLayer = React.memo(({
                 layer.on({
                     mouseover: e => {
                         const l = e.target;
-                        l.setStyle({ weight: 2.5, color: '#475569', fillOpacity: 1 });
+                        const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
+                        l.setStyle({
+                            weight: 2.5,
+                            color: '#475569',
+                            fillOpacity: isThematic ? 1 : 0
+                        });
                         l.bringToFront();
                     },
                     mouseout: e => {
@@ -107,7 +124,7 @@ export const DrillDownBoundariesLayer = ({
     onLocationClick,
     geoJsonRef
 }) => {
-    if (!data || !filters?.village) return null;
+    if (!data) return null;
 
     return (
         <GeoJSON
@@ -126,25 +143,69 @@ export const DrillDownBoundariesLayer = ({
                 const level = feature.properties.level || currentLevel;
                 const isDist = level === 'district';
                 const isBlock = level === 'block';
+
+                // Only show boundaries for the CURRENT level of exploration.
+                // If nothing selected -> show districts.
+                // If district selected -> show blocks.
+                // If block selected -> hide these boundaries (as selection highlight handles it).
+                let isRelevantLevel = false;
+                if (!filters?.district) isRelevantLevel = isDist;
+                else if (!filters?.block) isRelevantLevel = isBlock;
+
+                // CRITICAL: Even if level matches, verify PARENT matches to prevent ghosts
+                // from the previous district/block showing at the wrong coordinates.
+                if (isRelevantLevel && filters?.district && isBlock) {
+                    const featDist = (feature.properties.DIST_NAME || feature.properties.District || feature.properties.district || '').toString().toUpperCase();
+                    if (featDist && featDist.replace(/[^A-Z0-9]/g, '') !== filters.district.toUpperCase().replace(/[^A-Z0-9]/g, '')) {
+                        isRelevantLevel = false;
+                    }
+                }
+
+                if (!isRelevantLevel) {
+                    return {
+                        fillColor: 'transparent',
+                        fillOpacity: 0,
+                        color: 'transparent',
+                        weight: 0,
+                        interactive: false
+                    };
+                }
+
                 return {
-                    fillColor: isDist ? '#3b82f6' : (isBlock ? '#10b981' : '#f59e0b'),
-                    fillOpacity: isDist ? 0.4 : 0.45,
-                    color: isDist ? '#172554' : (isBlock ? '#059669' : '#d97706'),
-                    weight: isDist ? 3.5 : 2
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    color: isDist ? '#1e40af' : '#059669', // Blue for Dist, Emerald for Block
+                    weight: isDist ? 2.5 : 2
                 };
             }}
             onEachFeature={(feature, layer) => {
-                const name = feature.properties.name || feature.properties.BLOCK_NAME ||
-                    feature.properties.DIST_NAME || feature.properties.v_name || 'Unknown';
+                const props = feature.properties;
+                const level = props.level || currentLevel;
+                const name = props.name || props.BLOCK_NAME ||
+                    props.DIST_NAME || props.vllg_name || props.v_name || 'Unknown';
+
+                // Only handle tooltips and clicks for the level currently being explored
+                let isRelevantLevel = false;
+                if (!filters?.district) isRelevantLevel = level === 'district';
+                else if (!filters?.block) isRelevantLevel = level === 'block';
+
+                if (!isRelevantLevel) return;
+
+                // Bind tooltip with level info
+                const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
+                layer.bindTooltip(`
+                    <div style="font-size: 10px; color: #64748b; margin-bottom: 2px;">${levelLabel}</div>
+                    <div style="font-weight: bold;">${name}</div>
+                `, { sticky: true });
                 layer.on({
                     mouseover: e => {
                         const l = e.target;
                         const level = feature.properties.level || currentLevel;
                         const isDist = level === 'district';
                         l.setStyle({
-                            fillOpacity: 0.7,
-                            weight: isDist ? 5 : 3.5,
-                            color: isDist ? '#27272a' : '#047857'
+                            fillOpacity: isDist ? 0 : 0.05, // Very minimal fill on hover for interactivity feedback
+                            weight: isDist ? 3 : 2.5,
+                            color: isDist ? '#1d4ed8' : '#059669'
                         });
                         l.bringToFront();
                     },

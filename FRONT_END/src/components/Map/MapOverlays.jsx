@@ -98,7 +98,7 @@ export const LegendToggle = ({
             <span style={{ color: showLegend ? '#ffffff' : '#64748b', display: 'flex' }}>
                 <IconLayers />
             </span>
-            <span className="toggle-text">LEGEND</span>
+            <span className="toggle-text">Legend</span>
             <span className="toggle-icon">{showLegend ? '−' : '+'}</span>
         </div>
     );
@@ -127,7 +127,7 @@ export const LegendWidget = ({
                     <span style={{ color: '#ffffff', display: 'flex' }}>
                         <IconLayers />
                     </span>
-                    <h4>Thematic Layers</h4>
+                    <h4>Legend</h4>
                 </div>
                 <button className="legend-hide-btn" onClick={onHide}>Hide</button>
             </div>
@@ -187,7 +187,19 @@ export const MapWarning = ({ layerType, isRainfallDataEmpty, isLoading }) => {
         'Recharge Structure'
     ];
 
-    if (isLoading) return null;
+    if (isLoading) {
+        return (
+            <div className="map-warning-overlay animated-fade-in" style={{ top: '10%' }}>
+                <div className="warning-content loading-content">
+                    <div className="spinner-small"></div>
+                    <div className="warning-text">
+                        <h3>Loading Layer Data...</h3>
+                        <p>Fetching spatial information for <strong>{layerType || 'Map'}</strong></p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (layerType === 'Rainfall' && (!supportedLayers.includes(layerType) || isRainfallDataEmpty)) {
         return (

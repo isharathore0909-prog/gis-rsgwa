@@ -29,10 +29,18 @@ export const BACKEND_API = {
         RAINFALL_SUMMARY: '/rainfall/records/summary/',
         RAINFALL_NEARBY: '/rainfall/records/nearby/',
         RAINFALL_DISTRICT_WISE: '/rainfall/records/district_wise/',
+        RAINFALL_STATIONS: '/rainfall/station-records/stations/',
+        RAINFALL_STATION_RECORDS: '/rainfall/station-records/',
+        RAINFALL_STATION_STATISTICS: '/rainfall/station-records/statistics/',
+        RAINFALL_STATION_SUMMARY: '/rainfall/station-records/summary/',
+        RAINFALL_STATION_DISTRICT_WISE: '/rainfall/station-records/district_wise/',
         WATER_QUALITY: '/water-quality/',
         WATER_QUALITY_STATISTICS: '/water-quality/statistics/',
+        WATER_QUALITY_AVAILABILITY: '/water-quality-availability/',
+        WATER_QUALITY_AVAILABILITY_STATISTICS: '/water-quality-availability/statistics/',
         AQUIFER: '/aquifer/',
         AQUIFER_STATISTICS: '/aquifer/statistics/',
+        AQUIFER_YEARLY_STATISTICS: '/aquifer/yearly_statistics/',
         AQUIFER_NEARBY: '/aquifer/nearby/',
         RECHARGE_STRUCTURE: '/recharge-structure/',
         RECHARGE_STRUCTURE_STATISTICS: '/recharge-structure/statistics/',
@@ -41,6 +49,12 @@ export const BACKEND_API = {
         LOGIN: '/account/login/',
         REGISTER: '/account/register/',
         TOKEN_REFRESH: '/account/token/refresh/',
+        PIEZOMETER: '/piezometer/piezometers/',
+
+        // Spatial Layer endpoints
+        SPATIAL_LAYERS: '/spatial/layers/',
+        SPATIAL_LAYERS_STATISTICS: '/spatial/layers/statistics/',
+        SPATIAL_LAYERS_INTERSECT: '/spatial/layers/intersect/',
     }
 };
 

@@ -1,4 +1,19 @@
 services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: rgwcma-gis-db
+    environment:
+      - POSTGRES_DB=${DB_NAME:-rgwcma_db}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - rgw-network
+    restart: always
+
   rgw-server:
     build:
       context: ./BACK_END/rgwcma_gis_server
@@ -11,6 +26,8 @@ services:
     volumes:
       - ./BACK_END/rgwcma_gis_server/media:/app/media
       - ./BACK_END/rgwcma_gis_server/data:/app/data
+    depends_on:
+      - db
     restart: always
     networks:
       - rgw-network
@@ -31,3 +48,6 @@ services:
 networks:
   rgw-network:
     driver: bridge
+
+volumes:
+  postgres_data:

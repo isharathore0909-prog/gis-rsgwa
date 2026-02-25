@@ -1,10 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid,
-    ResponsiveContainer, Tooltip, Legend
+    Tooltip, Legend, ComposedChart, Line, LabelList
 } from 'recharts';
 import AnalysisCard from './Common/AnalysisCard';
 import MiniStatusCard from './Common/MiniStatusCard';
+import SmartChartContainer from './Common/SmartChartContainer';
+import { calculateLinearTrendLine } from '../../utils/statsUtils';
+import './RainfallSection.css';
 
 const RainfallSection = ({
     displayRegion,
@@ -15,86 +18,78 @@ const RainfallSection = ({
     isExpanded,
     isLoading
 }) => {
-    // Normalize viewType to lowercase (e.g., 'Daily' -> 'daily')
     const viewType = propViewType.toLowerCase();
 
     const aggregatedData = useMemo(() => {
         if (!rainfallPoints || !Array.isArray(rainfallPoints) || rainfallPoints.length === 0) return [];
 
-        // Check if data is already aggregated by backend (contains 'name' and 'total' properties)
         const isPreAggregated = rainfallPoints[0].name && rainfallPoints[0].total !== undefined && !rainfallPoints[0].date && !rainfallPoints[0].rainfall_mm;
-        if (isPreAggregated) return rainfallPoints;
-
-        if (viewType === 'daily') {
-            const grouped = rainfallPoints.reduce((acc, curr) => {
-                const date = curr.date || curr.rainfall_date;
-                if (!acc[date]) acc[date] = { name: date, total: 0, count: 0 };
-                acc[date].total += (curr.rainfall_mm || curr.rainfall_in_mm || 0);
-                acc[date].count += 1;
-                return acc;
-            }, {});
-            return Object.values(grouped).map(d => ({ ...d, average: parseFloat((d.total / d.count).toFixed(2)) })).sort((a, b) => new Date(a.name) - new Date(b.name));
+        if (isPreAggregated) {
+            const trend = calculateLinearTrendLine(rainfallPoints, 'average');
+            return rainfallPoints.map((d, i) => ({ ...d, trend: trend ? trend[i] : null }));
         }
 
-        if (viewType === 'monthly') {
-            const grouped = rainfallPoints.reduce((acc, curr) => {
-                const date = new Date(curr.date || curr.rainfall_date);
-                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                if (!acc[monthKey]) acc[monthKey] = { name: monthKey, total: 0, count: 0 };
-                acc[monthKey].total += (curr.rainfall_mm || curr.rainfall_in_mm || 0);
-                acc[monthKey].count += 1;
-                return acc;
-            }, {});
-            return Object.values(grouped).map(d => ({ ...d, average: parseFloat((d.total / d.count).toFixed(2)) })).sort((a, b) => a.name.localeCompare(b.name));
-        }
+        const getUniqueId = (item) => item.station || item.station_id || item.village || item.id || JSON.stringify(item.properties);
 
-        if (viewType === 'yearly') {
-            const grouped = rainfallPoints.reduce((acc, curr) => {
-                const date = new Date(curr.date || curr.rainfall_date);
-                const yearKey = `${date.getFullYear()}`;
-                if (!acc[yearKey]) acc[yearKey] = { name: yearKey, total: 0, count: 0 };
-                acc[yearKey].total += (curr.rainfall_mm || curr.rainfall_in_mm || 0);
-                acc[yearKey].count += 1;
-                return acc;
-            }, {});
-            return Object.values(grouped).map(d => ({ ...d, average: parseFloat((d.total / d.count).toFixed(2)) })).sort((a, b) => a.name.localeCompare(b.name));
-        }
+        const parseDate = (d) => {
+            if (!d) return null;
+            const parsed = new Date(d);
+            return isNaN(parsed.getTime()) ? null : parsed;
+        };
 
-        return [];
+        const grouped = rainfallPoints.reduce((acc, curr) => {
+            const date = parseDate(curr.date || curr.rainfall_date);
+            if (!date) return acc;
+
+            let key;
+            if (viewType === 'daily') key = curr.date || curr.rainfall_date;
+            else if (viewType === 'monthly') key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            else if (viewType === 'yearly') key = `${date.getFullYear()}`;
+            else return acc;
+
+            if (!acc[key]) acc[key] = { name: key, total: 0, uniqueIds: new Set() };
+            acc[key].total += (curr.rainfall_mm || curr.rainfall_in_mm || 0);
+            acc[key].uniqueIds.add(getUniqueId(curr));
+            return acc;
+        }, {});
+
+        const results = Object.values(grouped)
+            .map(d => ({
+                ...d,
+                average: d.uniqueIds.size > 0 ? parseFloat((d.total / d.uniqueIds.size).toFixed(2)) : 0
+            }))
+            .sort((a, b) => {
+                if (viewType === 'daily') return new Date(a.name) - new Date(b.name);
+                return a.name.localeCompare(b.name);
+            });
+
+        const trend = calculateLinearTrendLine(results, 'average');
+        return results.map((d, i) => ({
+            ...d,
+            trend: trend ? trend[i] : null
+        }));
     }, [rainfallPoints, viewType]);
 
-    if (isLoading) {
+    if (isLoading || !rainfallStats) {
         return (
             <div className="rainfall-grid animated-entry">
-                <AnalysisCard style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
-                    <div style={{ fontSize: '2rem', marginBottom: '1rem' }} className="spinner"></div>
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
-                        Loading rainfall data...
-                    </p>
+                <AnalysisCard className="full-width-card centered-loading">
+                    <div className="spinner"></div>
+                    <h3>Analyzing Rainfall Patterns</h3>
+                    <p>Fetching historical records and calculating trends for <strong>{displayRegion || 'Rajasthan'}</strong>...</p>
                 </AnalysisCard>
             </div>
         );
     }
 
-    const hasNoData = propViewType === 'loading' ||
-        (!rainfallStats && rainfallPoints.length === 0) ||
-        rainfallStats?.isEmpty;
-
+    const hasNoData = propViewType === 'loading' || rainfallStats?.isEmpty;
     if (hasNoData) {
         return (
             <div className="rainfall-grid animated-entry">
-                <AnalysisCard style={{
-                    gridColumn: '1 / -1',
-                    textAlign: 'center',
-                    padding: isExpanded ? '3rem' : '1.5rem',
-                    width: '100%',
-                    boxSizing: 'border-box'
-                }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🌧️</div>
-                    <h3 style={{ color: '#64748b', fontSize: '1.1rem' }}>Data Not Available</h3>
-                    <p style={{ color: '#94a3b8', fontSize: '0.85rem', maxWidth: '100%', margin: '0 auto' }}>
-                        Rainfall records for <strong>{displayRegion === 'Rajasthan' ? 'Statewide' : displayRegion}</strong> are not present in the database.
-                    </p>
+                <AnalysisCard className="full-width-card centered-loading">
+                    <div className="spinner"></div>
+                    <h3>Loading data...</h3>
+                    <p>Processing historical records and calculating trends for <strong>{displayRegion || 'Rajasthan'}</strong>...</p>
                 </AnalysisCard>
             </div>
         );
@@ -108,115 +103,80 @@ const RainfallSection = ({
                     : `Rainfall Overview: ${analysisLevel === 'State' ? 'Statewide' : displayRegion}`
             }>
                 <div className="status-summary-grid">
-                    {/* Always show Average Rainfall for all levels as requested (Averaging logic) */}
                     <MiniStatusCard
                         value={`${Number(rainfallStats?.avg_station_total ?? rainfallStats?.avg ?? 0).toFixed(2)} mm`}
                         label="Average Rainfall"
                         color="#2a9d8f"
                     />
-
                     <MiniStatusCard value={`${Number(rainfallStats?.avg ?? 0).toFixed(2)} mm`} label="Avg Reading" color="#457b9d" />
                     <MiniStatusCard value={`${rainfallStats?.count ?? 0}`} label="Total Records" color="#6366f1" />
                     <MiniStatusCard value={`${Number(rainfallStats?.max ?? 0).toFixed(2)} mm`} label="Highest Record" color="#f4a261" />
                 </div>
             </AnalysisCard>
 
-            <AnalysisCard title={`${viewType.toUpperCase()} Rainfall Trend (Average)`}>
-                <div className="bar-chart-wrapper" style={{ minHeight: isExpanded ? '320px' : '240px' }}>
-                    <ResponsiveContainer width="100%" height={isExpanded ? 320 : 240}>
-                        <BarChart data={aggregatedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                            <XAxis
-                                dataKey="name"
-                                tick={{ fontSize: 9 }}
-                                tickFormatter={(val) => {
-                                    if (viewType === 'daily') return val.split('-').slice(1).join('/');
-                                    return val;
-                                }}
-                            />
-                            <YAxis tick={{ fontSize: 10 }} />
-                            <Tooltip allowEscapeViewBox={{ x: true, y: true }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                            <Bar dataKey="average" name="Avg Rain (mm)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
+            <AnalysisCard title={`${viewType === 'yearly' ? 'Annual' : viewType.toUpperCase()} Rainfall Trend (mm)`}>
+                <SmartChartContainer height={isExpanded ? '320px' : '240px'} className="bar-chart-wrapper">
+                    <ComposedChart data={aggregatedData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                        <XAxis
+                            dataKey="name"
+                            tick={{ fontSize: 9 }}
+                            tickFormatter={(val) => {
+                                if (viewType === 'daily') return val.split('-').slice(1).join('/');
+                                return val;
+                            }}
+                        />
+                        <YAxis tick={{ fontSize: 10 }} domain={[0, (dataMax) => Math.ceil(dataMax * 1.15)]} />
+                        <Tooltip
+                            allowEscapeViewBox={{ x: true, y: true }}
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            formatter={(value) => [`${value.toFixed(1)} mm`, 'Rainfall']}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                        <Bar dataKey="average" name={viewType === 'yearly' ? 'Annual Rainfall' : 'Avg Rain (mm)'} fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                            {viewType === 'yearly' && (
+                                <LabelList dataKey="average" position="top" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 600 }} formatter={(val) => Math.round(val)} />
+                            )}
+                        </Bar>
+                        <Line type="monotone" dataKey="trend" name="Linear Trend" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeWidth={2} />
+                    </ComposedChart>
+                </SmartChartContainer>
             </AnalysisCard>
 
             <AnalysisCard title="Highest Recorded Sample">
                 {rainfallStats.maxVillage ? (
-                    <div style={{ padding: '0 1rem 1rem 1rem' }}>
-                        {/* Hero Value */}
-                        <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '1.5rem 0',
-                            borderBottom: '1px solid #f1f5f9',
-                            marginBottom: '1rem'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                                <span style={{
-                                    fontSize: '2.75rem',
-                                    fontWeight: '800',
-                                    color: '#0ea5e9',
-                                    lineHeight: '1',
-                                    letterSpacing: '-1px'
-                                }}>
-                                    {Number(rainfallStats?.max ?? 0).toFixed(1)}
-                                </span>
-                                <span style={{
-                                    fontSize: '1rem',
-                                    fontWeight: '600',
-                                    color: '#64748b',
-                                    marginLeft: '6px'
-                                }}>
-                                    mm
-                                </span>
+                    <div className="max-record-content">
+                        <div className="max-record-hero">
+                            <div className="max-record-value">
+                                <span className="max-value">{Number(rainfallStats?.max ?? 0).toFixed(1)}</span>
+                                <span className="max-unit">mm</span>
                             </div>
-                            <span style={{
-                                fontSize: '0.8rem',
-                                color: '#94a3b8',
-                                marginTop: '0.5rem',
-                                fontWeight: '600',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                            }}>
-                                Maximum Recorded
-                            </span>
+                            <span className="max-label">Maximum Recorded</span>
                         </div>
 
-                        {/* Details */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f43f5e' }}></span>
+                        <div className="max-details">
+                            <div className="detail-row">
+                                <span className="detail-label">
+                                    <span className="indicator" style={{ backgroundColor: '#f43f5e' }}></span>
                                     Location
                                 </span>
-                                <span style={{ fontSize: '0.95rem', color: '#334155', fontWeight: '600' }}>
-                                    {rainfallStats.maxVillage}
-                                </span>
+                                <span className="detail-value">{rainfallStats.maxVillage}</span>
                             </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#6366f1' }}></span>
+                            <div className="detail-row">
+                                <span className="detail-label">
+                                    <span className="indicator" style={{ backgroundColor: '#6366f1' }}></span>
                                     Date
                                 </span>
-                                <span style={{ fontSize: '0.95rem', color: '#334155', fontWeight: '600' }}>
-                                    {rainfallStats.maxDate}
-                                </span>
+                                <span className="detail-value">{rainfallStats.maxDate}</span>
                             </div>
                         </div>
                     </div>
                 ) : (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
-                        No record available for this selection
-                    </div>
+                    <div className="no-record-msg">No record available for this selection</div>
                 )}
             </AnalysisCard>
         </div>
     );
 };
 
-export default RainfallSection;
+export default React.memo(RainfallSection);

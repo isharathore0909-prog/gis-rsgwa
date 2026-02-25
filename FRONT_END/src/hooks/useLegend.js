@@ -40,12 +40,45 @@ export const useLegendData = (
             const distValues = hasDistStats ? Object.values(districtRainfall) : [];
             const pointValues = mapRainfallPoints.length ? mapRainfallPoints.map(p => p[feature]) : [];
 
-            if (hasDistStats || pointValues.length > 0) {
-                // Combine both to ensure the legend scale covers the state-wide background 
-                // AND the local details.
-                values = [...distValues, ...pointValues];
+            // Add block-level values if present (important for district drill-down)
+            const blockValues = (blockBoundaryData?.features || [])
+                .map(f => getFeatureProperty(f, feature))
+                .filter(v => v !== null && v !== undefined && typeof v === 'number');
+
+            if (hasDistStats || pointValues.length > 0 || blockValues.length > 0) {
+                // Combine all data sources to ensure the legend scale covers everything.
+                values = [...distValues, ...pointValues, ...blockValues];
             } else {
-                return [];
+                // Return default legend for Rainfall if no data (0-100 mm) so palette is visible
+                const min = 0;
+                const max = 100;
+                const range = max - min;
+                const step = range / numClasses;
+
+                // Always add "No Data" entry
+                const defaultLegend = Array.from({ length: numClasses }, (_, i) => {
+                    const rangeMin = min + (i * step);
+                    const rangeMax = min + ((i + 1) * step);
+                    // Better color distribution: map evenly across the blue palette
+                    const colorIndex = Math.min(
+                        Math.floor((i / (numClasses - 1)) * (BLUE_PALETTE.length - 1)),
+                        BLUE_PALETTE.length - 1
+                    );
+                    return {
+                        min: rangeMin, max: rangeMax,
+                        color: BLUE_PALETTE[colorIndex],
+                        label: `${rangeMin.toFixed(1)} mm - ${rangeMax.toFixed(1)} mm`,
+                        isCategorical: false
+                    };
+                });
+
+                defaultLegend.push({
+                    label: 'No Data',
+                    color: '#ccc',
+                    isCategorical: false
+                });
+
+                return defaultLegend;
             }
         }
         // Water Quality Layer
@@ -122,7 +155,12 @@ export const useLegendData = (
                     const rangeMin = min + (i * step);
                     const rangeMax = min + ((i + 1) * step);
                     const palette = isRainfall ? BLUE_PALETTE : THEMATIC_PALETTE;
-                    const colorIndex = Math.min(Math.floor((i / numClasses) * palette.length), palette.length - 1);
+                    // Better color distribution: map evenly across the palette
+                    // This ensures the full range of colors is used
+                    const colorIndex = Math.min(
+                        Math.floor((i / (numClasses - 1)) * (palette.length - 1)),
+                        palette.length - 1
+                    );
                     const unit = isRainfall ? ' mm' : '';
                     return {
                         min: rangeMin, max: rangeMax,

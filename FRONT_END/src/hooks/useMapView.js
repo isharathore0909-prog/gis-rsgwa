@@ -13,13 +13,19 @@ export const useMapView = ({
     validatedBlockData,
     selectedDistrictData,
     validatedBoundaries,
+    selectedBoundary,
     rainfallPoints,
-    searchCoordinates
+    searchCoordinates,
+    districtRainfall,
+    isLoading = false
 }) => {
     // --- Refs ---
     const mapRef = useRef(null);
     const [map, setMap] = useState(null);
     const ignoreMapClickRef = useRef(false);
+
+    // Track the last flyer target to prevent redundant calls
+    const lastFlyerTargetRef = useRef(null);
 
     // --- State ---
     const [selectedDam, setSelectedDam] = useState(null);
@@ -45,12 +51,24 @@ export const useMapView = ({
         if (!mapRef.current || !filters) return;
         const currentMap = mapRef.current;
 
-        const flyToLayer = (data) => {
+        const flyToLayer = (data, targetId) => {
             try {
                 if (!data) return false;
+
+                // If this is exactly the same target as before, don't fly again
+                if (targetId && lastFlyerTargetRef.current === targetId) return true;
+
                 const bounds = L.geoJSON(data).getBounds();
                 if (bounds.isValid()) {
-                    currentMap.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
+                    // Use tighter padding for lower levels (GP/Village) for a deeper zoom
+                    const isLowerLevel = !!(filters?.gramPanchayat || filters?.village);
+                    currentMap.flyToBounds(bounds, {
+                        padding: isLowerLevel ? [100, 100] : [50, 50],
+                        duration: 1.0,
+                        maxZoom: isLowerLevel ? 16 : 14
+                    });
+
+                    if (targetId) lastFlyerTargetRef.current = targetId;
                     return true;
                 }
             } catch (err) {
@@ -59,22 +77,34 @@ export const useMapView = ({
             return false;
         };
 
-        if (validatedBlockData && filters.block && filters.type !== 'Ground Water Resource Estimation') {
-            if (flyToLayer(validatedBlockData)) return;
+        // Priority 1: High-precision Drill-down Boundary
+        if (selectedBoundary) {
+            const bId = selectedBoundary.id || (selectedBoundary.features?.[0]?.id);
+            const targetId = `sb-${bId}-${filters?.district}-${filters?.block}`;
+            if (flyToLayer(selectedBoundary, targetId)) return;
         }
 
+        // Priority 2: Selected District (Rough/Static Fallback) - Always prioritized for fast feedback
         if (selectedDistrictData && filters.district) {
-            if (flyToLayer(selectedDistrictData)) return;
+            const targetId = `sdd-${filters.district}`;
+            if (flyToLayer(selectedDistrictData, targetId)) return;
         }
 
-        if (validatedBlockData && filters.district) {
-            if (flyToLayer(validatedBlockData)) return;
+        // Delay lower priority jumps if we are currently fetching high-precision data
+        if (isLoading) return;
+
+        // Priority 3: Validated Block Boundary (for specific block zoom)
+        if (validatedBlockData && filters.block && filters.type !== 'Ground Water Resource Estimation') {
+            const targetId = `vbd-${filters.district}-${filters.block}`;
+            if (flyToLayer(validatedBlockData, targetId)) return;
         }
 
+        // Priority 4: Dynamic Boundaries collection
         if (validatedBoundaries) {
-            flyToLayer(validatedBoundaries);
+            const bId = validatedBoundaries.id || 'coll';
+            if (flyToLayer(validatedBoundaries, `vb-${bId}`)) return;
         }
-    }, [validatedBlockData, selectedDistrictData, validatedBoundaries, filters?.district, filters?.block]);
+    }, [validatedBlockData, selectedDistrictData, validatedBoundaries, selectedBoundary, filters?.district, filters?.block, isLoading]);
 
     // --- Coordinate Search Effect ---
     useEffect(() => {
@@ -112,13 +142,20 @@ export const useMapView = ({
         if (ignoreMapClickRef.current) {
             return;
         }
+
+        // Special case: Allow click anywhere for Well Inventory layer
+        // This enables fetching nearby well data trend for arbitrary locations (any lat lon)
+        const allowEmptyClick = filters?.type === 'Well Inventory';
+
         // Only process clicks that have associated data (e.g. from layers or nearby markers)
-        // This prevents refreshes when clicking on empty map background or outside Rajasthan
-        if (!data || data.length === 0) {
+        // unless we are in the special 'allowEmptyClick' mode
+        if ((!data || data.length === 0) && !allowEmptyClick) {
+            console.log("useMapView: Click ignored - no data");
             return;
         }
+        console.log("useMapView: Processing click at", latlng, "Allow Empty:", allowEmptyClick);
         handleLocationClick(latlng, data);
-    }, [handleLocationClick]);
+    }, [handleLocationClick, filters]);
 
     const setIgnoreNextClick = useCallback(() => {
         ignoreMapClickRef.current = true;
@@ -141,13 +178,14 @@ export const useMapView = ({
         if (filters?.type !== 'Rainfall') return false;
 
         // If we have points, it's not empty. 
-        // We trust the backend-filtered rainfallPoints array.
         if (rainfallPoints && rainfallPoints.length > 0) return false;
 
-        // If we have no points, it's potentially empty, but we might be loading.
-        // For now, if active and truly 0, return true.
+        // If we have district choropleth data, it's also NOT empty.
+        if (districtRainfall && Object.keys(districtRainfall).length > 0) return false;
+
+        // If we have no points and no district data, it is empty.
         return true;
-    }, [filters?.type, rainfallPoints]);
+    }, [filters?.type, rainfallPoints, districtRainfall]);
 
     const showBlockBoundary = useMemo(() => {
         const isLayerActive = ['Ground Water Resource Estimation', 'Rainfall', 'Water Quality'].includes(filters?.type);

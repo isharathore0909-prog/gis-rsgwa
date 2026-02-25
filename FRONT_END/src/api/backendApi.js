@@ -11,6 +11,9 @@ class BackendAPIClient {
             timeout: API_CONFIG.TIMEOUT,
         });
 
+        // Simple cache for GET requests
+        this.cache = new Map();
+
         // Request Interceptor
         this.client.interceptors.request.use(
             (config) => {
@@ -18,14 +21,28 @@ class BackendAPIClient {
                 if (token && !config.headers['X-Auth-Key']) {
                     config.headers['Authorization'] = `Bearer ${token}`;
                 }
+
+                // If this is a GET request and we have it in cache, we'll handle it in the response interceptor
+                // or by returning a special config but Axios doesn't support returning data from request interceptor easily.
+                // We'll use a helper method instead.
                 return config;
             },
             (error) => Promise.reject(error)
         );
 
-        // Response Interceptor for Token Refresh
+        // Response Interceptor for Token Refresh and Caching
         this.client.interceptors.response.use(
-            (response) => response.data,
+            (response) => {
+                // Cache successful GET requests
+                if (response.config.method === 'get') {
+                    const cacheKey = response.config.url + JSON.stringify(response.config.params || {});
+                    this.cache.set(cacheKey, {
+                        data: response.data,
+                        timestamp: Date.now()
+                    });
+                }
+                return response.data;
+            },
             async (error) => {
                 const originalRequest = error.config;
 
@@ -53,29 +70,55 @@ class BackendAPIClient {
     }
 
     /**
+     * Cache-aware GET helper
+     */
+    async getCached(endpoint, params = {}, headers = {}) {
+        const cacheKey = endpoint + JSON.stringify(params || {});
+        const cached = this.cache.get(cacheKey);
+
+        // Use cache if it's less than 5 minutes old
+        if (cached && (Date.now() - cached.timestamp < 300000)) {
+            return cached.data;
+        }
+
+        return this.client.get(endpoint, { params, headers });
+    }
+
+    /**
      * Refresh authentication token
+     * Synchronized to prevent multiple concurrent refresh calls
      */
     async refreshToken() {
-        try {
-            const refreshToken = localStorage.getItem('refresh_token');
-            if (!refreshToken) return false;
-
-            const response = await axios.post(`${BACKEND_API.BASE_URL}${BACKEND_API.ENDPOINTS.TOKEN_REFRESH}`, {
-                refresh: refreshToken
-            });
-
-            if (response.data?.access) {
-                localStorage.setItem('access_token', response.data.access);
-                return true;
-            }
-
-            this.clearTokens();
-            return false;
-        } catch (error) {
-            console.error('Token refresh failed:', error);
-            this.clearTokens();
-            return false;
+        if (this.refreshPromise) {
+            return this.refreshPromise;
         }
+
+        this.refreshPromise = (async () => {
+            try {
+                const refreshToken = localStorage.getItem('refresh_token');
+                if (!refreshToken) return false;
+
+                const response = await axios.post(`${BACKEND_API.BASE_URL}${BACKEND_API.ENDPOINTS.TOKEN_REFRESH}`, {
+                    refresh: refreshToken
+                });
+
+                if (response.data?.access) {
+                    localStorage.setItem('access_token', response.data.access);
+                    return true;
+                }
+
+                this.clearTokens();
+                return false;
+            } catch (error) {
+                console.error('Token refresh failed:', error);
+                this.clearTokens();
+                return false;
+            } finally {
+                this.refreshPromise = null;
+            }
+        })();
+
+        return this.refreshPromise;
     }
 
     /**
@@ -92,16 +135,14 @@ class BackendAPIClient {
     clearTokens() {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        this.cache.clear(); // Clear cache on logout
     }
 
     /**
      * Helper for API Key requests
      */
     getWithApiKey(endpoint, params = {}) {
-        return this.client.get(endpoint, {
-            params,
-            headers: { 'X-Auth-Key': BACKEND_API.API_KEY }
-        });
+        return this.getCached(endpoint, params, { 'x-auth-key': BACKEND_API.API_KEY });
     }
 
     // ==================== API Methods ====================
@@ -127,16 +168,29 @@ class BackendAPIClient {
     getRainfallSummary(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_SUMMARY, params); }
     getRainfallNearby(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_NEARBY, params); }
     getRainfallDistrictWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_DISTRICT_WISE, params); }
+    getRainfallStations(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATIONS, params); }
+    getRainfallStationRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_RECORDS, params); }
+    getRainfallStationStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_STATISTICS, params); }
+    getRainfallStationSummary(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_SUMMARY, params); }
+    getRainfallStationDistrictWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_DISTRICT_WISE, params); }
 
     getWaterQualityRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY, params); }
     getWaterQualityStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params); }
+    getWaterQualityAvailabilityRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY, params); }
+    getWaterQualityAvailabilityStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY_STATISTICS, params); }
 
     getAquiferRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER, params); }
     getAquiferStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_STATISTICS, params); }
+    getAquiferYearlyStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_YEARLY_STATISTICS, params); }
     getAquiferNearby(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_NEARBY, params); }
 
     getRechargeStructureRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE, params); }
     getRechargeStructureStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE_STATISTICS, params); }
+
+    getPiezometerRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.PIEZOMETER, params); }
+    getSpatialLayers(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS, params); }
+    getSpatialStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_STATISTICS, params); }
+    getSpatialIntersect(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_INTERSECT, params); }
 
     async login(credentials) {
         const data = await this.client.post(BACKEND_API.ENDPOINTS.LOGIN, credentials);

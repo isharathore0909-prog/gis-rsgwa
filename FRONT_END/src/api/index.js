@@ -56,18 +56,26 @@ export default {
         getSummary: (params) => backendApi.getRainfallSummary(params),
         getNearby: (params) => backendApi.getRainfallNearby(params),
         getDistrictWise: (params) => backendApi.getRainfallDistrictWise(params),
+        getStations: (params) => backendApi.getRainfallStations(params),
+        getStationRecords: (params) => backendApi.getRainfallStationRecords(params),
+        getStationStatistics: (params) => backendApi.getRainfallStationStatistics(params),
+        getStationSummary: (params) => backendApi.getRainfallStationSummary(params),
+        getStationDistrictWise: (params) => backendApi.getRainfallStationDistrictWise(params),
     },
 
     // Water Quality API
     waterQuality: {
         getRecords: (params) => backendApi.getWaterQualityRecords(params),
         getStatistics: (params) => backendApi.getWaterQualityStatistics(params),
+        getAvailabilityRecords: (params) => backendApi.getWaterQualityAvailabilityRecords(params),
+        getAvailabilityStatistics: (params) => backendApi.getWaterQualityAvailabilityStatistics(params),
     },
 
     // Aquifer API
     aquifer: {
         getRecords: (params) => backendApi.getAquiferRecords(params),
         getStatistics: (params) => backendApi.getAquiferStatistics(params),
+        getYearlyStatistics: (params) => backendApi.getAquiferYearlyStatistics(params),
         getNearby: (params) => backendApi.getAquiferNearby(params),
     },
 
@@ -75,6 +83,18 @@ export default {
     rechargeStructure: {
         getRecords: (params) => backendApi.getRechargeStructureRecords(params),
         getStatistics: (params) => backendApi.getRechargeStructureStatistics(params),
+    },
+
+    // Piezometer API
+    piezometer: {
+        getRecords: (params) => backendApi.getPiezometerRecords(params),
+    },
+
+    // Spatial Layer API
+    spatialLayer: {
+        getLayers: (params) => backendApi.getSpatialLayers(params),
+        getStatistics: (params) => backendApi.getSpatialStatistics(params),
+        getIntersect: (params) => backendApi.getSpatialIntersect(params),
     },
 
     // Auth API

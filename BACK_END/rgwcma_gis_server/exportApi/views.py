@@ -35,28 +35,32 @@ class ExportMapView(APIView):
             cleanup_old_files(temp_dir, max_age_seconds=300)
 
             data = request.data
-            bbox = data.get('bbox') # [minx, miny, maxx, maxy]
+            bbox = data.get('bbox')
             layers = data.get('layers', [])
             location_name = data.get('location_name', 'map')
-            
+
             if not bbox or len(bbox) != 4:
                 return Response({'error': 'Invalid bbox provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Generate unique filename
-            filename = f"{location_name}_{uuid.uuid4().hex[:8]}.pdf"
+            # Clean location name
+            import re
+            clean_loc = re.sub(r'(_map|map|_)$', '', str(location_name), flags=re.IGNORECASE).strip()
+            clean_loc = clean_loc.replace('_', ' ')
             
-            # Use MEDIA_ROOT for temporary files to make them accessible via URL
+            # Generate unique filename
+            filename = f"{clean_loc.replace(' ', '_')}_{uuid.uuid4().hex[:8]}.pdf"
+            
             from django.conf import settings
             temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_exports')
             output_path = os.path.join(temp_dir, filename)
             
-            # Ensure directory exists
             if not os.path.exists(temp_dir):
                 os.makedirs(temp_dir)
 
             # Render
             renderer = MapRenderer()
-            display_title = f"Map of {location_name}" if location_name else "Map of Study Area"
+            display_title = f"Map of {clean_loc}" if clean_loc and clean_loc.lower() != 'map' else "Map of Study Area"
+            
             custom_styles = data.get('custom_styles', {})
             filters = data.get('filters', {})
             renderer.render(bbox, layers, output_path, title=display_title, custom_styles=custom_styles, filters=filters)

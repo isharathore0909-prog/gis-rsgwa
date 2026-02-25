@@ -5,9 +5,15 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from shapely.geometry import box
 import os
-from django.conf import settings
 import math
 import numpy as np
+import sqlite3
+import re
+from shapely.wkt import loads as load_wkt
+from shapely.wkb import loads as load_wkb
+from django.conf import settings
+from django.contrib.gis.geos import Polygon as GEOSPolygon, GEOSGeometry
+from django.db.models import Avg, Q
 
 # Map frontend layer keys to physical files in data/
 GEOJSON_PATH = os.path.join(settings.BASE_DIR, 'data')
@@ -23,14 +29,15 @@ LAYER_MAPPING = {
     'dams': 'dams.geojson',
     'state': 'Rajasthan.geojson',
     'district': 'Final_Dist_Boundary.geojson',
-    'block': 'block_boundary_updated.json'
+    'block': 'block_boundary_updated.json',
+    'grampanchayat': 'gram_panchayat.geojson',
+    'village': 'villages.geojson'
 }
 
-
-# Palettes
+# Palettes (Synced with frontend constants - Improved visibility)
 BLUE_PALETTE = [
-    '#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa',
-    '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'
+    '#bae6fd', '#7dd3fc', '#38bdf8', '#0ea5e9', '#0284c7', 
+    '#0369a1', '#075985', '#0c4a6e', '#1e40af', '#1e3a8a', '#172554', '#042f2e'
 ]
 
 AQUIFER_COLORS = {
@@ -41,603 +48,856 @@ AQUIFER_COLORS = {
     'Basalt': '#77dd77', 'Granite': '#ff6961', 'Jodhpur Sandstone': '#fac898',
     'Lathi Sandstone': '#c1c6fc', 'Nagaur Sandstone': '#b0e0e6', 'Quartzite': '#f49ac2',
     'Ryolite': '#cb99c9', 'Rhyolite': '#cb99c9', 'Tertiary Sandstone': '#eaddca',
-    'Vindhyan Limestone': '#0abab5', 'Vindhyan Sandstone': '#c23b22',
-    'Limestone': '#98fb98', 'Shale': '#a9a9a9', 'Hills': '#808080', 'Hilly Area': '#808080'
+    'Vindhyan Limestone': '#0abab5', 'Vindhyan Sandstone': '#c23b22', 'Limestone': '#98fb98',
+    'Shale': '#a9a9a9', 'Hills': '#808080', 'Hilly Area': '#808080'
+}
+
+GWRE_COLORS = {
+    'safe': '#28a745', 'semi': '#ffc107', 'critical': '#fd7e14', 'over': '#dc3545',
+    'saline': '#6c757d', 'default': '#3388ff'
 }
 
 class MapRenderer:
-    def __init__(self, width_in=11.7, height_in=8.3): # A4 Landscape
+    def __init__(self, width_in=11.7, height_in=9.0):
+        """Initialize with A4 Landscape dimensions or custom size."""
         self.width = width_in
         self.height = height_in
+        self.target_crs = "EPSG:3857"
+        self.active_thematic_items = {'gw': set(), 'aq': set()}
+
+    def meters_to_latlon(self, x, y):
+        """Convert EPSG:3857 Web Mercator to EPSG:4326 Lat/Lon."""
+        try:
+            r = 6378137.0 # Earth radius
+            lon = math.degrees(x / r)
+            lat = math.degrees(2 * math.atan(math.exp(y / r)) - math.pi / 2.0)
+            return lat, lon
+        except:
+            return 0, 0
+
+    def normalize_name(self, name):
+        """Standardize names for matching (remove spaces, dots, special chars, case insensitive)."""
+        if not name: return ""
+        return re.sub(r'[^A-Z0-9]', '', str(name).upper().strip())
         
+    def normalize_to_3857(self, gdf):
+        """
+        Unified pipeline to clean, detect CRS, and reproject to target_crs (3857).
+        Prevents double-projection errors by detecting if coords are already in meters.
+        """
+        if gdf is None or gdf.empty:
+            return gdf
+            
+        print("---- RAW GDF DEBUG ----")
+        print("CRS status:", gdf.crs)
+        try:
+            print("Bounds BEFORE CRS assignment/reprojection:", gdf.total_bounds)
+        except: pass
+        print("-----------------------")
+
+        # 1. Automatic CRS detection if missing (Case: Proj double-projection fix)
+        if gdf.crs is None:
+            try:
+                minx, _, maxx, _ = gdf.total_bounds
+                # Range check based on Rajasthan coordinate magnitudes
+                if abs(minx) <= 180 and abs(maxx) <= 180:
+                    print("DEBUGGING: Lat/Lon coordinates detected (<180). Assigning EPSG:4326.")
+                    gdf.set_crs("EPSG:4326", inplace=True)
+                elif abs(minx) < 2_000_000 or abs(maxx) < 2_000_000:
+                    # In India/Rajasthan, UTM Eastings are ~200k-800k. 
+                    # Mercator Eastings are ~8M. 
+                    # If it's in the hundreds of thousands, it's almost certainly UTM.
+                    print(f"DEBUGGING: UTM magnitude detected ({minx:.0f}). Assigning EPSG:32643 (UTM 43N).")
+                    gdf.set_crs("EPSG:32643", inplace=True)
+                else:
+                    # Large coordinates (>2M) -> Assume already Web Mercator
+                    print(f"DEBUGGING: Large Mercator magnitude detected ({minx:.0f}). Assigning EPSG:3857.")
+                    gdf.set_crs(self.target_crs, inplace=True)
+            except Exception as e:
+                print(f"DEBUGGING: CRS Detection failed, defaulting to 4326: {e}")
+                gdf.set_crs("EPSG:4326", inplace=True)
+
+        # 2. Fix geometries (buffer 0) and filter out empty/null (Silence GP 0.14 warnings)
+        try:
+            gdf["geometry"] = gdf["geometry"].buffer(0)
+            # Comprehensive filter as requested to fix GeoPandas 0.14+ warnings
+            gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notna()]
+        except Exception as e:
+            print(f"DEBUG: Geometry fix error: {e}")
+
+        # 3. Final reprojection to target (Safe check to avoid inf bounds)
+        if gdf.crs.to_epsg() != 3857:
+            try:
+                gdf = gdf.to_crs(self.target_crs)
+            except Exception as e:
+                print(f"DEBUG: Reprojection error: {e}")
+        
+        return gdf
+
+
     def _get_style(self, layer_name):
-        """Return dict of matplotlib style arguments"""
+        """Return dict of matplotlib style arguments."""
         style = {
             'linewidth': 0.8,
             'edgecolor': '#555555',
-            'facecolor': 'none',
+            'facecolor': 'none', # Matplotlib 'none' means no fill
             'alpha': 1.0,
+            'zorder': 2,
             'label': layer_name.replace('_', ' ').title()
         }
         
-        if 'waterbodies' in layer_name:
-            style.update({'facecolor': '#a0c8f0', 'edgecolor': '#2196f3', 'alpha': 0.6, 'label': 'Waterbodies'})
-        elif 'canal' in layer_name:
-            style.update({'color': '#00bcd4', 'linewidth': 1.5, 'label': 'Canals'})
-        elif 'rivers' in layer_name:
-             style.update({'color': '#1e88e5', 'linewidth': 1.2, 'label': 'Rivers'})
-        elif 'aquifer' in layer_name:
-            style.update({'facecolor': '#ffcc00', 'edgecolor': '#ff9900', 'alpha': 0.5, 'label': 'Aquifer'})
-        elif 'groundwater' in layer_name:
-            style.update({'facecolor': '#a5d6a7', 'edgecolor': '#4caf50', 'alpha': 0.5, 'label': 'Groundwater Zones'})
-        elif 'region' in layer_name or 'study' in layer_name:
-             style.update({'edgecolor': '#e91e63', 'linewidth': 2.0, 'facecolor': 'none', 'label': 'Study Area'})
-        elif 'district' in layer_name:
-            style.update({'edgecolor': '#000000', 'linewidth': 1.0, 'facecolor': 'none', 'label': 'District Boundary'})
-        elif 'state' in layer_name:
-            style.update({'edgecolor': '#000000', 'linewidth': 2.0, 'facecolor': 'none', 'label': 'State Boundary'})
-        elif 'micro' in layer_name:
-             style.update({'facecolor': '#d1c4e9', 'edgecolor': '#673ab7', 'alpha': 0.4, 'label': 'Micro Watershed'})
-            
+        mapping = {
+            'waterbodies': {'facecolor': '#3b82f6', 'edgecolor': '#1d4ed8', 'alpha': 0.8, 'label': 'Waterbodies'},
+            'canal': {'color': '#00bcd4', 'linewidth': 1.5, 'label': 'Canals'},
+            'rivers': {'color': '#1e88e5', 'linewidth': 1.2, 'label': 'Rivers'},
+            'aquifer': {'facecolor': '#ffcc00', 'edgecolor': '#ff9900', 'alpha': 0.5, 'label': 'Aquifer'},
+            'groundwater': {'facecolor': '#a5d6a7', 'edgecolor': '#4caf50', 'alpha': 0.5, 'label': 'Groundwater Zones'},
+            'region': {'edgecolor': '#e91e63', 'linewidth': 2.0, 'facecolor': 'none', 'label': 'Study Area'},
+            'study': {'edgecolor': '#e91e63', 'linewidth': 2.0, 'facecolor': 'none', 'label': 'Study Area'},
+            'district': {'edgecolor': '#2d3748', 'linewidth': 1.2, 'facecolor': 'none', 'label': 'District Boundary'},
+            'state': {'edgecolor': '#000000', 'linewidth': 2.0, 'facecolor': 'none', 'label': 'State Boundary'},
+            'grampanchayat': {'edgecolor': '#475569', 'linewidth': 0.8, 'facecolor': 'none', 'label': 'Gram Panchayat'},
+            'village': {'edgecolor': '#94a3b8', 'linewidth': 0.6, 'facecolor': 'none', 'label': 'Village Boundary'},
+            'micro': {'facecolor': '#d1c4e9', 'edgecolor': '#673ab7', 'alpha': 0.4, 'label': 'Micro Watershed'}
+        }
+        
+        for key, val in mapping.items():
+            if key in layer_name:
+                style.update(val)
+                break
+                
         return style
 
     def add_north_arrow(self, ax):
-        """Add a custom North Arrow to top-left (Simple Bold Style)"""
-        x, y, w, h = ax.get_position().bounds
+        """Add a custom North Arrow to Top-Right."""
+        arrow_x, arrow_y = 0.93, 0.90
+        ax.text(arrow_x, arrow_y + 0.04, 'N', transform=ax.transAxes, 
+                ha='center', va='bottom', fontsize=18, fontweight='bold', zorder=100)
         
-        # Position: Top Left
-        arrow_x = 0.05
-        arrow_y = 0.90
+        path_x = [arrow_x, arrow_x - 0.02, arrow_x, arrow_x + 0.02]
+        path_y = [arrow_y + 0.03, arrow_y - 0.03, arrow_y - 0.01, arrow_y - 0.03]
         
-        # 'N' Label
-        ax.text(arrow_x, arrow_y + 0.05, 'N', transform=ax.transAxes, 
-                ha='center', va='bottom', fontsize=20, fontweight='bold', zorder=100)
-        
-        # Draw Arrow (Simple Triangle with concave base)
-        # Vertices relative to arrow_x, arrow_y
-        # Top tip: (0, 0.04)
-        # Left corner: (-0.025, -0.02)
-        # Right corner: (0.025, -0.02)
-        # Bottom recess: (0, -0.01)
-        
-        path_x = [arrow_x, arrow_x - 0.025, arrow_x, arrow_x + 0.025]
-        path_y = [arrow_y + 0.04, arrow_y - 0.03, arrow_y - 0.01, arrow_y - 0.03]
-        
-        # Draw Polygon
-        # We need to transform these relative coordinates to display or data coordinates?
-        # ax.fill works with data coords. transform=ax.transAxes makes it easy.
-        
-        # Using mpatches.Polygon
-        verts = list(zip(path_x, path_y))
-        poly = mpatches.Polygon(verts, closed=True, facecolor='black', edgecolor='black', transform=ax.transAxes, zorder=100)
+        poly = mpatches.Polygon(list(zip(path_x, path_y)), closed=True, 
+                                facecolor='black', edgecolor='black', transform=ax.transAxes, zorder=100)
         ax.add_patch(poly)
 
-
-    def add_scale_bar(self, ax, bbox_3857):
-        """Add a scale bar to bottom-center with alternating blocks"""
-        minx, miny, maxx, maxy = bbox_3857.total_bounds
+    def add_scale_bar(self, ax):
+        """Add a scale bar inside the map frame (Bottom-Right) with increased width."""
+        minx, maxx = ax.get_xlim()
         width_m = maxx - minx
         
-        # Target scale bar width approx 20%
-        target_width_m = width_m * 0.2
+        # Calculate optimal scale width (Increased to approx 25% of map width)
+        target_width_m = width_m * 0.25
         magnitude = 10 ** math.floor(math.log10(target_width_m))
-        residual = target_width_m / magnitude
-        if residual > 5:
-            scale_width_m = 5 * magnitude
-        elif residual > 2:
-            scale_width_m = 2 * magnitude
-        else:
-            scale_width_m = 1 * magnitude
+        step = 5 if target_width_m / magnitude > 5 else 2 if target_width_m / magnitude > 2 else 1
+        scale_width_m = step * magnitude
             
         scale_width_km = scale_width_m / 1000.0
         label = f"{int(scale_width_km)} km" if scale_width_km >= 1 else f"{int(scale_width_m)} m"
         
-        # Position: Bottom Center, offset up slightly
-        center_x = (minx + maxx) / 2
-        bar_y = miny + (maxy - miny) * 0.08 
+        # Calculate width relative to axes
+        scale_fraction = scale_width_m / width_m
         
-        # Create alternating blocks
-        # 4 blocks: Black, White, Black, White
-        block_width = scale_width_m / 4
-        height = (maxy - miny) * 0.015
+        # Positioning: Bottom-RIGHT corner INSIDE the frame
+        start_x = 0.96 - scale_fraction
+        bar_y = 0.04 
+        bar_h = 0.018 # Slightly taller for better visibility
+        block_w = scale_fraction / 4
         
-        start_x = center_x - scale_width_m/2
+        for i in range(4):
+            color = 'black' if i % 2 == 0 else 'white'
+            rect = mpatches.Rectangle((start_x + i * block_w, bar_y), block_w, bar_h, 
+                                     facecolor=color, edgecolor='black', transform=ax.transAxes, zorder=150)
+            ax.add_patch(rect)
         
-        # Block 1 (Black)
-        rect1 = mpatches.Rectangle((start_x, bar_y), block_width, height, facecolor='black', edgecolor='black', zorder=100)
-        ax.add_patch(rect1)
+        # Label above (Slightly larger font)
+        ax.text(start_x + scale_fraction / 2, bar_y + bar_h * 1.15, label, 
+                ha='center', va='bottom', fontsize=9, fontweight='bold', transform=ax.transAxes, zorder=150)
         
-        # Block 2 (White)
-        rect2 = mpatches.Rectangle((start_x + block_width, bar_y), block_width, height, facecolor='white', edgecolor='black', zorder=100)
-        ax.add_patch(rect2)
-        
-        # Block 3 (Black)
-        rect3 = mpatches.Rectangle((start_x + 2*block_width, bar_y), block_width, height, facecolor='black', edgecolor='black', zorder=100)
-        ax.add_patch(rect3)
-        
-        # Block 4 (White)
-        rect4 = mpatches.Rectangle((start_x + 3*block_width, bar_y), block_width, height, facecolor='white', edgecolor='black', zorder=100)
-        ax.add_patch(rect4)
-        
-        # Label above
-        ax.text(center_x, bar_y + height * 1.5, label, ha='center', va='bottom', fontsize=10, fontweight='bold', zorder=100)
-        
-        # Add ticks labels
-        ax.text(start_x, bar_y - height * 0.5, "0", ha='center', va='top', fontsize=8, zorder=100)
-        ax.text(start_x + scale_width_m, bar_y - height * 0.5, f"{int(scale_width_km)}", ha='center', va='top', fontsize=8, zorder=100)
-
+        # Ticks (0 and Max)
+        ax.text(start_x, bar_y - 0.005, "0", ha='center', va='top', fontsize=8, transform=ax.transAxes, zorder=150)
+        ax.text(start_x + scale_fraction, bar_y - 0.005, f"{int(scale_width_km)}", 
+                ha='center', va='top', fontsize=8, transform=ax.transAxes, zorder=150)
 
     def add_legend(self, ax, used_layers):
-        """Add legend to bottom-right with nicer styling"""
+        """Add legend to bottom-center with horizontal layout. Grouped with headers and vertical spacing."""
+        from matplotlib.lines import Line2D
+        ncol = 4 
         handles = []
-        # Custom logic for thematic layers so we don't show generic boxes
-        thematic_present = {
-            'gw': 'groundwater_zones' in used_layers,
-            'rf': 'rainfall' in used_layers,
-            'aq': 'aquifer' in used_layers
-        }
         
-        # Standard layers (Rivers, State, District, Canals, etc.)
+        # 1. Categorize standard layers (Deduplicated)
+        boundary_handles, feature_handles = [], []
+        thematic_keys = ['groundwater_zones', 'rainfall', 'aquifer']
+        line_keywords = ['canal', 'river', 'district', 'state']
+        
+        added_labels = set()
         for layer in used_layers:
-            if layer in ['groundwater_zones', 'rainfall', 'aquifer']:
-                continue
-                
+            if layer in thematic_keys: continue
             style = self._get_style(layer)
             label = style.get('label', layer)
+            if label in added_labels: continue
             
-            p = mpatches.Patch(
-                facecolor=style.get('facecolor', 'none'),
-                edgecolor=style.get('edgecolor', 'black'),
-                alpha=style.get('alpha', 1),
-                linewidth=style.get('linewidth', 1),
-                label=label
-            )
-            handles.append(p)
+            if any(k in layer.lower() for k in line_keywords):
+                color = style.get('color') or style.get('edgecolor') or 'black'
+                boundary_handles.append(Line2D([0], [0], color=color, linewidth=style.get('linewidth', 1.5), label=label))
+            else:
+                feature_handles.append(mpatches.Patch(
+                    facecolor=style.get('facecolor', 'none'), edgecolor=style.get('edgecolor', 'black'),
+                    alpha=style.get('alpha', 1), linewidth=style.get('linewidth', 1), label=label
+                ))
+            added_labels.add(label)
         
-        # Thematic Legends
-        if thematic_present['gw']:
-            handles.append(mpatches.Patch(visible=False, label="Groundwater Status:"))
-            handles.append(mpatches.Patch(facecolor='#28a745', label='Safe', edgecolor='#555'))
-            handles.append(mpatches.Patch(facecolor='#ffc107', label='Semi Critical', edgecolor='#555'))
-            handles.append(mpatches.Patch(facecolor='#fd7e14', label='Critical', edgecolor='#555'))
-            handles.append(mpatches.Patch(facecolor='#dc3545', label='Over Exploited', edgecolor='#555'))
-            handles.append(mpatches.Patch(facecolor='#6c757d', label='Saline', edgecolor='#555'))
-
-        if thematic_present['rf']:
-            handles.append(mpatches.Patch(visible=False, label="Rainfall Intensity:"))
-            # Show a spread of the blue palette
-            handles.append(mpatches.Patch(facecolor=BLUE_PALETTE[0], label='Low', edgecolor='#555'))
-            handles.append(mpatches.Patch(facecolor=BLUE_PALETTE[4], label='Medium', edgecolor='#555'))
-            handles.append(mpatches.Patch(facecolor=BLUE_PALETTE[9], label='High', edgecolor='#555'))
+        handles = boundary_handles + feature_handles
         
-        if thematic_present['aq']:
-             handles.append(mpatches.Patch(visible=False, label="Aquifer Type (Common):"))
-             handles.append(mpatches.Patch(facecolor='#f9eb0f', label='Younger Alluvium', edgecolor='#555')) # Younger Alluvium
-             handles.append(mpatches.Patch(facecolor='#4caf50', label='Alluvium', edgecolor='#555')) # Alluvium
-             handles.append(mpatches.Patch(facecolor='#f3722c', label='Sandstone', edgecolor='#555')) # Sandstone
-             handles.append(mpatches.Patch(facecolor='#77dd77', label='Basalt', edgecolor='#555')) # Basalt
+        def push_to_new_row(h_list, add_gap=False):
+            if not h_list: return
+            # Add a full empty row for spacing if vertical gap requested
+            if add_gap and len(h_list) > 0:
+                while len(h_list) % ncol != 0:
+                    h_list.append(mpatches.Patch(visible=False, label=""))
+                for _ in range(ncol):
+                    h_list.append(mpatches.Patch(visible=False, label=""))
+            else:
+                while len(h_list) % ncol != 0:
+                    h_list.append(mpatches.Patch(visible=False, label=""))
 
+        # 2. Add Thematic Sections
+        if 'groundwater_zones' in used_layers and self.active_thematic_items['gw']:
+            push_to_new_row(handles, add_gap=True)
+            handles.append(mpatches.Patch(visible=False, label=r"$\bf{GW\ Status:}$"))
+            # Sort legend items logically
+            order = ['Safe', 'Semi Critical', 'Critical', 'Over Exploited', 'Saline']
+            g_colors = {'Safe': '#28a745', 'Semi Critical': '#ffc107', 'Critical': '#fd7e14', 'Over Exploited': '#dc3545', 'Saline': '#6c757d'}
+            
+            for item in order:
+                if item in self.active_thematic_items['gw']:
+                    handles.append(mpatches.Patch(facecolor=g_colors[item], label=item, edgecolor='#555'))
+
+        if 'rainfall' in used_layers:
+            push_to_new_row(handles, add_gap=True)
+            handles.append(mpatches.Patch(visible=False, label=r"$\bf{Rainfall:}$"))
+            # Display representative colors for the range
+            handles.extend([mpatches.Patch(facecolor=BLUE_PALETTE[i], label=l, edgecolor='#555') 
+                          for i, l in [(0, 'Low'), (5, 'Medium'), (11, 'High')]])
+        
+        if 'aquifer' in used_layers and self.active_thematic_items['aq']:
+            push_to_new_row(handles, add_gap=True)
+            handles.append(mpatches.Patch(visible=False, label=r"$\bf{Aquifer\ Types:}$"))
+            for aq in sorted(list(self.active_thematic_items['aq'])):
+                handles.append(mpatches.Patch(facecolor=AQUIFER_COLORS.get(aq, '#cccccc'), label=aq, edgecolor='#555'))
             
         if handles:
-            leg = ax.legend(handles=handles, loc='lower right', frameon=True, 
-                      fontsize=8, edgecolor='black', fancybox=False, framealpha=1, borderpad=0.8)
-            leg.get_frame().set_linewidth(1.5)
+            # Anchor slightly higher and use loc='upper center' to grow downward safely
+            leg = ax.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.5, -0.08),
+                          frameon=True, fontsize=9, edgecolor='#334155', fancybox=False, ncol=ncol, title='Legend')
+            leg.get_frame().set_linewidth(1.2)
+            leg.get_title().set(fontsize=11, fontweight='bold', ha='center')
 
-    def render(self, bbox, layers, output_file, title="Map of Study Area", custom_styles=None, filters=None):
-        """
-        bbox: [minx, miny, maxx, maxy] in lat/lng (EPSG:4326)
-        layers: list of layer names
-        output_file: path to save PDF
-        custom_styles: optional dict of style overrides per layer
-        filters: optional dict for filtering/clipping (e.g. {'district': 'Ajmer'})
-        """
-        # Clean title
-        title = title.replace('_', ' ')
+    def _get_rainfall_stats(self, filters=None):
+        """Fetch rainfall metrics at multiple hierarchical levels."""
+        from django.db.models import Avg
+        from rainfallApi.models import Rainfall
         
-        fig, ax = plt.subplots(figsize=(self.width, self.height))
+        stats = {
+            'district': {}, # normalized_name: avg
+            'block': {},    # (norm_dist, norm_block): avg
+            'gp': {},       # (norm_dist, norm_block, norm_gp): avg
+            'village': {}    # (norm_dist, norm_block, norm_gp, norm_vlg): avg
+        }
         
-        TARGET_CRS = "EPSG:3857"
-        
-        # 0. Determine Bounds (Check for District Filter first)
-        clip_mask = None
-        district_name = filters.get('district') if filters else None
-        
-        # Initialize default from input
-        bbox_geom_input = box(bbox[0], bbox[1], bbox[2], bbox[3])
-        bbox_gdf_input = gpd.GeoDataFrame({'geometry': [bbox_geom_input]}, crs="EPSG:4326")
-        target_bounds = bbox_gdf_input.to_crs(TARGET_CRS).total_bounds # [minx, miny, maxx, maxy]
-
-        if district_name:
-            try:
-                # Load district boundary to find the geometry
-                dist_filename = LAYER_MAPPING.get('district')
-                dist_path = os.path.join(GEOJSON_PATH, dist_filename)
-                if os.path.exists(dist_path):
-                    dist_gdf = gpd.read_file(dist_path)
-                    # Normalize for comparison
-                    col_name = next((c for c in dist_gdf.columns if c.lower() in ['district', 'new_dist', 'name']), None)
-                    if col_name:
-                         # Filter
-                         target_dist = dist_gdf[dist_gdf[col_name].astype(str).str.lower() == str(district_name).lower()]
-                         if not target_dist.empty:
-                             # Re-project to target CRS
-                             if target_dist.crs != TARGET_CRS:
-                                 target_dist = target_dist.to_crs(TARGET_CRS)
-                             
-                             # Set Clip Mask
-                             clip_mask = target_dist.geometry.unary_union
-                             
-                             # OVERRIDE BOUNDS with District Bounds
-                             target_bounds = target_dist.total_bounds
-                             
-            except Exception as e:
-                print(f"Error preparing clip mask/bounds: {e}")
-
-        # 1. Aspect Ratio Correction (Fill the Page)
-        # Calculate target aspect ratio from print dimensions
-        target_aspect = self.width / self.height
-        
-        # Current bounds
-        minx, miny, maxx, maxy = target_bounds
-        input_width = maxx - minx
-        input_height = maxy - miny
-        input_aspect = input_width / input_height
-        
-        center_x = (minx + maxx) / 2
-        center_y = (miny + maxy) / 2
-        
-        if input_aspect > target_aspect:
-            # Too wide, increase height
-            new_height = input_width / target_aspect
-            new_miny = center_y - new_height / 2
-            new_maxy = center_y + new_height / 2
-            # Bbox is now [minx, new_miny, maxx, new_maxy]
-            expanded_bounds = [minx, new_miny, maxx, new_maxy]
-        else:
-            # Too tall, increase width
-            new_width = input_height * target_aspect
-            new_minx = center_x - new_width / 2
-            new_maxx = center_x + new_width / 2
-            expanded_bounds = [new_minx, miny, new_maxx, maxy]
+        from rainfallApi.models import Rainfall, StationRainfall
+        try:
+            # Filter out extreme outliers
+            raw_query = Rainfall.objects.filter(rainfall_mm__lt=5000)
+            station_query = StationRainfall.objects.filter(rainfall_mm__lt=5000)
             
-        # Final Plot Setup
-        ax.set_xlim(expanded_bounds[0], expanded_bounds[2])
-        ax.set_ylim(expanded_bounds[1], expanded_bounds[3])
-        ax.set_aspect('equal')
-        
-        # Update bounds for Scale Bar calculation logic later
-        # Create a fake gdf just to pass the "bbox_3857" object if needed, or just use tuple
-        # The add_scale_bar function expects a bbox object with .total_bounds or we can pass bounds directly
-        # Let's fix add_scale_bar call later to pass bounds, or recreate the object it expects
-        # Re-creating bbox_3857 object for compatibility with existing add_scale_bar signature
-        bbox_geom_final = box(expanded_bounds[0], expanded_bounds[1], expanded_bounds[2], expanded_bounds[3])
-        bbox_gdf_final = gpd.GeoDataFrame({'geometry': [bbox_geom_final]}, crs=TARGET_CRS)
-        bbox_3857 = bbox_gdf_final # This object matches the local var name used later
+            if filters:
+                if filters.get('district') and filters.get('district').lower() != 'rajasthan':
+                    raw_query = raw_query.filter(village__grampanchayat__block__district__name__iexact=filters['district'])
+                    station_query = station_query.filter(station__district__iexact=filters['district'])
+                if filters.get('block'):
+                    raw_query = raw_query.filter(village__grampanchayat__block__name__iexact=filters['block'])
+                if filters.get('dataRangeStart'):
+                    raw_query = raw_query.filter(date__gte=filters['dataRangeStart'])
+                    station_query = station_query.filter(date__gte=filters['dataRangeStart'])
+                if filters.get('dataRangeEnd'):
+                    raw_query = raw_query.filter(date__lte=filters['dataRangeEnd'])
+                    station_query = station_query.filter(date__lte=filters['dataRangeEnd'])
 
-        # Render Layers
+            # 1. District Stats (Combine Village and Station Data)
+            # Preference given to Station data if available as per frontend logic
+            d_records = raw_query.values('village__grampanchayat__block__district__name').annotate(avg=Avg('rainfall_mm'))
+            for r in d_records:
+                name = r.get('village__grampanchayat__block__district__name')
+                if name: stats['district'][self.normalize_name(name)] = float(r['avg'] or 0.0)
+            
+            s_d_records = station_query.values('station__district').annotate(avg=Avg('rainfall_mm'))
+            for r in s_d_records:
+                name = r.get('station__district')
+                # Overwrite/Prioritize station data
+                if name: stats['district'][self.normalize_name(name)] = float(r['avg'] or 0.0)
 
-        # Render Layers
-        used_layers = []
-        # Sort keys to ensure boundaries are on top if needed, or stick to input order
-        # Usually polygon fills first, then lines
+            # 2. Block Stats (Village records only)
+            b_records = raw_query.values('village__grampanchayat__block__district__name', 'village__grampanchayat__block__name').annotate(avg=Avg('rainfall_mm'))
+            for r in b_records:
+                d, b = r.get('village__grampanchayat__block__district__name'), r.get('village__grampanchayat__block__name')
+                if d and b: stats['block'][(self.normalize_name(d), self.normalize_name(b))] = float(r['avg'] or 0.0)
+
+            # 3. GP Stats
+            gp_records = raw_query.values('village__grampanchayat__block__district__name', 'village__grampanchayat__block__name', 'village__grampanchayat__name').annotate(avg=Avg('rainfall_mm'))
+            for r in gp_records:
+                d, b, gp = r.get('village__grampanchayat__block__district__name'), r.get('village__grampanchayat__block__name'), r.get('village__grampanchayat__name')
+                if d and b and gp: stats['gp'][(self.normalize_name(d), self.normalize_name(b), self.normalize_name(gp))] = float(r['avg'] or 0.0)
+
+            # 4. Village Stats
+            v_records = raw_query.values('village__grampanchayat__block__district__name', 'village__grampanchayat__block__name', 'village__grampanchayat__name', 'village__name').annotate(avg=Avg('rainfall_mm'))
+            for r in v_records:
+                d, b, gp, v = r.get('village__grampanchayat__block__district__name'), r.get('village__grampanchayat__block__name'), r.get('village__grampanchayat__name'), r.get('village__name')
+                if d and b and gp and v: stats['village'][(self.normalize_name(d), self.normalize_name(b), self.normalize_name(gp), self.normalize_name(v))] = float(r['avg'] or 0.0)
+
+            return stats
+        except Exception as e:
+            print(f"Hierarchical Rainfall Stats Error: {e}")
+            return stats
+
+    def _plot_thematic_rainfall(self, ax, clip_mask, filters=None):
+        """Hierarchical thematic rainfall plotting (District -> Block -> GP -> Village)."""
+        stats = self._get_rainfall_stats(filters)
+        f = filters or {}
         
-        # Categorize
-        fill_layers = []
-        line_layers = []
+        from locationApi.models import District, Block, Grampanchayat, Village
+        gdf = None
+        current_level = 'district'
         
-        for layer_name in layers:
-            if 'district' in layer_name or 'state' in layer_name or 'river' in layer_name or 'canal' in layer_name:
-                line_layers.append(layer_name)
+        try:
+            # Determine level based on filters
+            if f.get('village'):
+                # Selected a village -> show children of that village? No, usually show the village itself.
+                # In thematic maps, we usually show one level deeper than selected.
+                current_level = 'village'
+                items = Village.objects.filter(name__iexact=f['village'], grampanchayat__name__iexact=f.get('gramPanchayat') or f.get('grampanchayat'))
+            elif f.get('gramPanchayat') or f.get('grampanchayat'):
+                current_level = 'village' # GP selected -> show villages
+                gp_name = f.get('gramPanchayat') or f.get('grampanchayat')
+                items = Village.objects.filter(grampanchayat__name__iexact=gp_name, grampanchayat__block__name__iexact=f.get('block'))
+            elif f.get('block'):
+                current_level = 'grampanchayat' # Block selected -> show GPs
+                items = Grampanchayat.objects.filter(block__name__iexact=f['block'], block__district__name__iexact=f.get('district'))
+            elif f.get('district') and f.get('district').lower() != 'rajasthan':
+                current_level = 'block' # District selected -> show blocks
+                items = Block.objects.filter(district__name__iexact=f['district'])
             else:
-                fill_layers.append(layer_name)
-                
-        # Draw fills first
-        draw_order = fill_layers + line_layers
-        
-        for layer_name in draw_order:
-            if layer_name == 'rainfall':
-                # Thematic Coloring for Rainfall (Blue Palette)
-                # Switch to using SQLite DB source
-                try:
-                    import sqlite3
-                    db_path = os.path.join(settings.BASE_DIR, 'db.sqlite3')
-                    
-                    if not os.path.exists(db_path):
-                        print(f"Database not found at {db_path}")
-                        continue
+                current_level = 'district' # State view -> show districts
+                items = District.objects.all()
 
-                    # Connect to DB and fetch aggregated data
-                    rain_data = []
+            items = items.exclude(geometry=None)
+            if items.exists():
+                print(f"Hierarchical View: Fetching {items.count()} {current_level} items from DB")
+                rows = []
+                for i in items:
                     try:
-                        conn = sqlite3.connect(db_path)
-                        cursor = conn.cursor()
+                        if not i.geometry: continue
+                        # Use GEOSGeometry to WKT/WKB for shapely
+                        geom_shapely = load_wkb(bytes(i.geometry.wkb))
+                        if not geom_shapely.is_valid: geom_shapely = geom_shapely.buffer(0)
                         
-                        # Join: Rainfall -> Village -> GramPanchayat -> Block -> District
-                        # We need Block Name, District Name, and Average Rainfall per block
-                        query = """
-                            SELECT 
-                                lb.name as block_name,
-                                ld.name as district_name,
-                                AVG(rr.rainfall_mm) as avg_rainfall
-                            FROM rainfallApi_rainfall rr
-                            JOIN locationApi_village lv ON rr.village_id = lv.id
-                            JOIN locationApi_grampanchayat lg ON lv.grampanchayat_id = lg.id
-                            JOIN locationApi_block lb ON lg.block_id = lb.id
-                            JOIN locationApi_district ld ON lb.district_id = ld.id
-                            GROUP BY lb.id
-                        """
-                        
-                        cursor.execute(query)
-                        rows = cursor.fetchall()
-                        
-                        # Convert to list of dicts to match previous structure
-                        for row in rows:
-                            rain_data.append({
-                                'block': row[0],
-                                'district': row[1],
-                                'rainfall_mm': row[2]
-                            })
-                            
-                        conn.close()
-                        print(f"DEBUG: Rainfall SQL returned {len(rain_data)} records.")
-                        if len(rain_data) > 0:
-                            print(f"DEBUG: Sample Rainfall Data: {rain_data[0]}")
-
-                    except Exception as e:
-                        print(f"SQL Error: {e}")
+                        row = {'geometry': geom_shapely, 'name': i.name}
+                        if current_level == 'district':
+                            row['d_norm'] = self.normalize_name(i.name)
+                        elif current_level == 'block':
+                            row['d_norm'] = self.normalize_name(i.district.name)
+                            row['b_norm'] = self.normalize_name(i.name)
+                        elif current_level == 'grampanchayat':
+                            row['d_norm'] = self.normalize_name(i.block.district.name)
+                            row['b_norm'] = self.normalize_name(i.block.name)
+                            row['gp_norm'] = self.normalize_name(i.name)
+                        elif current_level == 'village':
+                            row['d_norm'] = self.normalize_name(i.grampanchayat.block.district.name)
+                            row['b_norm'] = self.normalize_name(i.grampanchayat.block.name)
+                            row['gp_norm'] = self.normalize_name(i.grampanchayat.name)
+                            row['v_norm'] = self.normalize_name(i.name)
+                        rows.append(row)
+                    except Exception as ex: 
+                        print(f"DEBUG: Thematic row error: {ex}")
                         continue
-
-                    if not rain_data:
-                        print("No rainfall data found in database")
-                        # Continue to plot outlines at least
-                    
-                    # 2. Aggregate Rainfall by Block
-                    block_stats = {}
-                    for item in rain_data:
-                        # Normalize: Strip and UPPERCASE
-                        b_name = str(item.get('block', '')).strip().upper()
-                        d_name = str(item.get('district', '')).strip().upper()
-                        
-                        # Skip if block is missing
-                        if not b_name: continue
-                        
-                        # Use tuple key for lookup
-                        key = (d_name, b_name)
-                        
-                        # Handle numbers
-                        val = float(item.get('rainfall_mm', 0) or 0)
-                        block_stats[key] = {'total': val, 'count': 1}
-                    
-                    print(f"DEBUG: Block Stats Keys Sample: {list(block_stats.keys())[:5]}")
-
-                    # 3. Load Block Boundaries for geometry
-                    block_filename = LAYER_MAPPING.get('block')
-                    # Ensure we look in the same base path
-                    block_path = os.path.join(GEOJSON_PATH, block_filename)
-                    
-                    if not os.path.exists(block_path):
-                        print(f"Block boundary file not found: {block_path}")
-                        continue
-                        
-                    block_gdf = gpd.read_file(block_path)
-                    if block_gdf.crs != TARGET_CRS:
-                        block_gdf = block_gdf.to_crs(TARGET_CRS)
-                        
-                    # Apply Clipping if needed (e.g. District Filter)
-                    if clip_mask is not None:
-                        try:
-                            block_gdf = gpd.clip(block_gdf, clip_mask)
-                        except: pass
-
-                    # 4. Join Data to Geometry
-                    colors = []
-                    vals = []
-                    
-                    # Pre-calculate averages for determining min/max
-                    # We iterate twice: once to get range, once to assign colors
-                    temp_vals = []
-                    
-                    for idx, row in block_gdf.iterrows():
-                        # Normalize names from GeoDataFrame
-                        # Try common property names found in block_boundary_updated.json
-                        b_prop = row.get('BLOCK_NAME', row.get('Block', row.get('block', '')))
-                        d_prop = row.get('DIST_NAME', row.get('District', row.get('district', '')))
-                        
-                        b_key = str(b_prop).strip().upper()
-                        d_key = str(d_prop).strip().upper()
-                        key = (d_key, b_key)
-                        
-                        avg_val = 0.0
-                        # Exact match attempt
-                        if key in block_stats:
-                            stats = block_stats[key]
-                            avg_val = stats['total'] / max(1, stats['count'])
-                        else:
-                            # Fallback: Try matching just Block Name
-                            found = False
-                            for k_stats, v_stats in block_stats.items():
-                                if k_stats[1] == b_key: 
-                                    avg_val = v_stats['total'] / max(1, v_stats['count'])
-                                    found = True
-                                    break
-                            if not found:
-                                avg_val = 0.0
-
-                        temp_vals.append(avg_val)
-                    
-                    # Determine Range for coloring
-                    non_zero_vals = [v for v in temp_vals if v > 0]
-                    min_val = min(non_zero_vals) if non_zero_vals else 0
-                    max_val = max(temp_vals) if temp_vals else 0
-                    rng = max_val - min_val
-                    
-                    print(f"DEBUG: Rainfall Range: Min={min_val}, Max={max_val}, Rng={rng}")
-
-                    # Assign Colors
-                    for val in temp_vals:
-                        if val == 0:
-                            # Use a very light blue for 0 instead of nothing? 
-                            # Let's use index 0 explicitly.
-                            idx_color = 0
-                        elif rng <= 0.001: 
-                                idx_color = 0 
-                        else:
-                                # Linear interpolation
-                                idx_color = int(((val - min_val) / rng) * (len(BLUE_PALETTE) - 1))
-                        
-                        c_idx = max(0, min(idx_color, len(BLUE_PALETTE)-1))
-                        colors.append(BLUE_PALETTE[c_idx])
-
-                    # 5. Plot
-                    # Use a light edgecolor to distinguish blocks
-                    block_gdf.plot(ax=ax, color=colors, edgecolor='#999999', linewidth=0.3, alpha=0.9)
-                    if layer_name not in used_layers: used_layers.append(layer_name)
-                    
-                except Exception as e:
-                    print(f"Error processing rainfall layer: {e}")
                 
-                # Continue loop to next layer since we handled rainfall completely
-                continue
+                if rows:
+                    gdf = gpd.GeoDataFrame(rows)
+                    gdf = self.normalize_to_3857(gdf)
 
-            filename = LAYER_MAPPING.get(layer_name)
-            if not filename: filename = f"{layer_name}.geojson"
+        except Exception as e:
+            print(f"DEBUG: Thematic DB Fetch Error: {e}")
+
+        if gdf is None or gdf.empty:
+            print(f"DEBUG: No thematic data for {current_level}")
+            return False
+        
+        if clip_mask is not None:
+            try:
+                # Ensure clip_mask is valid before clipping
+                if not clip_mask.is_valid: clip_mask = clip_mask.buffer(0)
+                gdf_clipped = gpd.clip(gdf, clip_mask)
+                if not gdf_clipped.empty:
+                    gdf = gdf_clipped
+            except Exception as e:
+                print(f"DEBUG: Clipping thematic rainfall failed: {e}")
             
-            filepath = os.path.join(GEOJSON_PATH, filename)
+        colors = []
+        plot_vals = []
+        
+        for _, row in gdf.iterrows():
+            d_norm, b_norm = row.get('d_norm'), row.get('b_norm')
+            gp_norm, v_norm = row.get('gp_norm'), row.get('v_norm')
             
-            if os.path.exists(filepath):
+            val = None
+            if v_norm: val = stats['village'].get((d_norm, b_norm, gp_norm, v_norm))
+            if val is None and gp_norm: val = stats['gp'].get((d_norm, b_norm, gp_norm))
+            if val is None and b_norm: val = stats['block'].get((d_norm, b_norm))
+            if val is None and d_norm: val = stats['district'].get(d_norm)
+            
+            p_val = float(val) if val is not None else 0.0
+            plot_vals.append(p_val)
+
+        def get_rainfall_color(mm):
+            """Matched exactly to frontend getRainfallColor logic."""
+            if mm is None: return '#cbd5e1'
+            if mm <= 0: return BLUE_PALETTE[0]
+            if mm < 2.5: return BLUE_PALETTE[2]
+            if mm < 7.6: return BLUE_PALETTE[4]
+            if mm < 15: return BLUE_PALETTE[6]
+            if mm < 35.6: return BLUE_PALETTE[8]
+            if mm < 64.5: return BLUE_PALETTE[10]
+            return BLUE_PALETTE[11]
+
+        colors = [get_rainfall_color(v) for v in plot_vals]
+        gdf.plot(ax=ax, color=colors, edgecolor='#1e293b', linewidth=0.2, zorder=1)
+        return True
+
+
+
+
+    def _add_labels(self, ax, gdf, label_col='name', fontsize=7):
+        """Add non-overlapping labels to polygon centroids."""
+        from matplotlib.patheffects import withStroke
+        for _, row in gdf.iterrows():
+            if row.geometry and not row.geometry.is_empty:
+                name = str(row.get(label_col) or "").strip()
+                if not name or len(name) < 2: continue
+                
                 try:
-                    gdf = gpd.read_file(filepath)
-                    if gdf.crs != TARGET_CRS:
-                        gdf = gdf.to_crs(TARGET_CRS)
+                    # Use centroid for label positioning
+                    c = row.geometry.centroid
+                    if c is None or c.is_empty:
+                        continue
                     
-                    # Apply Clipping
-                    if clip_mask is not None:
-                         # Don't feature-clip the boundary itself if checking "is this district"
-                         # But usually we DO want to clip everything to the mask
-                         # Use gpd.clip
-                         try:
-                             gdf = gpd.clip(gdf, clip_mask)
-                         except Exception as clip_err:
-                             print(f"Clipping failed for {layer_name}: {clip_err}")
-
-                    if gdf.empty: continue
-
-                    if layer_name == 'groundwater_zones':
-                        # Thematic Coloring for Groundwater Zones
-                        # Logic matches frontend useLegend.js
-                        colors = []
-                        for idx, row in gdf.iterrows():
-                            # Get GWDL or similar property
-                            val = row.get('GWDL', row.get('Category', ''))
-                            status = str(val).strip().lower()
-                            
-                            color = '#3388ff' # Default
-                            
-                            if 'safe' in status: color = '#28a745'
-                            elif 'semi' in status: color = '#ffc107'
-                            elif 'critical' in status: color = '#fd7e14'
-                            elif 'over' in status: color = '#dc3545'
-                            elif 'saline' in status: color = '#6c757d'
-                            
-                            colors.append(color)
-                        
-                        # Plot
-                        gdf.plot(ax=ax, color=colors, edgecolor='#555555', linewidth=0.5, alpha=0.6)
-                        if layer_name not in used_layers: used_layers.append(layer_name)
-                        continue 
-
-                    if layer_name == 'aquifer':
-                        # Thematic Coloring for Aquifer
-                        colors = []
-                        for idx, row in gdf.iterrows():
-                            # Fix: Check 'Aquifer' (Capitalized) and other variants
-                            # Get value and normalize
-                            aq_raw = row.get('Aquifer', row.get('AQ_NAME', row.get('aquifer', row.get('aquifer_type', ''))))
-                            aq_name = str(aq_raw).strip()
-                            
-                            # Default color
-                            color = '#cccccc' 
-                            
-                            # Try to match key case-insensitive
-                            for k, v in AQUIFER_COLORS.items():
-                                if k.lower() == aq_name.lower():
-                                    color = v
-                                    break
-                            colors.append(color)
-                            
-                        gdf.plot(ax=ax, color=colors, edgecolor='#555555', linewidth=0.2, alpha=0.6)
-                        if layer_name not in used_layers: used_layers.append(layer_name)
+                    # Ensure coordinates are finite numbers
+                    if not (math.isfinite(c.x) and math.isfinite(c.y)):
                         continue
 
-                    style = self._get_style(layer_name)
-                    
-                    # Apply custom overrides if present
-                    if custom_styles and layer_name in custom_styles:
-                         style.update(custom_styles[layer_name])
+                    txt = ax.text(c.x, c.y, name, fontsize=fontsize, ha='center', va='center',
+                            fontweight='bold', color='#1e293b', zorder=30)
+                    txt.set_path_effects([withStroke(linewidth=2, foreground='white', alpha=0.8)])
+                except Exception as ex:
+                    print(f"DEBUG: Label error for {name}: {ex}")
+                    continue
 
-                    plot_style = {k:v for k,v in style.items() if k != 'label'}
-                    
-                    gdf.plot(ax=ax, **plot_style)
-                    if layer_name not in used_layers: used_layers.append(layer_name)
-                except Exception as e:
-                    print(f"Error rendering {layer_name}: {e}")
+    def render(self, bbox, layers, output_file, title="Map", custom_styles=None, filters=None):
+        """Professional rendering pipeline with hierarchy-aware labels and clean layout."""
+        # Reset tracking
+        self.active_thematic_items = {'gw': set(), 'aq': set()}
+        f = filters or {}
+        
+        # 1. Setup Figure
+        fig, ax = plt.subplots(figsize=(self.width, self.height))
+        fig.patch.set_facecolor('#fdfdfd')
+        
+        # 2. Determine Scope & Clipping
+        from locationApi.models import State, District, Block, Grampanchayat, Village
+        clip_mask = None
+        bounds_3857 = None
+        
+        try:
+            target_obj = None
+            dist_name = f.get('district')
+            block_name = f.get('block')
+            
+            if f.get('village'):
+                v_items = Village.objects.filter(name__iexact=f['village'])
+                if dist_name and dist_name.lower() != 'rajasthan':
+                    v_items = v_items.filter(grampanchayat__block__district__name__iexact=dist_name)
+                if block_name:
+                    v_items = v_items.filter(grampanchayat__block__name__iexact=block_name)
+                target_obj = v_items.first()
+            elif f.get('gramPanchayat') or f.get('grampanchayat'):
+                gp_name = f.get('gramPanchayat') or f.get('grampanchayat')
+                gp_items = Grampanchayat.objects.filter(name__iexact=gp_name)
+                if dist_name and dist_name.lower() != 'rajasthan':
+                    gp_items = gp_items.filter(block__district__name__iexact=dist_name)
+                if block_name:
+                    gp_items = gp_items.filter(block__name__iexact=block_name)
+                target_obj = gp_items.first()
+            elif f.get('block'):
+                # Disambiguate block by district if available
+                dist_name = f.get('district')
+                if dist_name and dist_name.lower() != 'rajasthan':
+                    target_obj = Block.objects.filter(name__iexact=f['block'], district__name__iexact=dist_name).first()
+                if not target_obj:
+                    target_obj = Block.objects.filter(name__iexact=f['block']).first()
+            elif f.get('district') and f.get('district').lower() != 'rajasthan':
+                target_obj = District.objects.filter(name__iexact=f['district']).first()
 
-        # Add Map Elements
+            if not target_obj:
+                search_name = f.get('village') or f.get('block') or f.get('district') or f.get('gramPanchayat') or f.get('grampanchayat')
+                
+                fallback_file = None
+                name_col = 'name'
+                
+                if search_name:
+                    # Fallback: Try searching in GeoJSON files if DB is empty or object not found
+                    print(f"DEBUG: '{search_name}' not found in DB, trying GeoJSON fallback")
+                    
+                    if f.get('village'):
+                        fallback_file = os.path.join(GEOJSON_PATH, 'villages.geojson')
+                    elif f.get('grampanchayat') or f.get('gramPanchayat'):
+                        fallback_file = os.path.join(GEOJSON_PATH, 'gram_panchayat.geojson')
+                    elif f.get('block'):
+                        fallback_file = os.path.join(GEOJSON_PATH, 'block_boundary_updated.json')
+                    elif f.get('district') and f.get('district').lower() != 'rajasthan':
+                        fallback_file = os.path.join(GEOJSON_PATH, 'Final_Dist_Boundary.geojson')
+                        name_col = 'DISTRICT' 
+                    elif f.get('district') == 'Rajasthan' or not search_name:
+                        # State level fallback
+                        fallback_file = os.path.join(GEOJSON_PATH, 'Rajasthan.geojson')
+
+                if fallback_file and os.path.exists(fallback_file):
+                    try:
+                        temp_gdf = gpd.read_file(fallback_file)
+                        if search_name and search_name.strip():
+                            # Fuzzy Case insensitive search
+                            match_idx = None
+                            cols_to_check = [name_col, 'name', 'NAME', 'District', 'Block', 'block_name', 'dist_name', 'VIL_NAME', 'GP_NAME', 'DISTRICT', 'BLOCK']
+                            
+                            for col in [c for c in cols_to_check if c in temp_gdf.columns]:
+                                # Exact match check
+                                exact_matches = temp_gdf[temp_gdf[col].astype(str).str.upper() == search_name.upper()]
+                                if not exact_matches.empty:
+                                    match_idx = exact_matches.index[0]
+                                    break
+                                
+                                # Contains check if exact fails
+                                fuzzy_matches = temp_gdf[temp_gdf[col].astype(str).str.contains(search_name, case=False, na=False)]
+                                if not fuzzy_matches.empty:
+                                    match_idx = fuzzy_matches.index[0]
+                                    break
+                            
+                            if match_idx is not None:
+                                geom_4326 = temp_gdf.geometry.loc[match_idx]
+                                if geom_4326:
+                                    # Use normalization utility
+                                    gdf_target = gpd.GeoDataFrame([{'geometry': geom_4326}])
+                                    gdf_target = self.normalize_to_3857(gdf_target)
+                                    
+                                    clip_mask = gdf_target.geometry.unary_union
+                                    if clip_mask and not clip_mask.is_empty:
+                                        bounds_3857 = gdf_target.total_bounds
+                                        print(f"DEBUG: Scope set via Fallback File for {search_name}: {bounds_3857}")
+                    except Exception as fe:
+                        print(f"DEBUG: Fallback file error: {fe}")
+
+            if target_obj and target_obj.geometry:
+                try:
+                    # Normalize target for bounds
+                    gdf_target = gpd.GeoDataFrame([{'geometry': load_wkb(bytes(target_obj.geometry.wkb))}])
+                    gdf_target = self.normalize_to_3857(gdf_target)
+                    
+                    clip_mask = gdf_target.geometry.unary_union
+                    
+                    if clip_mask and not clip_mask.is_empty:
+                        bounds_3857 = gdf_target.total_bounds
+                        print(f"DEBUG: Scope set for {target_obj.name} ({target_obj._meta.model_name}): {bounds_3857}")
+                except Exception as ex:
+                    print(f"DEBUG: Geometry conversion error for {target_obj}: {ex}")
+        except Exception as e:
+            print(f"DEBUG: Scope resolution error: {e}")
+
+        # 3. Robust Viewport Logic (Bulletproof)
+        def is_valid_bounds(b):
+            if b is None or not hasattr(b, '__len__') or len(b) != 4:
+                return False
+            for x in b:
+                if x is None: return False
+                try:
+                    val = float(x)
+                    if not math.isfinite(val): return False
+                except: return False
+            return True
+
+
+        if not is_valid_bounds(bounds_3857):
+            print(f"Invalid bounds_3857 ({bounds_3857}), falling back to frontend bbox")
+            # Fallback 1: Use bbox from frontend if valid
+            try:
+                gdf_bbox = gpd.GeoDataFrame({'geometry': [box(*bbox)]})
+                gdf_bbox = self.normalize_to_3857(gdf_bbox)
+                bounds_3857 = gdf_bbox.total_bounds
+                print(f"Fallback 1 bounds: {bounds_3857}")
+            except Exception as e: 
+                print(f"Fallback 1 error: {e}")
+                pass
+
+        if not is_valid_bounds(bounds_3857):
+            print("Fallback 1 also invalid, using Rajasthan default")
+            # Fallback 2: Rajasthan Center Bound
+            bounds_3857 = [7700000, 2600000, 8750000, 3550000]
+
+
+        # 3. Handle Constraints & Viewport
+        minx, miny, maxx, maxy = bounds_3857
+        # Ensure non-zero width/height
+        if maxx == minx: maxx += 1000; minx -= 1000
+        if maxy == miny: maxy += 1000; miny -= 1000
+        # Add 5% padding
+        pad_x, pad_y = (maxx - minx) * 0.05, (maxy - miny) * 0.05
+        ax.set_xlim(minx - pad_x, maxx + pad_x)
+        ax.set_ylim(miny - pad_y, maxy + pad_y)
+        ax.set_aspect('equal')
+
+        # 4. Background / Context (Rajasthan state boundary)
+        try:
+            state_items = State.objects.exclude(geometry=None)
+            rows = []
+            if not state_items.exists():
+                # Fallback to loading from file if DB is empty
+                state_file = os.path.join(GEOJSON_PATH, LAYER_MAPPING.get('state', 'Rajasthan.geojson'))
+                if os.path.exists(state_file):
+                    print(f"DEBUG: State DB empty, loading from {state_file}")
+                    gdf_bg = gpd.read_file(state_file)
+                    gdf_bg = self._prepare_gdf(gdf_bg)
+                else:
+                    gdf_bg = None
+            else:
+                for s in state_items:
+                    try:
+                        g = load_wkb(bytes(s.geometry.wkb))
+                        if g: rows.append({'geometry': g})
+                    except: continue
+                if rows:
+                    gdf_bg = gpd.GeoDataFrame(rows)
+                    gdf_bg = self.normalize_to_3857(gdf_bg)
+                else:
+                    gdf_bg = None
+            
+            if gdf_bg is not None and not gdf_bg.empty:
+                # If a specific region is selected, we don't want to show the whole state background
+                if clip_mask and not clip_mask.is_empty:
+                    # Clip background to the target to avoid showing context outside the district
+                    gdf_bg = gpd.clip(gdf_bg, clip_mask)
+                
+                if not gdf_bg.empty:
+                    style = self._get_style('state')
+                    gdf_bg.plot(ax=ax, color='#f8fafc', edgecolor='#334155', linewidth=style.get('linewidth', 2.0), zorder=0)
+        except Exception as e: 
+            print(f"DEBUG: Background plot error: {e}")
+
+        # 5. Layer Drawing Order
+        # Thematic (bottom) -> Basic Features -> Boundaries -> Labels (top)
+        used_layers = []
+        ordered_layers = []
+        
+        # Priority mapping
+        for layer in layers:
+            if layer == 'rainfall': ordered_layers.insert(0, layer)
+            elif layer in ['groundwater_zones', 'aquifer']: ordered_layers.insert(0, layer)
+            else: ordered_layers.append(layer)
+
+        for layer in ordered_layers:
+            if layer == 'rainfall':
+                if self._plot_thematic_rainfall(ax, clip_mask, filters): used_layers.append(layer)
+                continue
+            
+            from layersApi.models import SpatialLayer
+            gdf = None
+            
+            # Fetch from SpatialLayer or Core Models
+            # Efficiently fetch only overlapping records
+            try:
+                query_box = GEOSPolygon.from_bbox(bbox)
+                db_spatial = SpatialLayer.objects.filter(name__iexact=layer, geometry__intersects=query_box)
+                if not db_spatial.exists():
+                    db_spatial = SpatialLayer.objects.filter(name__iexact=layer)
+            except:
+                db_spatial = SpatialLayer.objects.filter(name__iexact=layer)
+                
+            if db_spatial.exists():
+                gdf = gpd.GeoDataFrame([{'geometry': load_wkt(l.geometry.wkt), **l.properties} for l in db_spatial])
+                gdf = self.normalize_to_3857(gdf)
+            elif layer in ['district', 'block', 'grampanchayat', 'village']:
+                # Efficient Spatial Filtering
+                model_cls = {
+                    'district': District,
+                    'block': Block,
+                    'grampanchayat': Grampanchayat,
+                    'village': Village
+                }.get(layer, District)
+                items = model_cls.objects.exclude(geometry=None)
+                
+                # 1. Filter by Name if in filters (Hierarchical)
+                if f.get('district') and f.get('district').lower() != 'rajasthan':
+                    if layer == 'district':
+                        items = items.filter(name__iexact=f['district'])
+                    elif layer == 'block':
+                        items = items.filter(district__name__iexact=f['district'])
+                    elif layer == 'grampanchayat':
+                        items = items.filter(block__district__name__iexact=f['district'])
+                    elif layer == 'village':
+                        items = items.filter(grampanchayat__block__district__name__iexact=f['district'])
+                
+                if f.get('block') and layer in ['block', 'grampanchayat', 'village']:
+                    if layer == 'block':
+                        items = items.filter(name__iexact=f['block'])
+                    elif layer == 'grampanchayat':
+                        items = items.filter(block__name__iexact=f['block'])
+                    elif layer == 'village':
+                        items = items.filter(grampanchayat__block__name__iexact=f['block'])
+
+                if (f.get('grampanchayat') or f.get('gramPanchayat')) and layer in ['grampanchayat', 'village']:
+                    gp_name = f.get('grampanchayat') or f.get('gramPanchayat')
+                    if layer == 'grampanchayat':
+                        items = items.filter(name__iexact=gp_name)
+                    elif layer == 'village':
+                        items = items.filter(grampanchayat__name__iexact=gp_name)
+
+                if f.get('village') and layer == 'village':
+                    items = items.filter(name__iexact=f['village'])
+
+                # 2. Additional Spatial Filter
+                if clip_mask and items.count() > 100:
+                    try:
+                        items = items.filter(geometry__intersects=GEOSPolygon.from_bbox(bbox))
+                    except: pass
+
+                rows = []
+                for i in items:
+                    try:
+                        if not i.geometry: continue
+                        g = load_wkb(bytes(i.geometry.wkb))
+                        if not g.is_valid: g = g.buffer(0)
+                        if g: rows.append({'geometry': g, 'name': i.name})
+                    except Exception as ex:
+                        print(f"DEBUG: Error loading {layer} {i.name}: {ex}")
+                        continue
+                if rows:
+                    gdf = gpd.GeoDataFrame(rows)
+                    gdf = self.normalize_to_3857(gdf)
+
+
+            if gdf is None or gdf.empty:
+                # File Fallback for missing database records
+                filename = LAYER_MAPPING.get(layer)
+                if filename:
+                    file_path = os.path.join(GEOJSON_PATH, filename)
+                    if os.path.exists(file_path):
+                        print(f"DEBUG: Layer '{layer}' empty in DB, loading fallback from: {file_path}")
+                        try:
+                            gdf = gpd.read_file(file_path)
+                            gdf = self.normalize_to_3857(gdf)
+                        except Exception as fe:
+                            print(f"DEBUG: Error loading layer file {file_path}: {fe}")
+                            continue
+
+            if gdf is None or gdf.empty:
+                continue
+            
+            if clip_mask:
+                # Proper geometric clipping
+                gdf = gpd.clip(gdf, clip_mask)
+            
+            if gdf.empty: continue
+            
+            style = self._get_style(layer)
+            if layer == 'groundwater_zones':
+                colors = []
+                for _, row in gdf.iterrows():
+                    # Check multiple possible property names for status
+                    status = str(row.get('GWDL') or row.get('Category') or row.get('Stage_of_G') or row.get('status') or '').lower()
+                    color, label = GWRE_COLORS['default'], 'Default'
+                    
+                    if 'safe' in status: color, label = GWRE_COLORS['safe'], 'Safe'
+                    elif 'semi' in status: color, label = GWRE_COLORS['semi'], 'Semi Critical'
+                    elif 'critical' in status: color, label = GWRE_COLORS['critical'], 'Critical'
+                    elif 'over' in status: color, label = GWRE_COLORS['over'], 'Over Exploited'
+                    elif 'saline' in status: color, label = GWRE_COLORS['saline'], 'Saline'
+                    
+                    colors.append(color)
+                    if label != 'Default': self.active_thematic_items['gw'].add(label)
+                
+                gdf.plot(ax=ax, color=colors, edgecolor='#1e293b', linewidth=0.3, alpha=0.85, zorder=2)
+                used_layers.append(layer)
+            elif layer == 'aquifer':
+                colors = []
+                for _, row in gdf.iterrows():
+                    name = str(row.get('Aquifer') or "").strip()
+                    self.active_thematic_items['aq'].add(name)
+                    color = next((c for k, c in AQUIFER_COLORS.items() if k.lower() == name.lower()), '#cbd5e1')
+                    colors.append(color)
+                gdf.plot(ax=ax, color=colors, edgecolor='#1e293b', linewidth=0.2, alpha=0.85, zorder=2)
+                used_layers.append(layer)
+            else:
+                plot_kwargs = {k:v for k,v in style.items() if k != 'label'}
+                gdf.plot(ax=ax, **plot_kwargs)
+                used_layers.append(layer)
+                
+                # Add Labels for Boundaries if zoomed in enough
+                if layer in ['district', 'block', 'grampanchayat', 'village'] and len(gdf) < 60:
+                    self._add_labels(ax, gdf, label_col='name', fontsize=8)
+
+        # 5.5 Highlight Study Area (The specific district/block/gp/village selected)
+        if clip_mask and not clip_mask.is_empty:
+            try:
+                gdf_study = gpd.GeoDataFrame([{'geometry': clip_mask}], crs=self.target_crs)
+                # Outer glow/border for study area
+                gdf_study.plot(ax=ax, facecolor='none', edgecolor='#e91e63', linewidth=2.5, zorder=15, linestyle='-')
+                gdf_study.plot(ax=ax, facecolor='none', edgecolor='white', linewidth=4.0, zorder=14, alpha=0.3)
+            except Exception as e:
+                print(f"DEBUG: Highlight study area failed: {e}")
+
+        # 6. Final Polish (Arrows, Scale, Legend)
         self.add_north_arrow(ax)
-        self.add_scale_bar(ax, bbox_3857)
-        self.add_legend(ax, used_layers)
+        self.add_scale_bar(ax)
+        if used_layers:
+            self.add_legend(ax, used_layers)
         
-        # Frame
+        # Frame and Grid Formatting
         for spine in ax.spines.values():
-            spine.set_linewidth(2)
-            spine.set_color('black')
+            spine.set_edgecolor('#334155')
+            spine.set_linewidth(1.5)
         
-        # Grid/Coordinates
-        # Manual Tick Formatting for Lat/Lon on 3857 axis
-        # We need to map meters back to degrees
-        def meters_to_latlon(x, y):
-             # inverse mercator (simplified)
-             lon = (x / 20037508.34) * 180
-             lat = (y / 20037508.34) * 180
-             lat = 180/math.pi * (2 * math.atan(math.exp(lat * math.pi / 180)) - math.pi / 2)
-             return lat, lon
+        # Labels should only be shown if we have valid finite limits
+        try:
+            xticks = np.linspace(ax.get_xlim()[0], ax.get_xlim()[1], 5)
+            yticks = np.linspace(ax.get_ylim()[0], ax.get_ylim()[1], 6)
+            ax.set_xticks(xticks)
+            ax.set_yticks(yticks)
+            
+            cx, cy = (ax.get_xlim()[0] + ax.get_xlim()[1]) / 2, (ax.get_ylim()[0] + ax.get_ylim()[1]) / 2
+            
+            ax.set_xticklabels([f"{self.meters_to_latlon(x, cy)[1]:.2f}°E" for x in xticks], fontsize=8, color='#64748b')
+            ax.set_yticklabels([f"{self.meters_to_latlon(cx, y)[0]:.2f}°N" for y in yticks], fontsize=8, color='#64748b')
+            ax.grid(True, linestyle='--', alpha=0.3, zorder=1)
+        except Exception as e:
+            print(f"DEBUG: Labeling error: {e}")
 
-        # Generate simplified ticks
-        # Get extent
+        # 7. Title & Save
+        region_label = f.get('village') or f.get('grampanchayat') or f.get('gramPanchayat') or f.get('block') or f.get('district') or "Rajasthan"
+        date_range = f" | Filtered: {f.get('dataRangeStart')} to {f.get('dataRangeEnd')}" if f.get('dataRangeStart') else ""
         
-        # Create custom ticks
-        xticks_locs = ax.get_xticks()
-        yticks_locs = ax.get_yticks()
+        plt.figtext(0.5, 0.96, title.upper(), ha='center', fontsize=20, fontweight='bold', color='#0f172a')
+        plt.figtext(0.5, 0.93, f"Region: {region_label}{date_range}", ha='center', fontsize=12, color='#475569')
         
-        # Filter to visible
-        xticks_locs = [t for t in xticks_locs if minx <= t <= maxx]
-        yticks_locs = [t for t in yticks_locs if miny <= t <= maxy]
+        plt.figtext(0.05, 0.02, "Source: RSGWA GIS Portal | Generated via Antigravity Engine", fontsize=8, color='#94a3b8')
         
-        # Reduce density if too many
-        if len(xticks_locs) > 5: xticks_locs = xticks_locs[::2]
-        if len(yticks_locs) > 5: yticks_locs = yticks_locs[::2]
-        
-        ax.set_xticks(xticks_locs)
-        ax.set_yticks(yticks_locs)
-        
-        xtick_labels = []
-        for x in xticks_locs:
-             _, lon = meters_to_latlon(x, (miny+maxy)/2)
-             xtick_labels.append(f"{lon:.1f}°E")
-             
-        ytick_labels = []
-        for y in yticks_locs:
-             lat, _ = meters_to_latlon((minx+maxx)/2, y)
-             ytick_labels.append(f"{lat:.1f}°N")
-             
-        ax.set_xticklabels(xtick_labels, fontsize=10)
-        ax.set_yticklabels(ytick_labels, fontsize=10, rotation=90, va='center')
-        
-        # Title below map
-        plt.figtext(0.5, 0.02, title, ha='center', fontsize=16, fontweight='bold', fontname='Arial')
-        
-        plt.tight_layout(rect=[0.05, 0.05, 0.95, 0.95])
-        plt.savefig(output_file, format='pdf', dpi=300, bbox_inches='tight')
+        # Increase bottom margin to accommodate the legend
+        plt.subplots_adjust(left=0.08, right=0.95, top=0.90, bottom=0.20)
+        plt.savefig(output_file, format='pdf', dpi=300, facecolor=fig.get_facecolor())
         plt.close(fig)
-        
         return output_file

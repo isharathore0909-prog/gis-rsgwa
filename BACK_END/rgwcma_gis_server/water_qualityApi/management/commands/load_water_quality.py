@@ -5,12 +5,17 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from locationApi.models import Country, State, District, Block, Grampanchayat, Village
 from water_qualityApi.models import WaterQuality
+from django.conf import settings
 
 class Command(BaseCommand):
     help = 'Load water quality data from cleaned_FTK_C.xlsx'
 
     def handle(self, *args, **options):
-        file_path = r'D:\GIS_RSGWA_ANALYSIS\BACK_END\cleaned_FTK_C.xlsx'
+        # Determine file path relative to project root
+        # BASE_DIR is .../rgwcma_gis_server, file is in .../BACK_END/
+        base_dir = settings.BASE_DIR
+        file_path = os.path.join(os.path.dirname(base_dir), 'cleaned_FTK_C.xlsx')
+        
         log_file = 'water_quality_import_log.txt'
         
         def log(msg):
@@ -22,9 +27,12 @@ class Command(BaseCommand):
 
         with open(log_file, 'w') as f:
             f.write(f"Starting water quality import at {datetime.datetime.now()}\n")
+            f.write(f"Looking for data file at: {file_path}\n")
 
         if not os.path.exists(file_path):
             log(f"File not found: {file_path}")
+            log(f"Current working directory: {os.getcwd()}")
+            log("Please ensure 'cleaned_FTK_C.xlsx' is placed in the BACK_END directory.")
             return
 
         log("Reading Excel file...")

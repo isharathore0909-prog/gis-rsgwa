@@ -9,9 +9,57 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+print("LOADED SETTINGS FROM:", __file__)
 
+
+
+
+import os
 from pathlib import Path
 from datetime import timedelta
+from dotenv import load_dotenv
+from corsheaders.defaults import default_headers
+
+# Load environment variables
+load_dotenv()
+
+# Windows PROJ_LIB conflict fix (PostGIS vs GDAL)
+# PROJ/GDAL Configuration
+try:
+    import pyproj
+    import os
+    # Set PROJ_LIB to pyproj's data directory to ensure compatibility
+    proj_lib = pyproj.datadir.get_data_dir()
+    os.environ["PROJ_LIB"] = proj_lib
+    # print(f"Settings: Force-setting PROJ_LIB to pyproj data dir: {proj_lib}")
+except ImportError:
+    pass
+    # If pyproj is not installed, fallback logic or do nothing
+
+
+# ==============================================================================
+# SPATIAL LIBRARIES CONFIGURATION (WINDOWS)
+# ==============================================================================
+if os.name == 'nt':
+    import os
+    found_bin = r"C:\OSGeo4W\bin"
+    if os.path.exists(found_bin):
+        # Modern Python (3.8+) way to add DLL search paths
+        if hasattr(os, 'add_dll_directory'):
+            os.add_dll_directory(found_bin)
+        
+        if found_bin not in os.environ['PATH']:
+            os.environ['PATH'] = found_bin + os.pathsep + os.environ['PATH']
+        
+        import glob
+        # Try to find exactly what Django wants
+        gdal_libs = glob.glob(os.path.join(found_bin, "gdal*.dll"))
+        if gdal_libs:
+            GDAL_LIBRARY_PATH = sorted(gdal_libs, reverse=True)[0]
+        
+        geos_libs = glob.glob(os.path.join(found_bin, "geos*.dll"))
+        if geos_libs:
+            GEOS_LIBRARY_PATH = sorted(geos_libs, reverse=True)[0]
 
 # ==============================================================================
 # PATH CONFIGURATION
@@ -39,15 +87,17 @@ ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
     # Django Core Apps
+    'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.gis',
+    'django_extensions',
     
     # Third-Party Apps
-    'corsheaders',
     'rest_framework',
     'django_filters',
     
@@ -60,18 +110,24 @@ INSTALLED_APPS = [
     'aquiferApi',
     'rechargeStructureApi',
     'exportApi',
+    'layersApi',
+    'pizometerApi',
+    'core',
+    'waterquality_availabilityApi',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+
 
 ROOT_URLCONF = 'rgwcma_gis_server.urls'
 
@@ -98,14 +154,39 @@ WSGI_APPLICATION = 'rgwcma_gis_server.wsgi.application'
 # ==============================================================================
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {
-            'timeout': 20,  # Increase timeout to 20 seconds
-            #'init_command': 'PRAGMA journal_mode=WAL;', # Enable WAL mode for better concurrency
+# Database Selection Logic
+USE_POSTGRES = os.getenv('USE_POSTGRES', 'False').lower() == 'true'
+
+if USE_POSTGRES:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.contrib.gis.db.backends.postgis',
+            'NAME': os.getenv('DB_NAME', 'rgwcma_db'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
+            'HOST': os.getenv('DB_HOST', 'db'),
+            'PORT': os.getenv('DB_PORT', '5432'),
         }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {
+                'timeout': 20,
+            }
+        }
+    }
+
+
+# ==============================================================================
+# CACHING CONFIGURATION
+# ==============================================================================
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
     }
 }
 
@@ -164,12 +245,25 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS CONFIGURATION
 # ==============================================================================
 
-CORS_ALLOW_ALL_ORIGINS = True
-
 from corsheaders.defaults import default_headers
-CORS_ALLOW_HEADERS = list(default_headers) + [
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = ["*"]
+
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_EXPOSE_HEADERS = [
     "x-auth-key",
-    "X-Auth-Key",
+    "authorization",
 ]
 
 
@@ -183,7 +277,7 @@ REST_FRAMEWORK = {
         'locationApi.authentication.ApiKeyAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',
     ),
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',

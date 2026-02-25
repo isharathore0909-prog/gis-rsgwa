@@ -38,7 +38,9 @@ const RechargeStructureSection = ({ displayRegion, displayBlock, stats, isLoadin
         );
     }
 
-    if (!stats || stats.total_count === 0) {
+    if (!stats) return null;
+
+    if (stats.total_count === 0) {
         return (
             <div className="recharge-section">
                 <AnalysisCard style={{ textAlign: 'center', padding: '2rem', marginTop: '1rem' }}>

@@ -19,8 +19,8 @@ class WaterQuality(models.Model):
     )
     
     # Geographic Coordinates
-    latitude = models.FloatField(null=True, blank=True, help_text="Latitude of the well")
-    longitude = models.FloatField(null=True, blank=True, help_text="Longitude of the well")
+    latitude = models.FloatField(null=True, blank=True, db_index=True, help_text="Latitude of the well")
+    longitude = models.FloatField(null=True, blank=True, db_index=True, help_text="Longitude of the well")
     
     # Well Information
     well_id = models.CharField(max_length=100, unique=True, help_text="Unique identifier for the well")

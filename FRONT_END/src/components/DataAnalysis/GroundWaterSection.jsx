@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import AnalysisCard from './Common/AnalysisCard';
 import MiniStatusCard from './Common/MiniStatusCard';
+import SmartChartContainer from './Common/SmartChartContainer';
 
 const GroundWaterSection = ({
     isGWRE,
@@ -16,79 +17,70 @@ const GroundWaterSection = ({
     qualityData,
     blockWaterQualityData,
     getParameterColor,
-    isExpanded
+    isExpanded,
+    isLoading
 }) => {
-    const isNoData = isGWRE && pieData.length === 1 && pieData[0].name === 'Data N/A';
-
-    if (isNoData) {
+    if (isLoading) {
         return (
             <div className="groundwater-analysis-grid animated-entry">
                 <AnalysisCard style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📉</div>
-                    <h3 style={{ color: '#64748b' }}>Data Not Available</h3>
+                    <div className="loading-spinner" style={{ margin: '0 auto 1rem auto' }}></div>
                     <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
-                        Data is not available. Please select another location.
+                        Loading ground water analysis...
                     </p>
                 </AnalysisCard>
             </div>
         );
     }
+    const isNoData = isGWRE && pieData.length === 1 && pieData[0].name === 'Data N/A';
+
+    if (isNoData) return null;
 
     return (
-        <div className="groundwater-analysis-grid animated-entry">
-            <AnalysisCard title={isGWRE ? 'Stage of Ground Water Extraction' : 'Ground Water Status'}>
-                <div className="pie-chart-wrapper" style={{ minHeight: isExpanded ? '350px' : '260px' }}>
-                    <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
+        <div className={`groundwater-analysis-grid animated-entry ${isExpanded ? 'is-expanded' : ''}`}>
+            {/* Only render the donut chart card when real GWRE data is available */}
+            {pieData.length > 0 && (
+                <AnalysisCard title={isGWRE ? 'Stage of Ground Water Extraction' : 'Ground Water Status'}>
+                    <SmartChartContainer height={isExpanded ? '350px' : '260px'} className="pie-chart-wrapper">
                         <PieChart>
                             <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={5} dataKey="value">
                                 {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                             </Pie>
                             <Tooltip allowEscapeViewBox={{ x: true, y: true }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                         </PieChart>
-                    </ResponsiveContainer>
+                    </SmartChartContainer>
 
-                </div>
-
-                {/* Custom Legend moved OUTSIDE wrapper to ensure stacking */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '12px', marginBottom: '20px' }}>
-                    {pieData.map((entry, index) => (
-                        <div key={index} style={{ display: 'flex', alignItems: 'center', fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-                            <span style={{
-                                width: '10px',
-                                height: '10px',
-                                borderRadius: '50%',
-                                backgroundColor: entry.color,
-                                marginRight: '6px',
-                                border: '1px solid rgba(0,0,0,0.1)'
-                            }}></span>
-                            {entry.name}
-                        </div>
-                    ))}
-                </div>
-                <div className="status-summary-grid">
-                    {isGWRE && (
-                        <MiniStatusCard value={totalBlocks} label="Total Blocks" color="#3b82f6" style={{ gridColumn: '1 / -1' }} />
-                    )}
-                    {pieData.map((d, i) => (
-                        <MiniStatusCard key={i} value={d.value} label={d.name} color={d.color} />
-                    ))}
-                </div>
-            </AnalysisCard>
+                    <div className="card-legend-wrapper">
+                        {pieData.map((entry, index) => (
+                            <div key={index} className="legend-item-inline">
+                                <span className="legend-dot" style={{ backgroundColor: entry.color }}></span>
+                                {entry.name}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="status-summary-grid">
+                        {isGWRE && (
+                            <MiniStatusCard value={totalBlocks} label="Total Blocks" color="#3b82f6" style={{ gridColumn: '1 / -1' }} />
+                        )}
+                        {pieData.map((d, i) => (
+                            <MiniStatusCard key={i} value={d.value} label={d.name} color={d.color} />
+                        ))}
+                    </div>
+                </AnalysisCard>
+            )}
 
             <AnalysisCard title="Ground Water Level (mbgl)">
-                <div className="bar-chart-wrapper" style={{ minHeight: isExpanded ? '350px' : '260px' }}>
-                    <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
-                        <BarChart data={waterLevelChartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} reversed />
-                            <Tooltip allowEscapeViewBox={{ x: true, y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                            <Bar dataKey="value" radius={[0, 0, 4, 4]}>
-                                {waterLevelChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
+                <SmartChartContainer height={isExpanded ? '350px' : '260px'} className="bar-chart-wrapper">
+                    <BarChart data={waterLevelChartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} reversed />
+                        <Tooltip allowEscapeViewBox={{ x: true, y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                        <Bar dataKey="value" radius={[0, 0, 4, 4]}>
+                            {waterLevelChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                        </Bar>
+                    </BarChart>
+                </SmartChartContainer>
                 <div className="status-summary-grid" style={{ marginTop: '1rem' }}>
                     {waterLevelChartData.map((d, i) => (
                         <MiniStatusCard key={i} value={d.value} label={d.name} color={d.color} />
@@ -97,22 +89,30 @@ const GroundWaterSection = ({
             </AnalysisCard>
 
             <AnalysisCard title="Aquifers Present">
-                <div className="bar-chart-wrapper" style={{ minHeight: isExpanded ? '350px' : '260px' }}>
-                    <ResponsiveContainer width="100%" height={isExpanded ? 350 : 260}>
-                        <BarChart data={aquiferData} layout="vertical" margin={{ top: 10, right: 30, left: 100, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                            <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} />
-                            <Tooltip allowEscapeViewBox={{ x: true, y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                            <Bar dataKey="value" fill="#8884d8" name="Area (sq km)" radius={[0, 4, 4, 0]}>
-                                {aquiferData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color || '#3b82f6'} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-                <div className="aquifer-details-list">
+                <SmartChartContainer height={isExpanded ? '420px' : '300px'} className="bar-chart-wrapper">
+                    <BarChart
+                        data={aquiferData}
+                        layout="vertical"
+                        margin={{ top: 10, right: 30, left: 70, bottom: 30 }}
+                        barSize={20}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                        <XAxis type="number" hide />
+                        <YAxis
+                            dataKey="name"
+                            type="category"
+                            width={70}
+                            tick={{ fontSize: 10, fontWeight: 500 }}
+                        />
+                        <Tooltip allowEscapeViewBox={{ x: true, y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                        <Bar dataKey="value" fill="#8884d8" name="Area (sq km)" radius={[0, 4, 4, 0]}>
+                            {aquiferData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color || '#3b82f6'} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </SmartChartContainer>
+                <div className="aquifer-details-list" style={{ marginTop: '0.5rem' }}>
                     {aquiferData.map((d, i) => (
                         <div key={i} className="aquifer-detail-item">
                             <div className="detail-header">
@@ -120,7 +120,7 @@ const GroundWaterSection = ({
                                 <span className="name">{d.name}</span>
                             </div>
                             <div className="detail-stats">
-                                <span className="area">{d.area} <small>sq km</small></span>
+                                <span className="area">{d.value ? Number(d.value).toLocaleString() : '0'} <small>{d.unit || 'sq km'}</small></span>
                                 <span className="percent">{d.percent}%</span>
                             </div>
                         </div>
@@ -129,48 +129,47 @@ const GroundWaterSection = ({
             </AnalysisCard>
 
             <AnalysisCard title="Water Quality Compliance">
-                <div className="bar-chart-wrapper" style={{ minHeight: isExpanded ? '400px' : '300px' }}>
-                    <ResponsiveContainer width="100%" height={isExpanded ? 400 : 300}>
-                        <BarChart
-                            data={qualityData}
-                            layout="vertical"
-                            margin={{ top: 10, right: 30, left: 80, bottom: 5 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                            <XAxis type="number" domain={[0, 100]} hide />
-                            <YAxis
-                                dataKey="subject"
-                                type="category"
-                                width={70}
-                                tick={{ fontSize: 11, fontWeight: 500 }}
-                            />
-                            <Tooltip
-                                allowEscapeViewBox={{ x: true, y: true }}
-                                cursor={{ fill: 'transparent' }}
-                                content={({ active, payload }) => {
-                                    if (active && payload && payload.length) {
-                                        const data = payload[0].payload;
-                                        return (
-                                            <div className="custom-chart-tooltip">
-                                                <p className="tooltip-title">{data.subject}</p>
-                                                <p className="tooltip-item"><strong>Limit:</strong> {data.label}</p>
-                                                <p className="tooltip-item"><strong>Exceedance:</strong> {data.value}% Stations</p>
-                                            </div>
-                                        );
-                                    }
-                                    return null;
-                                }}
-                            />
-                            <Bar dataKey="value" fill="#f4a261" radius={[0, 4, 4, 0]} barSize={20} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-                <div className="status-summary-grid" style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                <SmartChartContainer height={isExpanded ? '420px' : '340px'} className="bar-chart-wrapper">
+                    <BarChart
+                        data={qualityData}
+                        layout="vertical"
+                        margin={{ top: 10, right: 30, left: 70, bottom: 30 }}
+                        barSize={20}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                        <XAxis type="number" domain={[0, 100]} hide />
+                        <YAxis
+                            dataKey="subject"
+                            type="category"
+                            width={65}
+                            tick={{ fontSize: 10, fontWeight: 500 }}
+                        />
+                        <Tooltip
+                            allowEscapeViewBox={{ x: true, y: true }}
+                            cursor={{ fill: 'transparent' }}
+                            content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                    const data = payload[0].payload;
+                                    return (
+                                        <div className="custom-chart-tooltip">
+                                            <p className="tooltip-title">{data.subject}</p>
+                                            <p className="tooltip-item"><strong>Limit:</strong> {data.label}</p>
+                                            <p className="tooltip-item"><strong>Exceedance:</strong> {data.value}% Stations</p>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            }}
+                        />
+                        <Bar dataKey="value" fill="#f4a261" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                </SmartChartContainer>
+                <div className="status-summary-grid" style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>
                     {qualityData.map((d, i) => (
                         <MiniStatusCard key={i} value={`${d.value}%`} label={d.subject} color="#f4a261" />
                     ))}
                 </div>
-                <div className="quality-legend-simple">
+                <div className="quality-legend-simple" style={{ marginTop: '0rem' }}>
                     <div className="legend-label">% Stations Exceeding Permissible Limits</div>
                 </div>
             </AnalysisCard>

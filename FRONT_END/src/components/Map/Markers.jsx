@@ -86,6 +86,7 @@ export const AquiferWellMarker = ({ record, onMarkerClick }) => {
             icon={customIcon}
             eventHandlers={{
                 click: (e) => {
+                    L.DomEvent.stopPropagation(e);
                     onMarkerClick && onMarkerClick(record, e.latlng);
                 }
             }}
@@ -127,6 +128,7 @@ export const RainfallMarker = ({ record, onMarkerClick }) => {
             icon={customIcon}
             eventHandlers={{
                 click: (e) => {
+                    L.DomEvent.stopPropagation(e);
                     onMarkerClick && onMarkerClick(record, e.latlng);
                 }
             }}
@@ -174,6 +176,40 @@ export const WaterQualityMarker = ({ record, onMarkerClick }) => {
             icon={customIcon}
             eventHandlers={{
                 click: (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    onMarkerClick && onMarkerClick(record, e.latlng);
+                }
+            }}
+        />
+    );
+};
+
+export const PiezometerMarker = ({ record, onMarkerClick }) => {
+    // Purple marker for Piezometers
+    const color = '#9333ea';
+
+    const customIcon = L.divIcon({
+        className: 'piezometer-marker',
+        html: `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="8" fill="${color}" stroke="white" stroke-width="2"/>
+                <path d="M12 6V18M6 12H18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12]
+    });
+
+    if (!record.latitude || !record.longitude) return null;
+
+    return (
+        <Marker
+            position={[record.latitude, record.longitude]}
+            icon={customIcon}
+            eventHandlers={{
+                click: (e) => {
+                    L.DomEvent.stopPropagation(e);
                     onMarkerClick && onMarkerClick(record, e.latlng);
                 }
             }}

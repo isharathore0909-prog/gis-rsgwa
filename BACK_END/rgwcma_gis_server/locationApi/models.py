@@ -1,4 +1,4 @@
-from django.db import models
+from django.contrib.gis.db import models
 import uuid
 
 class ApiKey(models.Model):
@@ -23,6 +23,7 @@ class State(models.Model):
     name = models.CharField(max_length=255, db_index=True)
     country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name='states')
     code = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    geometry = models.GeometryField(null=True, blank=True, srid=4326)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -37,6 +38,7 @@ class District(models.Model):
     name = models.CharField(max_length=255, db_index=True)
     state = models.ForeignKey(State, on_delete=models.CASCADE, related_name='districts')
     code = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    geometry = models.GeometryField(null=True, blank=True, srid=4326)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -51,6 +53,7 @@ class Block(models.Model):
     name = models.CharField(max_length=255, db_index=True)
     district = models.ForeignKey(District, on_delete=models.CASCADE, related_name='blocks')
     code = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    geometry = models.GeometryField(null=True, blank=True, srid=4326)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -65,6 +68,7 @@ class Grampanchayat(models.Model):
     name = models.CharField(max_length=255, db_index=True)
     block = models.ForeignKey(Block, on_delete=models.CASCADE, related_name='gram_panchayats')
     code = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    geometry = models.GeometryField(null=True, blank=True, srid=4326)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -82,6 +86,8 @@ class Village(models.Model):
 
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
+    geometry = models.GeometryField(null=True, blank=True, srid=4326)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

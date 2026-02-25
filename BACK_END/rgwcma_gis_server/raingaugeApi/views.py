@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions
+from rest_framework.permissions import AllowAny
 from .models import RainGauge
 from .serializers import RainGaugeSerializer
 
@@ -11,7 +12,8 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 class RainGaugeViewSet(viewsets.ModelViewSet):
     queryset = RainGauge.objects.all()
     serializer_class = RainGaugeSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         queryset = RainGauge.objects.all()

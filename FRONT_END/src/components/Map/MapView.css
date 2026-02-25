@@ -1,9 +1,34 @@
-/* Map View - Geospatial Professional Design */
 .map-container {
     flex: 1;
     position: relative;
-    background: #eef2f7;
+    background: #f8fafc;
+    /* Match light basemap to hide potential gaps */
     min-width: 0;
+}
+
+/* Prevent subpixel gaps between tiles (vertical/horizontal lines) */
+.map-container .leaflet-tile-container {
+    will-change: transform;
+    outline: 1px solid transparent;
+}
+
+.map-container .leaflet-tile {
+    /* Force GPU rendering to avoid subpixel rounding issues in Chrome */
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    /* Overlap tiles by 1px to close any sub-pixel rendering gaps */
+    margin: -1px;
+    padding: 1px;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* Also target the pane to avoid inherited gaps */
+.map-container .leaflet-map-pane canvas,
+.map-container .leaflet-layer {
+    will-change: transform;
 }
 
 /* =========================================
@@ -56,6 +81,36 @@
 
 .warning-text strong {
     color: #d97706;
+}
+
+/* Spinner for Loading Overlays */
+.spinner-small {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(14, 165, 233, 0.2);
+    border-top: 3px solid #0ea5e9;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.warning-content.loading-content {
+    border-color: rgba(14, 165, 233, 0.4);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.warning-content.loading-content h3 {
+    color: #0369a1;
 }
 
 @keyframes fadeInOverlay {
@@ -314,9 +369,53 @@
 
     .info-panel,
     .legend-widget {
-        width: calc(100% - 4rem);
-        left: 2rem;
-        right: 2rem;
+        width: calc(100% - 2rem);
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+    }
+
+    .map-controls {
+        top: 1rem;
+        right: 1rem;
+        gap: 0.5rem;
+    }
+
+    .map-control-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .map-legend-toggle {
+        bottom: 80px;
+        /* Position above mobile analysis toggle */
+        right: 1rem;
+        padding: 8px 14px;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .legend-widget {
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+
+    .warning-content {
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .warning-icon {
+        font-size: 1.5rem;
+    }
+
+    .warning-text h3 {
+        font-size: 0.95rem;
+    }
+
+    .warning-text p {
+        font-size: 0.8rem;
     }
 }
 

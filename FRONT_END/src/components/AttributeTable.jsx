@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { IconChevronDown, IconMap, IconTrash } from './Icons';
 import './AttributeTable.css';
 
@@ -9,6 +9,33 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
     const [height, setHeight] = useState(320); // Default open height
     const [isDragging, setIsDragging] = useState(false);
     const [activeTab, setActiveTab] = useState('All');
+
+    // --- Memoized Calculations (Moved above early return to follow Rules of Hooks) ---
+    const categories = useMemo(() => {
+        const features = data?.features || [];
+        return ['All', ...new Set(features.map(f => f.properties.Category || f.properties.category).filter(Boolean))];
+    }, [data?.features]);
+
+    const filteredFeatures = useMemo(() => {
+        const features = data?.features || [];
+        return activeTab === 'All'
+            ? features
+            : features.filter(f => (f.properties.Category || f.properties.category) === activeTab);
+    }, [data?.features, activeTab]);
+
+    const MAX_VISIBLE_FEATURES = 500;
+    const isTruncated = filteredFeatures.length > MAX_VISIBLE_FEATURES;
+
+    const displayedFeatures = useMemo(() => {
+        return filteredFeatures.slice(0, MAX_VISIBLE_FEATURES);
+    }, [filteredFeatures]);
+
+    const headers = useMemo(() => {
+        return displayedFeatures.length > 0 ? Object.keys(displayedFeatures[0].properties) : [];
+    }, [displayedFeatures]);
+
+    const visibleIds = useMemo(() => displayedFeatures.map(f => f.id), [displayedFeatures]);
+    const isAllVisibleSelected = useMemo(() => visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id)), [visibleIds, selectedIds]);
 
     const toggleCollapse = () => {
         setIsCollapsed(!isCollapsed);
@@ -95,29 +122,6 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
         );
     }
 
-    // Tab State
-    // Tab State (moved to top)
-
-    // Extract categories
-    const categories = ['All', ...new Set(data.features.map(f => f.properties.Category || f.properties.category).filter(Boolean))];
-
-    // Filter data based on active tab
-    const filteredFeatures = activeTab === 'All'
-        ? data.features
-        : data.features.filter(f => (f.properties.Category || f.properties.category) === activeTab);
-
-    // Dynamic headers based on visible data
-    const headers = filteredFeatures.length > 0 ? Object.keys(filteredFeatures[0].properties) : [];
-
-    const visibleIds = filteredFeatures.map(f => f.id);
-    const isAllVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
-
-    console.log('AttributeTable Debug:', {
-        totalFeatures: data.features.length,
-        filteredFeaturesLength: filteredFeatures.length,
-        firstFeatureProps: filteredFeatures[0]?.properties,
-        headers
-    });
 
     const handleSelectAllVisible = () => {
         if (onToggleSelection) {
@@ -186,7 +190,7 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredFeatures.map((feature, index) => {
+                            {displayedFeatures.map((feature, index) => {
                                 const isSelected = selectedIds.includes(feature.id);
                                 return (
                                     <tr
@@ -230,6 +234,11 @@ const AttributeTable = ({ data, onRowClick, selectedIds = [], onToggleSelection,
                             })}
                         </tbody>
                     </table>
+                    {isTruncated && (
+                        <div className="table-truncation-notice">
+                            Only showing first {MAX_VISIBLE_FEATURES} of {filteredFeatures.length} records in this view for performance.
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

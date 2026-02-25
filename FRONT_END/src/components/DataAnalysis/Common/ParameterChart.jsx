@@ -1,15 +1,13 @@
 import React from 'react';
-import { PieChart, Pie, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie } from 'recharts';
+import SmartChartContainer from './SmartChartContainer';
 
 const ParameterChart = ({ name, value, limit, unit, status, color }) => {
     const isExceeded = status === 'High' || status === 'Out Range';
 
-    // For pH, the value might be a range or a single number. 
-    // The original code had specific logic for pH.
-
     return (
-        <div className="water-quality-mini-card" style={{ minHeight: '150px' }}>
-            <ResponsiveContainer width="100%" height={100}>
+        <div className="water-quality-mini-card" style={{ position: 'relative' }}>
+            <SmartChartContainer height="100px">
                 <PieChart>
                     <Pie
                         data={[
@@ -19,13 +17,13 @@ const ParameterChart = ({ name, value, limit, unit, status, color }) => {
                         cx="50%" cy="50%" innerRadius={22} outerRadius={38} dataKey="value" startAngle={90} endAngle={-270}
                     />
                 </PieChart>
-            </ResponsiveContainer>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{name}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0', lineHeight: 1.4 }}>
+            </SmartChartContainer>
+            <div className="parameter-name">{name}</div>
+            <div className="parameter-stats">
                 <div>Amount: {typeof value === 'number' ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value} {unit}</div>
                 <div>Limit: {limit} {unit}</div>
             </div>
-            <div style={{ fontSize: '0.7rem', color: isExceeded ? '#e63946' : '#2a9d8f', fontWeight: 800, textTransform: 'uppercase' }}>
+            <div className={`parameter-status ${isExceeded ? 'exceeded' : 'safe'}`}>
                 {status}
             </div>
         </div>

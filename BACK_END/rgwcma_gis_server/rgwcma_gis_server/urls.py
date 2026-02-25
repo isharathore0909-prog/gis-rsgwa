@@ -28,8 +28,10 @@ def home(request):
             "rainfall": "/api/rainfall/",
             "raingauge": "/api/raingauge/",
             "water_quality": "/api/water-quality/",
+            "water_quality_availability": "/api/water-quality-availability/",
             "aquifer": "/api/aquifer/",
-            "recharge_structure": "/api/recharge-structure/"
+            "recharge_structure": "/api/recharge-structure/",
+            "piezometer": "/api/piezometer/"
         }
     })
 
@@ -46,11 +48,14 @@ urlpatterns = [
     path('api/account/', include('account_app.urls')),
     path('api/rainfall/', include('rainfallApi.urls')),
     path('api/raingauge/', include('raingaugeApi.urls')),
+    path('api/piezometer/', include('pizometerApi.urls')),
 
     path('api/', include('water_qualityApi.urls')),
+    path('api/', include('waterquality_availabilityApi.urls')),
     path('api/', include('aquiferApi.urls')),
     path('api/', include('rechargeStructureApi.urls')),
     path('api/export/', include('exportApi.urls')),
+    path('api/spatial/', include('layersApi.urls')),
 ]
 
 if settings.DEBUG:

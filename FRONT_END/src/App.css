@@ -233,3 +233,78 @@ body {
         transform: rotate(360deg);
     }
 }
+
+/* --- Responsiveness --- */
+
+/* Tablet & Smaller */
+@media screen and (max-width: 1024px) {
+    :root {
+        --sidebar-left-width: 320px;
+        --sidebar-right-width: 320px;
+    }
+}
+
+/* Mobile Devices */
+@media screen and (max-width: 768px) {
+    :root {
+        --header-height: 56px;
+        --sidebar-left-width: 100%;
+        --sidebar-right-width: 100%;
+    }
+
+    .main-layout {
+        position: relative;
+    }
+
+    /* Left Sidebar as overlay on mobile */
+    .controls-sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        z-index: 1000;
+        transition: transform 0.3s ease;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .controls-sidebar.collapsed {
+        transform: translateX(-100%);
+    }
+
+    /* Right Sidebar as overlay on mobile */
+    .data-analysis-sidebar {
+        position: absolute;
+        right: 0;
+        top: 0;
+        height: 100%;
+        z-index: 1000;
+        transition: transform 0.3s ease;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .data-analysis-sidebar.hidden {
+        transform: translateX(100%);
+    }
+
+    /* Workspace takes full width always on mobile */
+    .workspace-main {
+        width: 100%;
+        flex: 1;
+    }
+
+    .workspace-bottom {
+        max-height: 200px;
+    }
+
+}
+
+/* Handle landscape on small phones */
+@media screen and (max-height: 500px) and (max-width: 900px) {
+    :root {
+        --header-height: 48px;
+    }
+
+    .header-main {
+        padding: 4px 0 !important;
+    }
+}

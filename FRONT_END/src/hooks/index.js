@@ -9,6 +9,7 @@ export {
     useDistrictRainfall,
     useWaterQuality,
     useAquiferData,
+    usePiezometerData,
     useGeoJSONData
 } from './useMapData';
 
@@ -39,3 +40,4 @@ export {
 // App Logic Hooks
 export { useAppLogic } from './useAppLogic';
 export { useMapView } from './useMapView';
+export { useLocations } from './useLocations';

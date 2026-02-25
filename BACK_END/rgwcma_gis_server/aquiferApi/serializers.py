@@ -13,6 +13,18 @@ class AquiferDataSerializer(serializers.ModelSerializer):
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
 
+    # Dynamic Average Fields
+    avg_2015 = serializers.SerializerMethodField()
+    avg_2016 = serializers.SerializerMethodField()
+    avg_2017 = serializers.SerializerMethodField()
+    avg_2018 = serializers.SerializerMethodField()
+    avg_2019 = serializers.SerializerMethodField()
+    avg_2020 = serializers.SerializerMethodField()
+    avg_2021 = serializers.SerializerMethodField()
+    avg_2022 = serializers.SerializerMethodField()
+    avg_2023 = serializers.SerializerMethodField()
+    avg_2024 = serializers.SerializerMethodField()
+
     class Meta:
         model = AquiferData
         fields = [
@@ -48,6 +60,9 @@ class AquiferDataSerializer(serializers.ModelSerializer):
             'pre_2023', 'pst_2023',
             # 2024
             'pre_2024', 'pst_2024',
+            # Averages (Calculated in Backend)
+            'avg_2015', 'avg_2016', 'avg_2017', 'avg_2018', 'avg_2019',
+            'avg_2020', 'avg_2021', 'avg_2022', 'avg_2023', 'avg_2024',
             # Metadata
             'created_at',
             'updated_at',
@@ -64,6 +79,24 @@ class AquiferDataSerializer(serializers.ModelSerializer):
         if obj.longitude:
             return obj.longitude
         return obj.village.longitude if obj.village else None
+
+    def _get_avg(self, obj, year):
+        pre = getattr(obj, f'pre_{year}', None)
+        pst = getattr(obj, f'pst_{year}', None)
+        if pre is not None and pst is not None:
+            return round((pre + pst) / 2, 2)
+        return pre if pre is not None else pst
+
+    def get_avg_2015(self, obj): return self._get_avg(obj, 2015)
+    def get_avg_2016(self, obj): return self._get_avg(obj, 2016)
+    def get_avg_2017(self, obj): return self._get_avg(obj, 2017)
+    def get_avg_2018(self, obj): return self._get_avg(obj, 2018)
+    def get_avg_2019(self, obj): return self._get_avg(obj, 2019)
+    def get_avg_2020(self, obj): return self._get_avg(obj, 2020)
+    def get_avg_2021(self, obj): return self._get_avg(obj, 2021)
+    def get_avg_2022(self, obj): return self._get_avg(obj, 2022)
+    def get_avg_2023(self, obj): return self._get_avg(obj, 2023)
+    def get_avg_2024(self, obj): return self._get_avg(obj, 2024)
 
 
 class AquiferDataListSerializer(serializers.ModelSerializer):

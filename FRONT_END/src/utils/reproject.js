@@ -4,16 +4,35 @@ import { parseWKT } from './wktParser';
 // Define the source projection (UTM Zone 43N)
 const utm43n = "+proj=utm +zone=43 +datum=WGS84 +units=m +no_defs";
 const wgs84 = "+proj=longlat +datum=WGS84 +no_defs";
+const epsg3857 = "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs";
+// India Everest 1830 / UTM 43N - common for Rajasthan datasets
+const everest43n = "+proj=utm +zone=43 +a=6377276.345 +b=6356075.413 +towgs84=295,736,257,0,0,0,0 +units=m +no_defs";
 
 export const reprojectGeoJSON = (geoJSON) => {
-    console.log("Reprojecting GeoJSON...", geoJSON);
-    if (!geoJSON || !geoJSON.features) {
-        console.error("Invalid GeoJSON data provided to reprojectGeoJSON");
+    if (!geoJSON) return null;
+
+    // Normalize input to handle FeatureCollection, Feature, or Geometry
+    let features = [];
+    let isSingleFeature = false;
+    let isGeometryOnly = false;
+
+    if (geoJSON.type === 'FeatureCollection') {
+        features = geoJSON.features || [];
+    } else if (geoJSON.type === 'Feature') {
+        features = [geoJSON];
+        isSingleFeature = true;
+    } else if (['Point', 'LineString', 'Polygon', 'MultiPoint', 'MultiLineString', 'MultiPolygon'].includes(geoJSON.type)) {
+        features = [{ type: 'Feature', properties: {}, geometry: geoJSON }];
+        isGeometryOnly = true;
+    } else if (geoJSON.features) {
+        features = geoJSON.features;
+    } else {
+        console.error("Invalid GeoJSON data provided to reprojectGeoJSON", geoJSON);
         return null;
     }
 
     try {
-        const newFeatures = geoJSON.features.map(feature => {
+        const newFeatures = features.map(feature => {
             if (!feature || !feature.geometry) return feature;
 
             let geometry = feature.geometry;
@@ -46,6 +65,12 @@ export const reprojectGeoJSON = (geoJSON) => {
                     if (Math.abs(coords[0]) <= 180 && Math.abs(coords[1]) <= 90) {
                         return coords;
                     }
+                    // Heuristic to distinguish between UTM 43N and Web Mercator
+                    // UTM 43N Easting is typically 100k-900k
+                    // Web Mercator X for India is typically 7M-10M
+                    if (Math.abs(coords[0]) > 2000000) {
+                        return proj4(epsg3857, wgs84, coords);
+                    }
                     return proj4(utm43n, wgs84, coords);
                 }
                 // Recursively handle nested arrays
@@ -68,12 +93,17 @@ export const reprojectGeoJSON = (geoJSON) => {
             };
         });
 
-        const result = {
+        if (isGeometryOnly) {
+            return newFeatures[0].geometry;
+        }
+        if (isSingleFeature) {
+            return newFeatures[0];
+        }
+
+        return {
             ...geoJSON,
             features: newFeatures
         };
-        console.log("Reprojection complete:", result);
-        return result;
     } catch (error) {
         console.error("Error during reprojection:", error);
         return null;

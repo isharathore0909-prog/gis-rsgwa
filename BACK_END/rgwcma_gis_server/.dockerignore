@@ -9,4 +9,4 @@ djenv
 data/
 media/
 tmp/
-*.sqlite3
+

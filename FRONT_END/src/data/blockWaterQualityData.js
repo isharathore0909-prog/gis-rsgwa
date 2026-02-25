@@ -1795,7 +1795,10 @@ export const BLOCK_WATER_QUALITY_DATA = [
 // Get water quality data for a specific district
 export const getDistrictWaterQuality = (districtName) => {
     if (!districtName) return [];
-    const normalizedDistrict = districtName.trim().toLowerCase();
+
+    // Ensure parameter is a string
+    const districtStr = typeof districtName === 'string' ? districtName : String(districtName);
+    const normalizedDistrict = districtStr.trim().toLowerCase();
     return BLOCK_WATER_QUALITY_DATA.filter(
         item => item.district.toLowerCase() === normalizedDistrict
     );
@@ -1804,8 +1807,13 @@ export const getDistrictWaterQuality = (districtName) => {
 // Get water quality data for a specific block
 export const getBlockWaterQuality = (districtName, blockName) => {
     if (!districtName || !blockName) return null;
-    const normalizedDistrict = districtName.trim().toLowerCase();
-    const normalizedBlock = blockName.trim().toLowerCase();
+
+    // Ensure both parameters are strings
+    const districtStr = typeof districtName === 'string' ? districtName : String(districtName);
+    const blockStr = typeof blockName === 'string' ? blockName : String(blockName);
+
+    const normalizedDistrict = districtStr.trim().toLowerCase();
+    const normalizedBlock = blockStr.trim().toLowerCase();
     return BLOCK_WATER_QUALITY_DATA.find(
         item => item.district.toLowerCase() === normalizedDistrict &&
             item.block.toLowerCase() === normalizedBlock
