@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 
 /**
@@ -52,10 +52,11 @@ import {
     PiezometerMarkersLayer,
     DamMarkersLayer,
     AquiferVectorLayer,
-    WaterResourcesLayers
+    WaterResourcesLayers,
+    WaterQualityContourLayer
 } from './layers';
 import {
-    MapControls, LegendToggle, LegendWidget, MapWarning, ColorPickerWidget
+    MapControls, LegendToggle, LegendWidget, MapWarning, ColorPickerWidget, ExportLoadingOverlay
 } from './MapOverlays';
 
 // --- Context ---
@@ -112,6 +113,8 @@ const MapView = ({
     // Color Picker State
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [vectorLoading, setVectorLoading] = useState(false);
+    const [contourLoading, setContourLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [layerColors, setLayerColors] = useState({
         canals: "#00bcd4",
         waterbodies: "#0288d1",
@@ -252,6 +255,8 @@ const MapView = ({
             selectedLayers.push('aquifer');
         } else if (filters?.type === 'Ground Water Resource Estimation') {
             selectedLayers.push('groundwater_zones');
+        } else if (filters?.type === 'Water Quality') {
+            selectedLayers.push('water_quality');
         } else {
             // Default/Fallbacks
             if (filters?.district) selectedLayers.push('district');
@@ -278,11 +283,16 @@ const MapView = ({
                 gramPanchayat: filters?.gramPanchayat,
                 village: filters?.village,
                 dataRangeStart: filters?.dataRangeStart,
-                dataRangeEnd: filters?.dataRangeEnd
+                dataRangeEnd: filters?.dataRangeEnd,
+                showEC: filters?.showEC,
+                showNitrate: filters?.showNitrate,
+                showFluoride: filters?.showFluoride,
+                showTDS: filters?.showTDS
             }
         };
 
         try {
+            setIsExporting(true);
             // Show loading indication (custom or rely on browser download UI)
             const response = await fetch(`${BACKEND_API.BASE_URL}/export/map/`, {
                 method: "POST",
@@ -302,6 +312,8 @@ const MapView = ({
         } catch (err) {
             console.error("Export failed:", err);
             alert("Map export failed. Please try again.");
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -363,8 +375,8 @@ const MapView = ({
         const observer = new ResizeObserver(() => {
             setTimeout(() => {
                 try {
-                    if (map && map._container && typeof map.invalidateSize === 'function') {
-                        map.invalidateSize();
+                    if (map && map._container && map._mapPane && typeof map.invalidateSize === 'function') {
+                        map.invalidateSize(false);
                     }
                 } catch (e) {
                     console.warn("Map resize observation failed", e);
@@ -390,8 +402,12 @@ const MapView = ({
     useEffect(() => {
         if (map && map.getContainer()) {
             setTimeout(() => {
-                if (map && map.getContainer()) {
-                    map.invalidateSize();
+                try {
+                    if (map && map.getContainer() && map._mapPane && typeof map.invalidateSize === 'function') {
+                        map.invalidateSize(false);
+                    }
+                } catch (e) {
+                    console.warn("Map explicit resize failed", e);
                 }
             }, 300); // Wait for CSS transitions to finish
         }
@@ -415,8 +431,8 @@ const MapView = ({
     };
 
     return (
-        <div className="map-container">
-            <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+        <div className="map-container professional-border">
+            <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} style={{ height: '100%', width: '100%' }} zoomControl={false} attributionControl={false}>
                 <MapUpdater center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} basemap={basemap} onMapReady={handleMapReady} />
                 <MapEvents onLocationClick={onMapClick} />
                 {renderBasemap()}
@@ -465,14 +481,50 @@ const MapView = ({
                 <RaingaugeStationsLayer isActive={filters?.type === 'Rainfall'} showStations={filters?.showRaingaugeStations} data={raingaugeStations} district={filters?.district} />
                 <PiezometerMarkersLayer isActive={filters?.type === 'Rainfall' && filters?.showPiezometers} records={piezometerRecords} onLocationClick={handleLocationClick} />
                 <WaterQualityMarkersLayer isActive={filters?.type === 'Water Quality'} records={waterQualityRecords} onLocationClick={handleLocationClick} />
+                <WaterQualityContourLayer
+                    isActive={filters?.type === 'Water Quality' && filters?.showEC}
+                    parameter="ec"
+                    filters={filters}
+                    label="EC"
+                    onLoading={setContourLoading}
+                />
+                <WaterQualityContourLayer
+                    isActive={filters?.type === 'Water Quality' && filters?.showNitrate}
+                    parameter="nitrate"
+                    filters={filters}
+                    label="Nitrate"
+                    onLoading={setContourLoading}
+                />
+                <WaterQualityContourLayer
+                    isActive={filters?.type === 'Water Quality' && filters?.showFluoride}
+                    parameter="fluoride"
+                    filters={filters}
+                    label="Fluoride"
+                    onLoading={setContourLoading}
+                />
+                <WaterQualityContourLayer
+                    isActive={filters?.type === 'Water Quality' && filters?.showTDS}
+                    parameter="tds"
+                    filters={filters}
+                    label="TDS"
+                    onLoading={setContourLoading}
+                />
                 <AquiferMarkersLayer isActive={filters?.type === 'Well Inventory'} records={aquiferRecords} onLocationClick={handleLocationClick} />
 
                 {filters?.type === 'Well Inventory' && selectedWellInventory.length > 0 && (
                     <>
                         {selectedWellInventory.map((item, idx) => (
-                            <Marker
+                            <CircleMarker
                                 key={`selected-${item.well_id || item.id || idx}`}
-                                position={[item.latitude || item.lat, item.longitude || item.lng]}
+                                center={[item.latitude || item.lat, item.longitude || item.lng]}
+                                radius={8}
+                                pathOptions={{
+                                    fillColor: '#ef4444',
+                                    color: 'white',
+                                    weight: 2,
+                                    opacity: 1,
+                                    fillOpacity: 1
+                                }}
                             />
                         ))}
                     </>
@@ -480,6 +532,7 @@ const MapView = ({
 
                 <AquiferVectorLayer
                     isActive={filters?.type === 'Aquifer' || filters?.type === 'Well Inventory'}
+                    district={filters?.district}
                     filter={aquiferFilter}
                     style={memoizedAquiferStyle}
                     onLoading={setVectorLoading}
@@ -530,7 +583,7 @@ const MapView = ({
             <MapWarning
                 layerType={filters?.type}
                 isRainfallDataEmpty={isRainfallDataEmpty}
-                isLoading={isLoading || vectorLoading || districtRainfallLoading || piezometersLoading || waterQualityLoading || aquiferLoading || gwreLoading || raingaugeLoading}
+                isLoading={isLoading || vectorLoading || contourLoading || districtRainfallLoading || piezometersLoading || waterQualityLoading || aquiferLoading || gwreLoading || raingaugeLoading}
             />
             <MapControls
                 onResetView={handleResetView}
@@ -550,6 +603,8 @@ const MapView = ({
 
             <LegendToggle isActive={filters?.type} showLegend={showLegend} hasData={legendData.length > 0} onToggle={toggleLegend} />
             <LegendWidget isActive={filters?.type} showLegend={showLegend} legendData={legendData} legendFeature={legendFeature} numClasses={numClasses} featureOptions={featureOptions} onFeatureChange={setLegendFeature} onClassesChange={setNumClasses} onHide={toggleLegend} />
+
+            <ExportLoadingOverlay isActive={isExporting} />
         </div>
     );
 };

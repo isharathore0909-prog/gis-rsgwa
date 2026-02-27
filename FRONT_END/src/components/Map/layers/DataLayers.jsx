@@ -186,26 +186,7 @@ export const WaterQualityMarkersLayer = ({
     records,
     onLocationClick
 }) => {
-    if (!isActive || !records.length) return null;
-
-    return (
-        <>
-            {records.map((record, idx) => (
-                record.latitude && record.longitude && (
-                    <WaterQualityMarker
-                        key={`wq-${idx}`}
-                        record={record}
-                        onMarkerClick={(rec, latlng) => onLocationClick(latlng, [{
-                            ...rec,
-                            id: rec.well_id,
-                            location: rec.village_name || 'Unknown',
-                            type: 'water_quality_well'
-                        }])}
-                    />
-                )
-            ))}
-        </>
-    );
+    return null; // hide markers per user request
 };
 
 /**
@@ -302,6 +283,7 @@ export const DamMarkersLayer = ({
  */
 export const AquiferVectorLayer = ({
     isActive,
+    district,
     filter,
     style,
     onFeatureClick,
@@ -309,11 +291,15 @@ export const AquiferVectorLayer = ({
 }) => {
     if (!isActive) return null;
 
-    // Use the static optimised aquifer file — guaranteed to have New_Dist / Aquifer properties
-    const dataUrl = '/data/aquifer_opt.json';
+    // Use backend's spatially-intersecting (clipped) API if district is selected.
+    // Fallback to static optimised file for full state view.
+    const dataUrl = district
+        ? `${BACKEND_API.BASE_URL}/spatial/layers/intersect/?layer_type=aquifer&district=${district}`
+        : '/data/aquifer_opt.json';
 
     return (
         <VectorGridSlicer
+            key={`aquifer-${district || 'all'}`}
             active={isActive}
             dataUrl={dataUrl}
             layerName="aquifer"

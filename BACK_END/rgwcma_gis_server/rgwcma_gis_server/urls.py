@@ -44,16 +44,7 @@ urlpatterns = [
 
     path('admin/', admin.site.urls),
 
-    path('api/location/', include('locationApi.urls')),
-    path('api/account/', include('account_app.urls')),
-    path('api/rainfall/', include('rainfallApi.urls')),
-    path('api/raingauge/', include('raingaugeApi.urls')),
-    path('api/piezometer/', include('pizometerApi.urls')),
-
-    path('api/', include('water_qualityApi.urls')),
-    path('api/', include('waterquality_availabilityApi.urls')),
-    path('api/', include('aquiferApi.urls')),
-    path('api/', include('rechargeStructureApi.urls')),
+    path('api/', include('core.api')),
     path('api/export/', include('exportApi.urls')),
     path('api/spatial/', include('layersApi.urls')),
 ]

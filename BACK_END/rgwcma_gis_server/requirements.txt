@@ -25,3 +25,5 @@ geopandas
 matplotlib
 shapely
 gunicorn
+scipy
+pyproj

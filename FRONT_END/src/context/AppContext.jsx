@@ -24,7 +24,11 @@ export const AppContextProvider = ({ children }) => {
         showDams: false,
         showCanals: false,
         showWaterbodies: false,
-        showMicro: false
+        showMicro: false,
+        showEC: false,
+        showNitrate: false,
+        showFluoride: false,
+        showTDS: false
     });
 
     // 3. Global Layers Visibility

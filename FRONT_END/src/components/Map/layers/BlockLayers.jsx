@@ -86,19 +86,6 @@ export const BlockBoundaryLayer = React.memo(({
                 `, { sticky: true, className: 'custom-map-tooltip' });
 
                 layer.on({
-                    mouseover: e => {
-                        const l = e.target;
-                        const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
-                        l.setStyle({
-                            weight: 2.5,
-                            color: '#475569',
-                            fillOpacity: isThematic ? 1 : 0
-                        });
-                        l.bringToFront();
-                    },
-                    mouseout: e => {
-                        geoJsonRef.current?.resetStyle(e.target);
-                    },
                     click: e => {
                         const props = e.target.feature.properties;
                         onLocationClick({ lat: e.latlng.lat, lng: e.latlng.lng }, [{
@@ -198,20 +185,6 @@ export const DrillDownBoundariesLayer = ({
                     <div style="font-weight: bold;">${name}</div>
                 `, { sticky: true });
                 layer.on({
-                    mouseover: e => {
-                        const l = e.target;
-                        const level = feature.properties.level || currentLevel;
-                        const isDist = level === 'district';
-                        l.setStyle({
-                            fillOpacity: isDist ? 0 : 0.05, // Very minimal fill on hover for interactivity feedback
-                            weight: isDist ? 3 : 2.5,
-                            color: isDist ? '#1d4ed8' : '#059669'
-                        });
-                        l.bringToFront();
-                    },
-                    mouseout: e => {
-                        geoJsonRef.current?.resetStyle(e.target);
-                    },
                     click: e => {
                         if (onLocationClick) {
                             onLocationClick({ lat: e.latlng.lat, lng: e.latlng.lng }, [{

@@ -83,6 +83,55 @@ export const useLegendData = (
         }
         // Water Quality Layer
         else if (filters?.type === 'Water Quality') {
+            if (filters.showEC) {
+                return [
+                    { label: '< 500 µS/cm', color: '#10b981' },
+                    { label: '500 - 1000 µS/cm', color: '#34d399' },
+                    { label: '1000 - 1500 µS/cm', color: '#6ee7b7' },
+                    { label: '1500 - 2000 µS/cm', color: '#a7f3d0' },
+                    { label: '2000 - 2500 µS/cm', color: '#fef08a' },
+                    { label: '2500 - 3000 µS/cm', color: '#fde047' },
+                    { label: '3000 - 3500 µS/cm', color: '#facc15' },
+                    { label: '3500 - 4000 µS/cm', color: '#fbbf24' },
+                    { label: '4000 - 4500 µS/cm', color: '#f59e0b' },
+                    { label: '4500 - 5000 µS/cm', color: '#f97316' },
+                    { label: '> 5000 µS/cm', color: '#ef4444' },
+                    { label: 'No Data', color: '#ccc' }
+                ];
+            } else if (filters.showNitrate) {
+                return [
+                    { label: '< 10 mg/L', color: '#10b981' },
+                    { label: '10 - 30 mg/L', color: '#34d399' },
+                    { label: '30 - 50 mg/L', color: '#fde047' },
+                    { label: '50 - 70 mg/L', color: '#fbbf24' },
+                    { label: '70 - 90 mg/L', color: '#f97316' },
+                    { label: '> 90 mg/L', color: '#ef4444' },
+                    { label: 'No Data', color: '#ccc' }
+                ];
+            } else if (filters.showFluoride) {
+                return [
+                    { label: '< 0.5 mg/L', color: '#10b981' },
+                    { label: '0.5 - 1.0 mg/L', color: '#34d399' },
+                    { label: '1.0 - 1.5 mg/L', color: '#fde047' },
+                    { label: '1.5 - 2.0 mg/L', color: '#facc15' },
+                    { label: '2.0 - 2.5 mg/L', color: '#fbbf24' },
+                    { label: '2.5 - 3.0 mg/L', color: '#f97316' },
+                    { label: '> 3.0 mg/L', color: '#ef4444' },
+                    { label: 'No Data', color: '#ccc' }
+                ];
+            } else if (filters.showTDS) {
+                return [
+                    { label: '< 500 mg/L', color: '#10b981' },
+                    { label: '500 - 1000 mg/L', color: '#34d399' },
+                    { label: '1000 - 1500 mg/L', color: '#fde047' },
+                    { label: '1500 - 2000 mg/L', color: '#facc15' },
+                    { label: '2000 - 2500 mg/L', color: '#fbbf24' },
+                    { label: '2500 - 3000 mg/L', color: '#f97316' },
+                    { label: '> 3000 mg/L', color: '#ef4444' },
+                    { label: 'No Data', color: '#ccc' }
+                ];
+            }
+
             if (!waterQualityRecords.length) return [];
             return WATER_QUALITY_PALETTE;
         }

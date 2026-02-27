@@ -2,7 +2,7 @@ import json
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Count
+from django.contrib.gis.db.models.functions import Intersection
 from .models import SpatialLayer
 from .serializers import SpatialLayerSerializer
 
@@ -24,7 +24,11 @@ def _get_boundary_geometry(district=None, block=None, grampanchayat=None):
                 block__district__name__iexact=district
             ).exclude(geometry__isnull=True).first()
             if gp and gp.geometry:
-                return gp.geometry
+                geom = gp.geometry
+                if abs(geom.centroid.x) > 180:
+                    geom.srid = 3857
+                    geom.transform(4326)
+                return geom
 
         if block and district:
             blk = BlockModel.objects.filter(
@@ -32,14 +36,22 @@ def _get_boundary_geometry(district=None, block=None, grampanchayat=None):
                 district__name__iexact=district
             ).exclude(geometry__isnull=True).first()
             if blk and blk.geometry:
-                return blk.geometry
+                geom = blk.geometry
+                if abs(geom.centroid.x) > 180:
+                    geom.srid = 3857
+                    geom.transform(4326)
+                return geom
 
         if district:
             dist = DistrictModel.objects.filter(
                 name__iexact=district
             ).exclude(geometry__isnull=True).first()
             if dist and dist.geometry:
-                return dist.geometry
+                geom = dist.geometry
+                if abs(geom.centroid.x) > 180:
+                    geom.srid = 3857
+                    geom.transform(4326)
+                return geom
 
     except Exception as e:
         import logging
@@ -108,8 +120,9 @@ class SpatialLayerViewSet(viewsets.ReadOnlyModelViewSet):
 
         if boundary_geom:
             try:
-                queryset = queryset.filter(geometry__intersects=boundary_geom)
-                spatial_filter_applied = True
+                if queryset.filter(geometry__intersects=boundary_geom).exists():
+                    queryset = queryset.filter(geometry__intersects=boundary_geom)
+                    spatial_filter_applied = True
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).warning(f"Spatial filter failed: {e}")
@@ -172,7 +185,7 @@ class SpatialLayerViewSet(viewsets.ReadOnlyModelViewSet):
 
             if area_val <= 0:
                 stored_area = (
-                    props.get('Area') or props.get('AREA') or
+                    props.get('Area') or props.get('AREA') or props.get('AREA_SQ_KM') or 
                     props.get('Area_SqKm') or props.get('Shape_Area') or 0
                 )
                 try: area_val = float(stored_area)
@@ -205,14 +218,7 @@ class SpatialLayerViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def intersect(self, request):
         """
-        Return aquifer (or other layer) features as GeoJSON that spatially intersect
-        with the selected boundary.
-
-        Query params:
-            layer_type:     aquifer | canal | waterbody  (default: aquifer)
-            district:       District name
-            block:          Block name
-            grampanchayat:  Gram panchayat name
+        Return aquifer (or other layer) features clipped to the boundary geometry.
         """
         layer_type = request.query_params.get('layer_type', 'aquifer')
         district = request.query_params.get('district', '').strip()
@@ -228,29 +234,38 @@ class SpatialLayerViewSet(viewsets.ReadOnlyModelViewSet):
             grampanchayat=grampanchayat or None
         )
 
+        has_boundary = False
         if boundary_geom:
             try:
-                queryset = queryset.filter(geometry__intersects=boundary_geom)
-            except Exception:
-                if district:
-                    from django.db.models import Q
-                    queryset = queryset.filter(
-                        Q(properties__District__iexact=district) |
-                        Q(properties__New_Dist__iexact=district)
+                if queryset.filter(geometry__intersects=boundary_geom).exists():
+                    queryset = queryset.filter(geometry__intersects=boundary_geom).annotate(
+                        clipped_geometry=Intersection('geometry', boundary_geom)
                     )
-        elif district:
+                    has_boundary = True
+            except Exception:
+                pass
+
+        if not has_boundary and district:
             from django.db.models import Q
             queryset = queryset.filter(
                 Q(properties__District__iexact=district) |
-                Q(properties__New_Dist__iexact=district)
+                Q(properties__DISTRICT__iexact=district) |
+                Q(properties__New_Dist__iexact=district) |
+                Q(properties__DIST_NAME__iexact=district) |
+                Q(properties__dist_name__iexact=district)
             )
 
         features = []
         for obj in queryset:
             geom_data = None
-            if obj.geometry:
+            # Use clipped geometry if available
+            geometry = getattr(obj, 'clipped_geometry', obj.geometry)
+            if geometry:
                 try:
-                    geom_data = json.loads(obj.geometry.geojson)
+                    # Skip empty geometries after intersection
+                    if geometry.empty:
+                        continue
+                    geom_data = json.loads(geometry.geojson)
                 except Exception:
                     pass
 

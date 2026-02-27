@@ -1,5 +1,5 @@
 import React from 'react';
-import { GeoJSON } from 'react-leaflet';
+import { GeoJSON, Pane } from 'react-leaflet';
 import { getFeatureProperty } from '../../../utils/geoUtils';
 import { getFeatureColor } from '../../../utils/mapUtils';
 
@@ -84,19 +84,6 @@ export const StateBoundaryLayer = ({
                 // Tooltips intentionally disabled — no hover labels shown
 
                 layer.on({
-                    mouseover: e => {
-                        const l = e.target;
-                        // Subtle hover style — clean blue with slight fill
-                        l.setStyle({
-                            weight: isRainfall ? 2.5 : 2,
-                            color: isRainfall ? '#334155' : '#3b82f6', // Slate-dark for rainfall, blue for default
-                            fillOpacity: isRainfall ? 0.9 : 0.08  // Very subtle fill on hover for default
-                        });
-                        l.bringToFront();
-                    },
-                    mouseout: e => {
-                        geoJsonRef.current?.resetStyle(e.target);
-                    },
                     click: e => {
                         // Update coordinate selection
                         if (onLocationClick) {
@@ -154,34 +141,36 @@ export const SelectionHighlightLayer = ({ data, level }) => {
 
     const getLevelStyle = () => {
         switch (level) {
-            case 'district': return { color: '#2563eb', weight: 4.0 }; // Blue
-            case 'block': return { color: '#059669', weight: 3.5 };    // Emerald
-            case 'gp': return { color: '#d97706', weight: 3.0 };       // Amber
-            case 'village': return { color: '#ea580c', weight: 2.5 };  // Orange
-            default: return { color: '#2563eb', weight: 3.5 };
+            case 'district': return { color: '#0ea5e9', weight: 4.0 }; // Sky Blue, prominent
+            case 'block': return { color: '#059669', weight: 3.0 };    // Emerald, prominent
+            case 'gp': return { color: '#d97706', weight: 2.5 };       // Amber
+            case 'village': return { color: '#ea580c', weight: 2.0 };  // Orange
+            default: return { color: '#0ea5e9', weight: 3.0 };
         }
     };
 
     const layerStyle = getLevelStyle();
 
     return (
-        <GeoJSON
-            key={`highlight-${level}-${data.id || data.properties?.name || data.properties?.vllg_name || 'selected'}`}
-            data={geojsonData}
-            style={{
-                fillColor: 'transparent',
-                fillOpacity: 0,
-                color: layerStyle.color,
-                weight: layerStyle.weight,
-                opacity: 1,
-                lineJoin: 'round',
-                lineCap: 'round',
-                dashArray: ''
-            }}
-            interactive={true}
-            onEachFeature={() => {
-                // Tooltips intentionally disabled — no hover labels shown
-            }}
-        />
+        <Pane name="selectionHighlightPane" style={{ zIndex: 650 }}>
+            <GeoJSON
+                key={`highlight-${level}-${data.id || data.properties?.name || data.properties?.vllg_name || 'selected'}`}
+                data={geojsonData}
+                style={{
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    color: layerStyle.color,
+                    weight: layerStyle.weight,
+                    opacity: 1,
+                    lineJoin: 'round',
+                    lineCap: 'round',
+                    dashArray: null
+                }}
+                interactive={false}
+                onEachFeature={() => {
+                    // Tooltips intentionally disabled — no hover labels shown
+                }}
+            />
+        </Pane>
     );
 };

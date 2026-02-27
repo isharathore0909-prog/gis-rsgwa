@@ -136,9 +136,19 @@ export const useWellInventoryData = ({
 
                 let response = [];
                 try {
+                    // 1. Try Station Summary (High accuracy)
                     response = await api.rainfall.getStationSummary(params);
+
+                    // 2. Fallback to General Summary if station data is empty
+                    if (!response || !Array.isArray(response) || response.length === 0) {
+                        console.log("Station Rainfall empty, falling back to general records...");
+                        const genParams = { ...params };
+                        // General summary expects 'gram_panchayat' instead of 'grampanchayat' usually
+                        if (globalFilters?.gramPanchayat) genParams.gram_panchayat = globalFilters.gramPanchayat;
+                        response = await api.rainfall.getSummary(genParams);
+                    }
                 } catch (err) {
-                    console.error("Station Summary failed", err);
+                    console.error("Rainfall fetch failed", err);
                     response = [];
                 }
 

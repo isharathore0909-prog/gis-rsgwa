@@ -87,7 +87,7 @@ const VectorGridSlicer = ({ data, dataUrl, style, active, layerName, filter, onF
                                 };
                             }
                         },
-                        zIndex: 800,
+                        zIndex: 300,
                         interactive: true,
                         maxZoom: 18,
                         indexMaxZoom: 8,

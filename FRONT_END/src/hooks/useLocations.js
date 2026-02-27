@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../api';
 
 /**
@@ -10,95 +10,120 @@ export const useLocations = (currentFilters) => {
     const [apiGPs, setApiGPs] = useState([]);
     const [apiVillages, setApiVillages] = useState([]);
     const [loading, setLoading] = useState(false);
+    const activeFetches = useRef(0);
+
+    const setGlobalLoading = (val) => {
+        if (val) activeFetches.current++;
+        else activeFetches.current = Math.max(0, activeFetches.current - 1);
+        setLoading(activeFetches.current > 0);
+    };
 
     // Initial fetch of districts
     useEffect(() => {
-        let ignore = false;
+        let active = true;
         const fetchDistricts = async () => {
-            setLoading(true);
+            // Only fetch if empty
+            if (apiDistricts.length > 0) return;
+
+            console.log("📡 useLocations: Initial district fetch starting...");
+            setGlobalLoading(true);
             try {
-                // Simplified: Fetch districts for Rajasthan directly using state_name
-                // This is more robust than fetching state ID first.
                 const districtRes = await api.location.getDistricts({
                     state_name: 'Rajasthan',
                     limit: 100
                 });
 
-                if (!ignore) {
-                    const data = districtRes.results || districtRes;
-                    setApiDistricts(Array.isArray(data) ? data : []);
-                }
+                if (!active) return;
+
+                // Robust extraction of results
+                const data = districtRes.results || districtRes;
+                const districts = Array.isArray(data) ? data : (data && typeof data === 'object' ? Object.values(data) : []);
+
+                console.log(`✅ useLocations: Received ${districts.length} districts`);
+                setApiDistricts(districts);
             } catch (error) {
-                console.error("Error fetching districts:", error);
+                console.error("❌ useLocations: Error fetching districts:", error);
+                // On error, we don't set anything to allow retry if triggered by re-render
             } finally {
-                if (!ignore) setLoading(false);
+                if (active) setGlobalLoading(false);
             }
         };
         fetchDistricts();
-        return () => { ignore = true; };
-    }, []);
+        return () => { active = false; };
+    }, [apiDistricts.length]); // Retry if empty on re-render
 
     // Fetch blocks when district changes
     useEffect(() => {
-        let ignore = false;
+        let active = true;
         const fetchBlocks = async () => {
             if (!currentFilters?.district) {
                 setApiBlocks([]);
                 return;
             }
-            setLoading(true);
+            console.log(`📡 useLocations: Fetching blocks for "${currentFilters.district}"...`);
+            setGlobalLoading(true);
             try {
-                const blockRes = await api.location.getBlocks({ district_name: currentFilters.district, limit: 200 });
-                if (!ignore) {
-                    const data = blockRes.results || blockRes;
-                    setApiBlocks(Array.isArray(data) ? data : []);
-                }
+                const blockRes = await api.location.getBlocks({
+                    district_name: currentFilters.district,
+                    limit: 200
+                });
+                if (!active) return;
+                const data = blockRes.results || blockRes;
+                const blocks = Array.isArray(data) ? data : [];
+                console.log(`✅ useLocations: Received ${blocks.length} blocks for "${currentFilters.district}"`);
+                setApiBlocks(blocks);
             } catch (error) {
-                console.error("Error fetching blocks:", error);
-                setApiBlocks([]);
+                console.error(`❌ useLocations: Error fetching blocks for "${currentFilters.district}":`, error);
+                if (active) setApiBlocks([]);
             } finally {
-                if (!ignore) setLoading(false);
+                setGlobalLoading(false);
             }
         };
         fetchBlocks();
-        return () => { ignore = true; };
+        return () => { active = false; };
     }, [currentFilters?.district]);
 
     // Fetch GPs when block changes
     useEffect(() => {
-        let ignore = false;
+        let active = true;
         const fetchGPs = async () => {
             if (!currentFilters?.block) {
                 setApiGPs([]);
                 return;
             }
-            setLoading(true);
+            console.log(`📡 useLocations: Fetching GPs for "${currentFilters.block}"...`);
+            setGlobalLoading(true);
             try {
-                const gpRes = await api.location.getGrampanchayats({ block_name: currentFilters.block, limit: 500 });
-                if (!ignore) {
-                    const data = gpRes.results || gpRes;
-                    setApiGPs(Array.isArray(data) ? data : []);
-                }
+                const gpRes = await api.location.getGrampanchayats({
+                    block_name: currentFilters.block,
+                    limit: 500
+                });
+                if (!active) return;
+                const data = gpRes.results || gpRes;
+                const gps = Array.isArray(data) ? data : [];
+                console.log(`✅ useLocations: Received ${gps.length} GPs for "${currentFilters.block}"`);
+                setApiGPs(gps);
             } catch (error) {
-                console.error("Error fetching GPs:", error);
-                setApiGPs([]);
+                console.error(`❌ useLocations: Error fetching GPs for "${currentFilters.block}":`, error);
+                if (active) setApiGPs([]);
             } finally {
-                if (!ignore) setLoading(false);
+                setGlobalLoading(false);
             }
         };
         fetchGPs();
-        return () => { ignore = true; };
+        return () => { active = false; };
     }, [currentFilters?.block]);
 
     // Fetch Villages when GP or Block changes
     useEffect(() => {
-        let ignore = false;
+        let active = true;
         const fetchVillages = async () => {
             if (!currentFilters?.block) {
                 setApiVillages([]);
                 return;
             }
-            setLoading(true);
+            console.log(`📡 useLocations: Fetching villages for block "${currentFilters.block}"...`);
+            setGlobalLoading(true);
             try {
                 const params = { limit: 1000 };
                 if (currentFilters.gramPanchayat) {
@@ -107,19 +132,20 @@ export const useLocations = (currentFilters) => {
                     params.block_name = currentFilters.block;
                 }
                 const villageRes = await api.location.getVillages(params);
-                if (!ignore) {
-                    const data = villageRes.results || villageRes;
-                    setApiVillages(Array.isArray(data) ? data : []);
-                }
+                if (!active) return;
+                const data = villageRes.results || villageRes;
+                const villages = Array.isArray(data) ? data : [];
+                console.log(`✅ useLocations: Received ${villages.length} villages`);
+                setApiVillages(villages);
             } catch (error) {
-                console.error("Error fetching villages:", error);
-                setApiVillages([]);
+                console.error("❌ useLocations: Error fetching villages:", error);
+                if (active) setApiVillages([]);
             } finally {
-                if (!ignore) setLoading(false);
+                setGlobalLoading(false);
             }
         };
         fetchVillages();
-        return () => { ignore = true; };
+        return () => { active = false; };
     }, [currentFilters?.gramPanchayat, currentFilters?.block]);
 
     // Helper to format as title case
@@ -128,32 +154,54 @@ export const useLocations = (currentFilters) => {
         return str.toLowerCase().replace(/\b\w/g, s => s.toUpperCase());
     };
 
-    // Memos for dropdown options
-    const availableDistricts = useMemo(() =>
-        [...new Set((apiDistricts || []).map(d => toTitleCase(d.name)).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-        [apiDistricts]
-    );
+    // Memos for dropdown options - Robust mapping to handle objects or strings
+    const availableDistricts = useMemo(() => {
+        const rawDistricts = Array.isArray(apiDistricts) ? apiDistricts : [];
+        const names = rawDistricts.map(d => {
+            const val = typeof d === 'string' ? d : (d?.name || d?.district_name);
+            return toTitleCase(val);
+        }).filter(Boolean);
+        return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+    }, [apiDistricts]);
 
-    const availableBlocks = useMemo(() =>
-        [...new Set((apiBlocks || []).map(b => toTitleCase(b.name)).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-        [apiBlocks]
-    );
+    const availableBlocks = useMemo(() => {
+        const rawBlocks = Array.isArray(apiBlocks) ? apiBlocks : [];
+        const names = rawBlocks.map(b => {
+            const val = typeof b === 'string' ? b : (b?.name || b?.block_name);
+            return toTitleCase(val);
+        }).filter(Boolean);
+        return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+    }, [apiBlocks]);
 
-    const availableGPs = useMemo(() =>
-        [...new Set((apiGPs || []).map(g => toTitleCase(g.name)).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-        [apiGPs]
-    );
+    const availableGPs = useMemo(() => {
+        const rawGPs = Array.isArray(apiGPs) ? apiGPs : [];
+        const names = rawGPs.map(g => {
+            const val = typeof g === 'string' ? g : (g?.name || g?.gp_name);
+            return toTitleCase(val);
+        }).filter(Boolean);
+        return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+    }, [apiGPs]);
 
-    const availableVillages = useMemo(() =>
-        [...new Set((apiVillages || []).map(v => toTitleCase(v.name)).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-        [apiVillages]
-    );
+    const availableVillages = useMemo(() => {
+        const rawVillages = Array.isArray(apiVillages) ? apiVillages : [];
+        const names = rawVillages.map(v => {
+            const val = typeof v === 'string' ? v : (v?.name || v?.village_name || v?.vlg_name);
+            return toTitleCase(val);
+        }).filter(Boolean);
+        return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+    }, [apiVillages]);
 
     return {
         availableDistricts,
         availableBlocks,
         availableGPs,
         availableVillages,
+        apiDistricts,
+        apiBlocks,
+        apiGPs,
+        apiVillages,
         loading
     };
 };
+
+export default useLocations;

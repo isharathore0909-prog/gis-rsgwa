@@ -22,6 +22,7 @@ export const useDataAnalysis = ({
     globalFilters,
     clickedLocation,
     neighbors,
+    selectedBoundary,
     blockData,
     rainfallPoints = [],
     rainfallStations = [],
@@ -96,6 +97,18 @@ export const useDataAnalysis = ({
     const [rechargeStats, setRechargeStats] = useState(null);
     const [rechargeLoading, setRechargeLoading] = useState(true);
     const lastRechargeParams = useRef({ level: analysisLevel, name: analysisName });
+
+    // CRITICAL: Reset all internal stats when the analysis type changes
+    useEffect(() => {
+        setGwreStats(null);
+        setWaterQualityStats(null);
+        setWaterQualityAvailability(null);
+        setAquiferStats(null);
+        setAquiferSpatialStats(null);
+        setRainfallStatsData(null);
+        setRainfallSummaryData([]);
+        setRechargeStats(null);
+    }, [globalFilters?.type]);
 
 
 
@@ -726,7 +739,49 @@ export const useDataAnalysis = ({
 
             setRainfallLoading(true);
             try {
-                const summaryParams = { ...baseParams, timestep: globalFilters?.timestep || 'monthly' };
+                let currentBaseParams = { ...baseParams };
+                let currentSummaryParams = { ...baseParams, timestep: globalFilters?.timestep || 'monthly' };
+
+                // Apply spatial filtering if block, GP, or village is selected
+                if ((displayBlock || globalFilters?.gramPanchayat || globalFilters?.village) && rainfallStations?.length > 0) {
+                    try {
+                        const turf = await import('@turf/turf');
+                        let targetFeature = null;
+
+                        // Priority 1: neighbor geometry (from map click)
+                        if (neighbor && neighbor.geometry) {
+                            targetFeature = neighbor;
+                        }
+                        // Priority 2: selectedBoundary from hierarchy context (GP, Village, Block dropdown)
+                        else if (selectedBoundary && selectedBoundary.geometry) {
+                            targetFeature = selectedBoundary;
+                        }
+                        // Priority 3: block lookup from blockData (for dropdown selection fallback)
+                        else if (displayBlock && blockData?.features) {
+                            targetFeature = blockData.features.find(f => {
+                                const bName = (f.properties?.BLOCK_NAME || f.properties?.Block || f.properties?.name || '').toString().toUpperCase().trim();
+                                return bName === displayBlock.toString().toUpperCase().trim();
+                            });
+                        }
+
+                        if (targetFeature && targetFeature.geometry) {
+                            const intersectingStationIds = [];
+                            rainfallStations.forEach(station => {
+                                if (station.latitude && station.longitude) {
+                                    const pt = turf.point([parseFloat(station.longitude), parseFloat(station.latitude)]);
+                                    if (turf.booleanPointInPolygon(pt, targetFeature)) {
+                                        intersectingStationIds.push(station.id || station.station_id);
+                                    }
+                                }
+                            });
+                            const idsStr = intersectingStationIds.length > 0 ? intersectingStationIds.join(',') : '-1';
+                            currentBaseParams.station_ids = idsStr;
+                            currentSummaryParams.station_ids = idsStr;
+                        }
+                    } catch (e) {
+                        console.warn("Spatial filtering for stations failed:", e);
+                    }
+                }
 
                 // Attempt to fetch station-based stats if stations are expected/available
                 let stats = null;
@@ -735,8 +790,8 @@ export const useDataAnalysis = ({
 
                 if (rainfallStations && rainfallStations.length > 0) {
                     const [sStats, sSummary] = await Promise.all([
-                        api.rainfall.getStationStatistics(baseParams).catch(() => null),
-                        api.rainfall.getStationSummary(summaryParams).catch(() => [])
+                        api.rainfall.getStationStatistics(currentBaseParams).catch(() => null),
+                        api.rainfall.getStationSummary(currentSummaryParams).catch(() => [])
                     ]);
 
                     if (sStats && sStats.count > 0) {
@@ -826,7 +881,8 @@ export const useDataAnalysis = ({
         clickedLocation?.lat,
         clickedLocation?.lng,
         rainfallStationRecords,
-        rainfallStations
+        rainfallStations,
+        selectedBoundary
     ]);
 
     const rainfallStatsMemo = useMemo(() => {

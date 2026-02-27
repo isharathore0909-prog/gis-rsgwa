@@ -9,7 +9,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import LimitOffsetPagination
-from django.db.models import Sum, Avg, Count, Max, Min
+from django.db.models import Sum, Avg, Count, Max, Min, Q
 from django.db.models.functions import TruncMonth, TruncYear
 from .models import Rainfall
 from .serializers import RainfallSerializer
@@ -23,9 +23,9 @@ class IsAdminOrReadOnly(permissions.BasePermission):
             return True
         return request.user and request.user.is_staff
 
-from core.utils import LocationFilterMixin
+from core.filters import HierarchicalLocationFilterBackend
 
-class RainfallViewSet(viewsets.ModelViewSet, LocationFilterMixin):
+class RainfallViewSet(viewsets.ModelViewSet):
     """
     ViewSet for viewing and editing rainfall records with optimized performance.
     """
@@ -34,15 +34,13 @@ class RainfallViewSet(viewsets.ModelViewSet, LocationFilterMixin):
     authentication_classes = []
     permission_classes = [AllowAny]
     pagination_class = LimitOffsetPagination
-    
+    filter_backends = [HierarchicalLocationFilterBackend]
+
     def get_queryset(self):
         """
-        Standardized filtering using LocationFilterMixin.
+        Standardized filtering now handled by HierarchicalLocationFilterBackend.
         """
         queryset = super().get_queryset()
-        
-        # Apply hierarchical location filters
-        queryset = self.filter_location(queryset)
         
         # Apply date filters
         params = self.request.query_params
@@ -60,7 +58,7 @@ class RainfallViewSet(viewsets.ModelViewSet, LocationFilterMixin):
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Aggregation for Sidebar cards."""
-        queryset = self.get_queryset()
+        queryset = self.filter_queryset(self.get_queryset())
         
         # Debug logging
         total_count = queryset.count()
@@ -107,10 +105,20 @@ class RainfallViewSet(viewsets.ModelViewSet, LocationFilterMixin):
             # Fallback to simple average if complex aggregation fails
             avg_station_total = stats['avg']
 
+        # Calculate Monsoon and Non-Monsoon sums
+        seasonal_stats = queryset.aggregate(
+            monsoon_total=Sum('rainfall_mm', filter=Q(date__month__in=[6, 7, 8, 9])),
+            non_monsoon_total=Sum('rainfall_mm', filter=~Q(date__month__in=[6, 7, 8, 9])),
+            monsoon_count=Count('id', filter=Q(date__month__in=[6, 7, 8, 9])),
+            non_monsoon_count=Count('id', filter=~Q(date__month__in=[6, 7, 8, 9]))
+        )
+
         result = {
             'total': round(stats['total'] or 0, 2),
             'avg': round(stats['avg'] or 0, 2),
             'avg_station_total': round(avg_station_total or 0, 2),
+            'monsoon_avg': round((seasonal_stats['monsoon_total'] or 0) / (seasonal_stats['monsoon_count'] or 1), 2),
+            'non_monsoon_avg': round((seasonal_stats['non_monsoon_total'] or 0) / (seasonal_stats['non_monsoon_count'] or 1), 2),
             'count': stats['count'],
             'max': round(stats['max'] or 0, 2),
             'max_village': max_info.get('village'),
@@ -124,7 +132,10 @@ class RainfallViewSet(viewsets.ModelViewSet, LocationFilterMixin):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Aggregation for Charts."""
-        queryset = self.get_queryset()
+        from django.db.models.functions import TruncMonth, TruncYear, ExtractMonth
+        from django.db.models import Case, When, Value, IntegerField
+        
+        queryset = self.filter_queryset(self.get_queryset())
         timestep = request.query_params.get('timestep', 'daily').lower()
         
         if timestep == 'monthly':
@@ -158,6 +169,47 @@ class RainfallViewSet(viewsets.ModelViewSet, LocationFilterMixin):
                     'average': round(d['total'] / d['village_count'], 2) if d.get('village_count', 0) > 0 else 0
                 } for d in data
             ])
+
+        elif timestep == 'seasonal':
+            data = queryset.annotate(
+                year=TruncYear('date'),
+                month_num=ExtractMonth('date')
+            ).annotate(
+                is_monsoon=Case(
+                    When(month_num__in=[6, 7, 8, 9], then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField()
+                )
+            ).values('year', 'is_monsoon') \
+             .annotate(
+                 total=Sum('rainfall_mm'),
+                 village_count=Count('village_id', distinct=True)
+             ).order_by('year', 'is_monsoon')
+            
+            # Reformat to combine by year
+            years = {}
+            for d in data:
+                try:
+                    if hasattr(d['year'], 'strftime'):
+                        yr = d['year'].strftime('%Y')
+                    else:
+                        yr = str(d['year'])[:4] if d['year'] else 'Unknown'
+                except:
+                    yr = 'Unknown'
+
+                if yr not in years:
+                    years[yr] = {'name': yr, 'monsoon': 0, 'non_monsoon': 0, 'total': 0, 'average': 0}
+                
+                avg = round(d['total'] / d['village_count'], 2) if d.get('village_count', 0) > 0 else 0
+                if d['is_monsoon'] == 1:
+                    years[yr]['monsoon'] = avg
+                else:
+                    years[yr]['non_monsoon'] = avg
+                
+                years[yr]['total'] += d['total']
+                years[yr]['average'] += avg
+            
+            return Response(list(years.values()))
             
         else: # Daily
             data = queryset.values('date').annotate(total=Sum('rainfall_mm'), average=Avg('rainfall_mm')).order_by('date')
@@ -166,7 +218,7 @@ class RainfallViewSet(viewsets.ModelViewSet, LocationFilterMixin):
     @action(detail=False, methods=['get'])
     def district_wise(self, request):
         """Aggregate rainfall data by district."""
-        queryset = self.get_queryset()
+        queryset = self.filter_queryset(self.get_queryset())
         
         # Group by district and calculate the average
         # village -> grampanchayat -> block -> district
@@ -212,8 +264,8 @@ class RainfallViewSet(viewsets.ModelViewSet, LocationFilterMixin):
             radius_km = 10
         
         # Use centralized spatial/approximate nearby filter
-        queryset = Rainfall.objects.all()
-        nearby_records = self.spatial_nearby(queryset, lat, lon, radius_km)
+        from core.utils import spatial_nearby
+        nearby_records = spatial_nearby(queryset, lat, lon, radius_km)
         
         # Filter by gram panchayat if provided
         if gram_panchayat:
@@ -303,7 +355,7 @@ from .serializers import RainfallStationSerializer, StationRainfallSerializer
 
 from rest_framework.pagination import LimitOffsetPagination
 
-class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin):
+class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for daily station rainfall data with optimized performance.
     """
@@ -312,6 +364,7 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin)
     authentication_classes = []
     permission_classes = [AllowAny]
     pagination_class = LimitOffsetPagination
+    filter_backends = [HierarchicalLocationFilterBackend]
     
     # Custom location mapping for station-based data
     location_filters = {
@@ -319,13 +372,15 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin)
         'station_district': 'station__district__iexact',
         'station_id': 'station_id',
         'station_name': 'station__name__iexact',
+        'station_ids': 'station_id__in',
     }
     
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Standardized filtering (now uses the custom location_filters above)
-        queryset = self.filter_location(queryset)
+        # Apply date filters
+        params = self.request.query_params
+
         
         # Apply date filters
         params = self.request.query_params
@@ -333,6 +388,9 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin)
             queryset = queryset.filter(date__gte=params.get('start_date'))
         if params.get('end_date'):
             queryset = queryset.filter(date__lte=params.get('end_date'))
+
+        if self.action in ['list', 'retrieve']:
+            queryset = queryset.select_related('station')
 
         return queryset
 
@@ -351,7 +409,7 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin)
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Optimized aggregation for Station Data."""
-        queryset = self.get_queryset().exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
+        queryset = self.filter_queryset(self.get_queryset()).exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
         
         stats = queryset.aggregate(
             total=Sum('rainfall_mm'),
@@ -378,10 +436,20 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin)
                 return 0.0 if math.isnan(f) or math.isinf(f) else f
             except: return 0.0
 
+        # Calculate Monsoon and Non-Monsoon sums
+        seasonal_stats = queryset.aggregate(
+            monsoon_total=Sum('rainfall_mm', filter=Q(date__month__in=[6, 7, 8, 9])),
+            non_monsoon_total=Sum('rainfall_mm', filter=~Q(date__month__in=[6, 7, 8, 9])),
+            monsoon_count=Count('id', filter=Q(date__month__in=[6, 7, 8, 9])),
+            non_monsoon_count=Count('id', filter=~Q(date__month__in=[6, 7, 8, 9]))
+        )
+
         return Response({
             'total': round(sanitize(stats['total']), 2),
             'avg': round(sanitize(stats['avg']), 2),
             'avg_station_total': round(sanitize(avg_station_total), 2),
+            'monsoon_avg': round((seasonal_stats['monsoon_total'] or 0) / (seasonal_stats['monsoon_count'] or 1), 2),
+            'non_monsoon_avg': round((seasonal_stats['non_monsoon_total'] or 0) / (seasonal_stats['non_monsoon_count'] or 1), 2),
             'count': stats['count'],
             'max': round(sanitize(stats['max']), 2),
             'max_village': max_record.station.name if max_record else None, 
@@ -392,10 +460,11 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin)
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Aggregation for Charts (Station Data)."""
-        from django.db.models.functions import TruncMonth, TruncYear
+        from django.db.models.functions import TruncMonth, TruncYear, ExtractMonth
+        from django.db.models import Case, When, Value, IntegerField
         
         # Filter out Nulls and NaNs to prevent aggregation poisoning
-        queryset = self.get_queryset().exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
+        queryset = self.filter_queryset(self.get_queryset()).exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
         timestep = request.query_params.get('timestep', 'daily').lower()
         
         # Helper to safely round
@@ -441,6 +510,46 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin)
                     'average': safe_round(d['total'] / d['station_count']) if d.get('station_count', 0) > 0 else 0
                 } for d in data
             ])
+
+        elif timestep == 'seasonal':
+            data = queryset.annotate(
+                year=TruncYear('date'),
+                month_num=ExtractMonth('date')
+            ).annotate(
+                is_monsoon=Case(
+                    When(month_num__in=[6, 7, 8, 9], then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField()
+                )
+            ).values('year', 'is_monsoon') \
+             .annotate(
+                 total=Sum('rainfall_mm'),
+                 station_count=Count('station', distinct=True)
+             ).order_by('year', 'is_monsoon')
+
+            years = {}
+            for d in data:
+                try:
+                    if hasattr(d['year'], 'strftime'):
+                        yr = d['year'].strftime('%Y')
+                    else:
+                        yr = str(d['year'])[:4] if d['year'] else 'Unknown'
+                except:
+                    yr = 'Unknown'
+
+                if yr not in years:
+                    years[yr] = {'name': yr, 'monsoon': 0, 'non_monsoon': 0, 'total': 0, 'average': 0}
+                
+                avg = safe_round(d['total'] / d['station_count']) if d.get('station_count', 0) > 0 else 0
+                if d['is_monsoon'] == 1:
+                    years[yr]['monsoon'] = avg
+                else:
+                    years[yr]['non_monsoon'] = avg
+                
+                years[yr]['total'] += safe_round(d['total'])
+                years[yr]['average'] += avg
+            
+            return Response(list(years.values()))
             
         else: # Daily
             data = queryset.values('date').annotate(total=Sum('rainfall_mm'), average=Avg('rainfall_mm')).order_by('date')
@@ -450,7 +559,7 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet, LocationFilterMixin)
     def district_wise(self, request):
         """Aggregate station rainfall data by district."""
         # Filter out Nulls and NaNs
-        queryset = self.get_queryset().exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
+        queryset = self.filter_queryset(self.get_queryset()).exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
         
         # Group by station's district and calculate average
         data = queryset.values('station__district') \

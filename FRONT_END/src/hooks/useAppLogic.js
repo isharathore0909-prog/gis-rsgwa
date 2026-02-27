@@ -235,9 +235,16 @@ export const useAppLogic = () => {
                         return newLayers;
                     });
                 }
-            }
-            if (currentUrlLayers.some(l => l.id === 2)) {
-                setFilters(prev => ({ ...prev, type: 'Ground Water Resource Estimation' }));
+                if (currentUrlLayers.some(l => l.id === 2)) {
+                    setFilters(prev => ({
+                        ...prev,
+                        type: 'Ground Water Resource Estimation',
+                        district: '',
+                        block: '',
+                        gramPanchayat: '',
+                        village: ''
+                    }));
+                }
             }
         }
     }, [activeUrlLayers, setLayers, setFilters]);
@@ -295,7 +302,7 @@ export const useAppLogic = () => {
                     ]);
                     if (!ignore) {
                         setRainfallStations(Array.isArray(stations) ? stations : []);
-                        setRainfallStationRecords(Array.isArray(records) ? records : []);
+                        setRainfallStationRecords(Array.isArray(records?.results) ? records.results : (Array.isArray(records) ? records : []));
                     }
                 } catch (err) {
                     if (!ignore) {
@@ -442,6 +449,19 @@ export const useAppLogic = () => {
         fetchHighPrecisionBlocks();
         return () => { ignore = true; };
     }, [filters?.district, rajasthanId]);
+
+    // Proactive Reset on Layer Change: 
+    // If the layer type changes, we MUST reset isProceedClicked so the 
+    // sidebar and table don't show "ghost" data from the previous layer's selection.
+    const prevTypeRef = useRef(filters?.type);
+    useEffect(() => {
+        if (filters?.type !== prevTypeRef.current) {
+            setIsProceedClicked(false);
+            setClickedLocation(null);
+            setNeighbors([]);
+            prevTypeRef.current = filters?.type;
+        }
+    }, [filters?.type, setClickedLocation]);
 
     // Cleanup effects on filter change
     useEffect(() => {

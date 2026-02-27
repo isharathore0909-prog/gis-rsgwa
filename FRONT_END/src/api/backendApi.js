@@ -176,6 +176,7 @@ class BackendAPIClient {
 
     getWaterQualityRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY, params); }
     getWaterQualityStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params); }
+    getWaterQualityContourMap(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_CONTOUR, params); }
     getWaterQualityAvailabilityRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY, params); }
     getWaterQualityAvailabilityStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY_STATISTICS, params); }
 

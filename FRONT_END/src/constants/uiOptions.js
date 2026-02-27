@@ -9,7 +9,7 @@ export const DISTRICTS = [
     'Tonk', 'Udaipur'
 ];
 
-export const TIMESTEPS = ['All', 'Daily', 'Monthly', 'Quarterly', 'Yearly'];
+export const TIMESTEPS = ['All', 'Daily', 'Monthly', 'Quarterly', 'Yearly', 'Seasonal'];
 
 export const STATION_TYPES = ['All', 'Manual', 'Telemetry'];
 

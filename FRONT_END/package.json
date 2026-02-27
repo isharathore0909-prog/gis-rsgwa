@@ -4,6 +4,7 @@
   "description": "Interactive Groundwater Analysis Portal built with React",
   "private": true,
   "dependencies": {
+    "@turf/turf": "^7.3.4",
     "axios": "^1.13.2",
     "chart.js": "^4.4.0",
     "leaflet": "^1.9.4",

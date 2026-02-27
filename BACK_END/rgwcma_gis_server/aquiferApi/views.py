@@ -7,16 +7,21 @@ from django.db.models import Avg, Max, Min, Count, Q
 from .models import AquiferData
 from .serializers import AquiferDataSerializer, AquiferDataListSerializer, YearDataSerializer
 
-from core.utils import LocationFilterMixin
+from core.filters import HierarchicalLocationFilterBackend
 
-class AquiferDataViewSet(viewsets.ModelViewSet, LocationFilterMixin):
+class AquiferDataViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Aquifer groundwater level data with optimized performance.
     """
     queryset = AquiferData.objects.all()
     authentication_classes = []
     permission_classes = [AllowAny]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [
+        DjangoFilterBackend, 
+        HierarchicalLocationFilterBackend, 
+        filters.SearchFilter, 
+        filters.OrderingFilter
+    ]
     filterset_fields = ['aquifer', 'village']
     search_fields = ['well_id', 'village__name', 'aquifer']
     ordering_fields = ['well_id', 'well_depth']
@@ -31,13 +36,12 @@ class AquiferDataViewSet(viewsets.ModelViewSet, LocationFilterMixin):
         return AquiferDataSerializer
 
     def get_queryset(self):
-        """Standardized location filtering using LocationFilterMixin."""
+        """
+        Standardized location filtering now handled by HierarchicalLocationFilterBackend.
+        Optimized: Fetch related administrative names ONLY when needed.
+        """
         queryset = super().get_queryset()
         
-        # Apply hierarchical location filters
-        queryset = self.filter_location(queryset)
-        
-        # Optimization: Fetch related administrative names ONLY when needed
         if self.action in ['list', 'retrieve']:
             queryset = queryset.select_related(
                 'village__grampanchayat__block__district__state'
@@ -305,8 +309,8 @@ class AquiferDataViewSet(viewsets.ModelViewSet, LocationFilterMixin):
             lon = float(lon)
             radius_km = float(radius)
             
-            queryset = AquiferData.objects.all()
-            nearby_wells = self.spatial_nearby(queryset, lat, lon, radius_km)
+            from core.utils import spatial_nearby
+            nearby_wells = spatial_nearby(queryset, lat, lon, radius_km)
         except (ValueError, TypeError):
             return Response({'error': 'Invalid numeric parameters'}, status=status.HTTP_400_BAD_REQUEST)
 

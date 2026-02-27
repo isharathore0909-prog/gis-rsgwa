@@ -36,6 +36,7 @@ export const BACKEND_API = {
         RAINFALL_STATION_DISTRICT_WISE: '/rainfall/station-records/district_wise/',
         WATER_QUALITY: '/water-quality/',
         WATER_QUALITY_STATISTICS: '/water-quality/statistics/',
+        WATER_QUALITY_CONTOUR: '/water-quality/contour-map/',
         WATER_QUALITY_AVAILABILITY: '/water-quality-availability/',
         WATER_QUALITY_AVAILABILITY_STATISTICS: '/water-quality-availability/statistics/',
         AQUIFER: '/aquifer/',

@@ -2,7 +2,7 @@ import React from 'react';
 import { IconDownload, IconPrinter } from '../Icons';
 
 const ExportReporting = ({ handleExportData, handleMapExport, filters }) => {
-    const showPdfButton = ['Ground Water Resource Estimation', 'Rainfall', 'Aquifer'].includes(filters?.type);
+    const showPdfButton = ['Ground Water Resource Estimation', 'Rainfall', 'Aquifer', 'Water Quality'].includes(filters?.type);
 
     return (
         <>

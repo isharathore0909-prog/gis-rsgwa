@@ -8,9 +8,9 @@ from .models import RechargeStructure
 from .serializers import RechargeStructureSerializer
 from locationApi.models import Village
 
-from core.utils import LocationFilterMixin
+from core.filters import HierarchicalLocationFilterBackend
 
-class RechargeStructureViewSet(viewsets.ModelViewSet, LocationFilterMixin):
+class RechargeStructureViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Water Recharge Structures with optimized filtering and performance.
     """
@@ -18,28 +18,31 @@ class RechargeStructureViewSet(viewsets.ModelViewSet, LocationFilterMixin):
     serializer_class = RechargeStructureSerializer
     authentication_classes = []
     permission_classes = [AllowAny]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [
+        DjangoFilterBackend, 
+        HierarchicalLocationFilterBackend, 
+        filters.SearchFilter, 
+        filters.OrderingFilter
+    ]
     filterset_fields = ['village', 'structure_type']
     search_fields = ['structure_type', 'other_recharge_structures', 'village__name']
     ordering_fields = ['storage_capacity', 'created_at']
 
-    def get_location_filters(self):
-        """Skip district here as it is handled manually with variants in get_queryset."""
-        return {
-            'state': 'village__grampanchayat__block__district__state__name__iexact',
-            'block': 'village__grampanchayat__block__name__iexact',
-            'grampanchayat': 'village__grampanchayat__name__iexact',
-            'village_name': 'village__name__iexact',
-            'village_id': 'village_id',
-        }
+    location_filters = {
+        'state': 'village__grampanchayat__block__district__state__name__iexact',
+        'block': 'village__grampanchayat__block__name__iexact',
+        'grampanchayat': 'village__grampanchayat__name__iexact',
+        'village_name': 'village__name__iexact',
+        'village_id': 'village_id',
+    }
 
     def get_queryset(self):
-        """Standardized location filtering using LocationFilterMixin."""
+        """
+        Location filtering now partially handled by HierarchicalLocationFilterBackend.
+        Manual District handling preserved for datasets with specific spelling variants.
+        """
         queryset = super().get_queryset()
         params = self.request.query_params
-        
-        # 1. Hierarchical location filters (excluding district)
-        queryset = self.filter_location(queryset)
         
         # 2. Manual District handling (due to specific spelling variants in this dataset)
         district = params.get('district')

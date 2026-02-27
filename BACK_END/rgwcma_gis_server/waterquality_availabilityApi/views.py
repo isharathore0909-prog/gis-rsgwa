@@ -7,23 +7,29 @@ from django.db.models import Avg, Max, Min, Count
 
 from .models import WaterQualityAvailability
 from .serializers import WaterQualityAvailabilitySerializer
-from core.utils import LocationFilterMixin
+from core.filters import HierarchicalLocationFilterBackend
 
-class WaterQualityAvailabilityViewSet(viewsets.ModelViewSet, LocationFilterMixin):
+class WaterQualityAvailabilityViewSet(viewsets.ModelViewSet):
     queryset = WaterQualityAvailability.objects.all()
     authentication_classes = []
     permission_classes = [AllowAny]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [
+        DjangoFilterBackend, 
+        HierarchicalLocationFilterBackend, 
+        filters.SearchFilter, 
+        filters.OrderingFilter
+    ]
     filterset_fields = ['type_of_well', 'village', 'well_id']
     search_fields = ['well_id', 'village__name']
     ordering_fields = ['well_id', 'pre_ph', 'post_ph', 'pre_tds', 'post_tds']
     ordering = ['well_id']
 
     def get_queryset(self):
+        """
+        Location filtering now handled by HierarchicalLocationFilterBackend.
+        Optimized with select_related for list/retrieve actions.
+        """
         queryset = super().get_queryset()
-        
-        # Apply hierarchical location filters
-        queryset = self.filter_location(queryset)
         
         # Optimization: Fetch related administrative names
         if self.action in ['list', 'retrieve']:

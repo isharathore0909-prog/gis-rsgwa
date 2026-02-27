@@ -92,6 +92,43 @@ const AnalysisFilters = ({
                             </label>
                         </div>
                     )}
+
+                    {filters.type === 'Water Quality' && (
+                        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showEC}
+                                    onChange={e => handleFilterChange('showEC', e.target.checked)}
+                                />
+                                EC (Electrical Conductivity)
+                            </label>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showNitrate}
+                                    onChange={e => handleFilterChange('showNitrate', e.target.checked)}
+                                />
+                                Nitrate
+                            </label>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showFluoride}
+                                    onChange={e => handleFilterChange('showFluoride', e.target.checked)}
+                                />
+                                Fluoride
+                            </label>
+                            <label className="checkbox-container">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showTDS}
+                                    onChange={e => handleFilterChange('showTDS', e.target.checked)}
+                                />
+                                TDS
+                            </label>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -180,11 +217,16 @@ const AnalysisFilters = ({
                                 onChange={e => handleFilterChange('district', e.target.value)}
                             >
                                 <option value="">-- All Districts --</option>
-                                {districts.map(d => (
-                                    <option key={typeof d === 'string' ? d : d.id} value={typeof d === 'string' ? d : d.name}>
-                                        {typeof d === 'string' ? d : d.name}
-                                    </option>
-                                ))}
+                                {districts.map((d, idx) => {
+                                    const val = typeof d === 'string' ? d : (d?.name || d?.district_name || '');
+                                    const key = typeof d === 'string' ? d : (d?.id || d?.code || idx);
+                                    if (!val) return null;
+                                    return (
+                                        <option key={key} value={val}>
+                                            {val}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
 
@@ -245,7 +287,7 @@ const AnalysisFilters = ({
                             ANALYSIS MODE
                         </div>
                         <div className="analysis-buttons">
-                            {['Daily', 'Monthly', 'Yearly'].map(mode => (
+                            {['Daily', 'Monthly', 'Yearly', 'Seasonal'].map(mode => (
                                 <button
                                     key={mode}
                                     className={`analysis-btn ${filters.timestep === mode ? 'active' : ''}`}

@@ -25,6 +25,7 @@ import { getParameterColor } from '../data/blockWaterQualityData';
  */
 const DataAnalysisSidebar = ({
     neighbors,
+    selectedBoundary,
     blockData,
     rainfallPoints = [],
     selectedWellInventory = [],
@@ -59,6 +60,7 @@ const DataAnalysisSidebar = ({
         globalFilters,
         clickedLocation,
         neighbors,
+        selectedBoundary,
         blockData,
         rainfallPoints,
         rainfallStations,

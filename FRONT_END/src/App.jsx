@@ -168,6 +168,7 @@ function AppContent() {
                 {!hideSidebarForLayers && (
                     <DataAnalysisSidebar
                         neighbors={neighbors}
+                        selectedBoundary={selectedBoundary}
                         onAddToTable={handleAddToTable}
                         selectedDams={selectedDams}
                         rainfallPoints={rainfallPoints}

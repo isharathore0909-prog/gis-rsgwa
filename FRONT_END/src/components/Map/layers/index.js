@@ -16,3 +16,4 @@ export {
     AquiferVectorLayer,
     WaterResourcesLayers
 } from './DataLayers';
+export { default as WaterQualityContourLayer } from './ContourLayer';

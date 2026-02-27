@@ -1,28 +1,29 @@
+/* Professional Map Border - used to contain the map and hide standard branding/attribution */
+.professional-border {
+    border: 2px solid #334155;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
 .map-container {
     flex: 1;
     position: relative;
-    background: #f8fafc;
-    /* Match light basemap to hide potential gaps */
+    background: transparent;
+    /* Changed from #f8fafc to avoid white lines showing through */
     min-width: 0;
 }
 
-/* Prevent subpixel gaps between tiles (vertical/horizontal lines) */
+/* Prevent subpixel gaps between tiles with standard approach */
 .map-container .leaflet-tile-container {
     will-change: transform;
-    outline: 1px solid transparent;
 }
 
 .map-container .leaflet-tile {
-    /* Force GPU rendering to avoid subpixel rounding issues in Chrome */
+    /* Standard Leaflet tile settings without the problematic margin/padding hacking */
     transform: translateZ(0);
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
-    /* Overlap tiles by 1px to close any sub-pixel rendering gaps */
-    margin: -1px;
-    padding: 1px;
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
 }
 
 /* Also target the pane to avoid inherited gaps */
@@ -721,6 +722,7 @@
 
 .color-picker-widget input[type="color"] {
     -webkit-appearance: none;
+    appearance: none;
     border: none;
     width: 32px;
     height: 32px;

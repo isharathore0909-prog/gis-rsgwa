@@ -13,6 +13,7 @@ from shapely.wkt import loads as load_wkt
 from shapely.wkb import loads as load_wkb
 from django.conf import settings
 from django.contrib.gis.geos import Polygon as GEOSPolygon, GEOSGeometry
+from django.core.cache import cache
 from django.db.models import Avg, Q
 
 # Map frontend layer keys to physical files in data/
@@ -64,6 +65,30 @@ class MapRenderer:
         self.height = height_in
         self.target_crs = "EPSG:3857"
         self.active_thematic_items = {'gw': set(), 'aq': set()}
+
+    def get_cached_gdf(self, layer_name):
+        """Load and cache GeoDataFrame to avoid repeated file I/O and projection."""
+        cache_key = f"map_gdf_{layer_name}"
+        gdf = cache.get(cache_key)
+        if gdf is not None:
+            return gdf
+        
+        filename = LAYER_MAPPING.get(layer_name)
+        if not filename:
+            return None
+            
+        file_path = os.path.join(GEOJSON_PATH, filename)
+        if not os.path.exists(file_path):
+            return None
+            
+        try:
+            gdf = gpd.read_file(file_path)
+            gdf = self.normalize_to_3857(gdf)
+            cache.set(cache_key, gdf, 3600)  # Cache for 1 hour
+            return gdf
+        except Exception as e:
+            print(f"Error loading GDF {layer_name}: {e}")
+            return None
 
     def meters_to_latlon(self, x, y):
         """Convert EPSG:3857 Web Mercator to EPSG:4326 Lat/Lon."""
@@ -117,9 +142,15 @@ class MapRenderer:
                 print(f"DEBUGGING: CRS Detection failed, defaulting to 4326: {e}")
                 gdf.set_crs("EPSG:4326", inplace=True)
 
-        # 2. Fix geometries (buffer 0) and filter out empty/null (Silence GP 0.14 warnings)
+        # 2. Fix geometries safely (buffer(0) destroys lines, so only apply to polygons/multipolygons)
         try:
-            gdf["geometry"] = gdf["geometry"].buffer(0)
+            def fix_geom(g):
+                if g is None or g.is_empty: return g
+                # Only buffer polygons to fix self-intersection validity issues
+                if g.geom_type in ['Polygon', 'MultiPolygon'] and not g.is_valid:
+                    return g.buffer(0)
+                return g
+            gdf["geometry"] = gdf["geometry"].apply(fix_geom)
             # Comprehensive filter as requested to fix GeoPandas 0.14+ warnings
             gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notna()]
         except Exception as e:
@@ -156,9 +187,10 @@ class MapRenderer:
             'study': {'edgecolor': '#e91e63', 'linewidth': 2.0, 'facecolor': 'none', 'label': 'Study Area'},
             'district': {'edgecolor': '#2d3748', 'linewidth': 1.2, 'facecolor': 'none', 'label': 'District Boundary'},
             'state': {'edgecolor': '#000000', 'linewidth': 2.0, 'facecolor': 'none', 'label': 'State Boundary'},
-            'grampanchayat': {'edgecolor': '#475569', 'linewidth': 0.8, 'facecolor': 'none', 'label': 'Gram Panchayat'},
+            'block': {'edgecolor': '#334155', 'linewidth': 1.0, 'facecolor': 'none', 'label': 'Block Boundary'},
+            'grampanchayat': {'edgecolor': '#475569', 'linewidth': 0.8, 'facecolor': 'none', 'label': 'Gram Panchayat Boundary'},
             'village': {'edgecolor': '#94a3b8', 'linewidth': 0.6, 'facecolor': 'none', 'label': 'Village Boundary'},
-            'micro': {'facecolor': '#d1c4e9', 'edgecolor': '#673ab7', 'alpha': 0.4, 'label': 'Micro Watershed'}
+            'micro': {'facecolor': '#d1c4e9', 'edgecolor': '#673ab7', 'alpha': 0.4, 'label': 'Micro Watershed Boundary'}
         }
         
         for key, val in mapping.items():
@@ -166,6 +198,9 @@ class MapRenderer:
                 style.update(val)
                 break
                 
+        if layer_name == 'study':
+            style['label'] = getattr(self, 'custom_boundary_label', 'Study Area Boundary')
+            
         return style
 
     def add_north_arrow(self, ax):
@@ -222,13 +257,15 @@ class MapRenderer:
     def add_legend(self, ax, used_layers):
         """Add legend to bottom-center with horizontal layout. Grouped with headers and vertical spacing."""
         from matplotlib.lines import Line2D
-        ncol = 4 
+        # Increase ncol to 5 or even 6 for heavy thematic layers like Aquifers to save vertical space
+        has_dense_layers = any(l in used_layers for l in ['aquifer', 'rainfall'])
+        ncol = 6 if has_dense_layers else 4 
         handles = []
         
         # 1. Categorize standard layers (Deduplicated)
         boundary_handles, feature_handles = [], []
-        thematic_keys = ['groundwater_zones', 'rainfall', 'aquifer']
-        line_keywords = ['canal', 'river', 'district', 'state']
+        thematic_keys = ['groundwater_zones', 'rainfall', 'aquifer', 'water_quality']
+        line_keywords = ['canal', 'river', 'district', 'state', 'study', 'block', 'grampanchayat', 'village', 'micro']
         
         added_labels = set()
         for layer in used_layers:
@@ -285,11 +322,31 @@ class MapRenderer:
             handles.append(mpatches.Patch(visible=False, label=r"$\bf{Aquifer\ Types:}$"))
             for aq in sorted(list(self.active_thematic_items['aq'])):
                 handles.append(mpatches.Patch(facecolor=AQUIFER_COLORS.get(aq, '#cccccc'), label=aq, edgecolor='#555'))
+                
+        if 'water_quality' in used_layers and hasattr(self, 'wq_buckets'):
+            push_to_new_row(handles, add_gap=True)
+            wq_param = self.active_thematic_items.get('wq_param', 'Water Quality')
+            handles.append(mpatches.Patch(visible=False, label=r"$\bf{" + wq_param + r"\ Levels:}$"))
+            for bucket in self.wq_buckets:
+                # the actual label structure might vary but usually bucket['label'] for ranges
+                bucket_label = bucket.get('label', '')
+                bucket_color = bucket.get('color', '#cccccc')
+                # Use standard hex formatting if it looks like rgb
+                if bucket_color.startswith('rgb'):
+                    try:
+                        import ast
+                        rgb_t = ast.literal_eval(bucket_color.replace('rgb', ''))
+                        bucket_color = '#%02x%02x%02x' % rgb_t
+                    except: pass
+                if bucket_label:
+                    handles.append(mpatches.Patch(facecolor=bucket_color, label=bucket_label, edgecolor='#555'))
             
         if handles:
             # Anchor slightly higher and use loc='upper center' to grow downward safely
-            leg = ax.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.5, -0.08),
-                          frameon=True, fontsize=9, edgecolor='#334155', fancybox=False, ncol=ncol, title='Legend')
+            # Slightly smaller font (8.5) if many items
+            fs = 8.5 if len(handles) > 15 else 9
+            leg = ax.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.5, -0.10),
+                          frameon=True, fontsize=fs, edgecolor='#334155', fancybox=False, ncol=ncol, title='Legend')
             leg.get_frame().set_linewidth(1.2)
             leg.get_title().set(fontsize=11, fontweight='bold', ha='center')
 
@@ -472,6 +529,118 @@ class MapRenderer:
         colors = [get_rainfall_color(v) for v in plot_vals]
         gdf.plot(ax=ax, color=colors, edgecolor='#1e293b', linewidth=0.2, zorder=1)
         return True
+
+    def _plot_thematic_water_quality(self, ax, bounds_3857, clip_mask, filters=None):
+        f = filters or {}
+        params = []
+        if f.get('showEC'): params.append('ec')
+        if f.get('showNitrate'): params.append('nitrate')
+        if f.get('showFluoride'): params.append('fluoride')
+        if f.get('showTDS'): params.append('tds')
+        
+        if not params:
+            print("DEBUG: No WQ parameters selected in filters")
+            return False
+
+        from water_qualityApi.models import WaterQuality
+        from core.services.mapping import generate_contour_map, get_parameter_analysis, utm_to_latlon
+        from shapely.geometry import box
+        import json, math, base64, io
+        from PIL import Image
+        from django.db.models import Q, F
+
+        try:
+            boundary_geojson = json.loads(gpd.GeoSeries([clip_mask], crs="EPSG:3857").to_crs("EPSG:4326").to_json()) if clip_mask else None
+            # Need raw Feature array or dict
+            if boundary_geojson and 'features' in boundary_geojson:
+                boundary_geojson = boundary_geojson['features'][0]['geometry'] 
+
+            b_min_x, b_min_y, b_max_x, b_max_y = bounds_3857
+            bounds_gdf = gpd.GeoDataFrame({'geometry': [box(b_min_x, b_min_y, b_max_x, b_max_y)]}, crs="EPSG:3857")
+            bounds_4326 = bounds_gdf.to_crs("EPSG:4326").total_bounds
+            min_lon, min_lat, max_lon, max_lat = bounds_4326
+
+            padding = (max_lon - min_lon) * 0.2
+            search_min_x, search_max_x = min_lon - padding, max_lon + padding
+            search_min_y, search_max_y = min_lat - padding, max_lat + padding
+
+            spatial_query = Q(latitude__range=(search_min_y, search_max_y), longitude__range=(search_min_x, search_max_x))
+
+            dist = f.get('district')
+            block = f.get('block')
+            gp = f.get('grampanchayat') or f.get('gramPanchayat')
+
+            loc_query = Q()
+            if gp:
+                loc_query = Q(village__grampanchayat__name__iexact=gp)
+            elif block:
+                loc_query = Q(village__grampanchayat__block__name__iexact=block)
+            elif dist and dist.lower() != 'rajasthan':
+                loc_query = Q(village__grampanchayat__block__district__name__iexact=dist)
+
+            for p_name in params:
+                param = p_name.lower()
+                raw_pts = WaterQuality.objects.filter(spatial_query | loc_query).distinct().values('latitude', 'longitude', val=F(param))
+                
+                pts = []
+                for p in raw_pts:
+                    lat, lon, val = p.get('latitude'), p.get('longitude'), p.get('val')
+                    if lat is None or lon is None or val is None: continue
+                    if abs(float(lat)) < 0.001 and abs(float(lon)) < 0.001: continue
+                    if isinstance(val, (float, int)) and (math.isnan(val) or math.isinf(val)): continue
+                    if lon > 200 or lat > 100: lon, lat = utm_to_latlon(lon, lat)
+                    pts.append({'lat': lat, 'lon': lon, 'val': val})
+
+                if not pts: continue
+
+                analysis = get_parameter_analysis(param, [p['val'] for p in pts])
+
+                width, height = 1200, 1000  # High res for PDF
+                dx = max_lon - min_lon or 0.01
+                dy = max_lat - min_lat or 0.01
+                
+                proj_bounds = {
+                    'minX': min_lon - dx * 0.05,
+                    'maxX': max_lon + dx * 0.05,
+                    'minY': min_lat - dy * 0.05,
+                    'maxY': max_lat + dy * 0.05
+                }
+                
+                def project_pt(lon, lat, pb):
+                    px = ((lon - pb['minX']) / (pb['maxX'] - pb['minX'])) * width
+                    py = height - ((lat - pb['minY']) / (pb['maxY'] - pb['minY'])) * height
+                    return px, py
+
+                proj_pts = []
+                for p in pts:
+                    px, py = project_pt(p['lon'], p['lat'], proj_bounds)
+                    proj_pts.append({'x': px, 'y': py, 'v': p['val']})
+
+                # Calculate corresponding EPSG 3857 bounds exactly corresponding to the padded proj_bounds (which is in 4326)
+                img_bounds_gdf = gpd.GeoDataFrame({'geometry': [box(proj_bounds['minX'], proj_bounds['minY'], proj_bounds['maxX'], proj_bounds['maxY'])]}, crs="EPSG:4326")
+                img_bounds_3857 = img_bounds_gdf.to_crs("EPSG:3857").total_bounds
+
+                heatmap_b64 = generate_contour_map(
+                    proj_pts, proj_bounds, width, height, p=2.5,
+                    buckets=analysis['buckets'], show_labels=not analysis['is_quality'],
+                    boundary_geojson=boundary_geojson
+                )
+                
+                if heatmap_b64 and heatmap_b64.startswith("data:"):
+                    b64_str = heatmap_b64.split(",")[1]
+                    img_data = base64.b64decode(b64_str)
+                    img = Image.open(io.BytesIO(img_data))
+                    
+                    # Matplotlib uses Web Mercator coordinates here!
+                    extent = [img_bounds_3857[0], img_bounds_3857[2], img_bounds_3857[1], img_bounds_3857[3]]
+                    ax.imshow(img, extent=extent, zorder=1.5, alpha=0.8)
+                    self.active_thematic_items['wq_param'] = param.upper() 
+                    self.wq_buckets = analysis['buckets']
+                    
+            return True
+        except Exception as e:
+            print(f"DEBUG: Water Quality Rendering Error: {e}")
+            return False
 
 
 
@@ -672,7 +841,7 @@ class MapRenderer:
                 if os.path.exists(state_file):
                     print(f"DEBUG: State DB empty, loading from {state_file}")
                     gdf_bg = gpd.read_file(state_file)
-                    gdf_bg = self._prepare_gdf(gdf_bg)
+                    gdf_bg = self.normalize_to_3857(gdf_bg)
                 else:
                     gdf_bg = None
             else:
@@ -713,6 +882,9 @@ class MapRenderer:
         for layer in ordered_layers:
             if layer == 'rainfall':
                 if self._plot_thematic_rainfall(ax, clip_mask, filters): used_layers.append(layer)
+                continue
+            elif layer == 'water_quality':
+                if self._plot_thematic_water_quality(ax, bounds_3857, clip_mask, filters): used_layers.append(layer)
                 continue
             
             from layersApi.models import SpatialLayer
@@ -858,6 +1030,19 @@ class MapRenderer:
                 # Outer glow/border for study area
                 gdf_study.plot(ax=ax, facecolor='none', edgecolor='#e91e63', linewidth=2.5, zorder=15, linestyle='-')
                 gdf_study.plot(ax=ax, facecolor='none', edgecolor='white', linewidth=4.0, zorder=14, alpha=0.3)
+                
+                # Dynamic boundary label
+                boundary_label = "Study Area Boundary"
+                if f.get('village'): boundary_label = "Village Boundary"
+                elif f.get('grampanchayat') or f.get('gramPanchayat'): boundary_label = "Gram Panchayat Boundary"
+                elif f.get('block'): boundary_label = "Block Boundary"
+                elif f.get('district') and f.get('district').lower() != 'rajasthan': boundary_label = "District Boundary"
+                elif f.get('district') and f.get('district').lower() == 'rajasthan': boundary_label = "State Boundary"
+                
+                self.custom_boundary_label = boundary_label
+                if 'study' not in used_layers:
+                    used_layers.append('study')
+                    
             except Exception as e:
                 print(f"DEBUG: Highlight study area failed: {e}")
 
@@ -891,13 +1076,36 @@ class MapRenderer:
         region_label = f.get('village') or f.get('grampanchayat') or f.get('gramPanchayat') or f.get('block') or f.get('district') or "Rajasthan"
         date_range = f" | Filtered: {f.get('dataRangeStart')} to {f.get('dataRangeEnd')}" if f.get('dataRangeStart') else ""
         
-        plt.figtext(0.5, 0.96, title.upper(), ha='center', fontsize=20, fontweight='bold', color='#0f172a')
+        # Determine thematic prefix based on active layers
+        thematic_prefix = ""
+        if 'rainfall' in used_layers:
+            thematic_prefix = "RAINFALL "
+        elif 'water_quality' in used_layers:
+            thematic_prefix = f"WATER QUALITY ({self.active_thematic_items.get('wq_param', '')}) "
+        elif 'aquifer' in used_layers:
+            thematic_prefix = "AQUIFER "
+        elif 'groundwater_zones' in used_layers:
+            thematic_prefix = "GROUNDWATER ZONE "
+        elif 'micro' in used_layers:
+            thematic_prefix = "MICRO WATERSHED "
+        elif 'waterbodies' in used_layers:
+            thematic_prefix = "WATER BODIES "
+        elif 'canals' in used_layers:
+            thematic_prefix = "CANALS "
+        elif 'rivers' in used_layers:
+            thematic_prefix = "RIVERS "
+        elif 'dams' in used_layers:
+            thematic_prefix = "DAMS "
+        
+        full_title = f"{thematic_prefix}{title}".strip().upper()
+        
+        plt.figtext(0.5, 0.96, full_title, ha='center', fontsize=20, fontweight='bold', color='#0f172a')
         plt.figtext(0.5, 0.93, f"Region: {region_label}{date_range}", ha='center', fontsize=12, color='#475569')
         
-        plt.figtext(0.05, 0.02, "Source: RSGWA GIS Portal | Generated via Antigravity Engine", fontsize=8, color='#94a3b8')
+
         
-        # Increase bottom margin to accommodate the legend
-        plt.subplots_adjust(left=0.08, right=0.95, top=0.90, bottom=0.20)
-        plt.savefig(output_file, format='pdf', dpi=300, facecolor=fig.get_facecolor())
+        # Increase bottom margin significantly to accommodate long legends (especially Aquifers)
+        plt.subplots_adjust(left=0.08, right=0.95, top=0.92, bottom=0.35)
+        plt.savefig(output_file, format='pdf', dpi=300, facecolor=fig.get_facecolor(), bbox_inches='tight')
         plt.close(fig)
         return output_file
