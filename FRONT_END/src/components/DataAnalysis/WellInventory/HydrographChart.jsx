@@ -37,7 +37,7 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
 
     return (
         <SmartChartContainer height={height || (isExpanded ? '450px' : '350px')}>
-            <ComposedChart data={processedData} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
+            <ComposedChart data={processedData} margin={{ top: 20, right: 60, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} dy={10} />
 
@@ -76,6 +76,7 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                 />
 
                 <Tooltip
+                    allowEscapeViewBox={{ x: true, y: true }}
                     contentStyle={{
                         borderRadius: '8px',
                         border: 'none',

@@ -149,42 +149,6 @@ export const AQUIFER_DATA = [
     }
 ];
 
-// District-wise Water Quality Exceedance (Mock data based on general Rajasthan trends)
-export const DISTRICT_QUALITY_DATA = {
-    "Ajmer": { ec: 45, fluoride: 42, nitrate: 58, iron: 15, arsenic: 5, uranium: 22 },
-    "Alwar": { ec: 38, fluoride: 35, nitrate: 62, iron: 10, arsenic: 4, uranium: 18 },
-    "Banswara": { ec: 25, fluoride: 28, nitrate: 35, iron: 25, arsenic: 2, uranium: 12 },
-    "Baran": { ec: 30, fluoride: 32, nitrate: 40, iron: 20, arsenic: 3, uranium: 15 },
-    "Barmer": { ec: 85, fluoride: 75, nitrate: 45, iron: 12, arsenic: 6, uranium: 35 },
-    "Bharatpur": { ec: 65, fluoride: 48, nitrate: 72, iron: 14, arsenic: 8, uranium: 20 },
-    "Bhilwara": { ec: 42, fluoride: 45, nitrate: 52, iron: 18, arsenic: 4, uranium: 25 },
-    "Bikaner": { ec: 78, fluoride: 68, nitrate: 48, iron: 10, arsenic: 7, uranium: 40 },
-    "Bundi": { ec: 32, fluoride: 30, nitrate: 42, iron: 16, arsenic: 3, uranium: 14 },
-    "Chittorgarh": { ec: 35, fluoride: 38, nitrate: 45, iron: 22, arsenic: 4, uranium: 16 },
-    "Churu": { ec: 82, fluoride: 72, nitrate: 55, iron: 8, arsenic: 6, uranium: 38 },
-    "Dausa": { ec: 40, fluoride: 36, nitrate: 50, iron: 12, arsenic: 4, uranium: 20 },
-    "Dhaulpur": { ec: 38, fluoride: 34, nitrate: 48, iron: 15, arsenic: 5, uranium: 18 },
-    "Dungarpur": { ec: 28, fluoride: 32, nitrate: 38, iron: 28, arsenic: 3, uranium: 11 },
-    "Ganganagar": { ec: 72, fluoride: 55, nitrate: 68, iron: 12, arsenic: 9, uranium: 28 },
-    "Hanumangarh": { ec: 68, fluoride: 52, nitrate: 65, iron: 11, arsenic: 8, uranium: 26 },
-    "Jaipur": { ec: 48, fluoride: 44, nitrate: 75, iron: 13, arsenic: 5, uranium: 24 },
-    "Jaisalmer": { ec: 92, fluoride: 82, nitrate: 40, iron: 9, arsenic: 7, uranium: 45 },
-    "Jalor": { ec: 88, fluoride: 78, nitrate: 42, iron: 10, arsenic: 6, uranium: 32 },
-    "Jhalawar": { ec: 28, fluoride: 30, nitrate: 35, iron: 24, arsenic: 2, uranium: 12 },
-    "Jhunjhunun": { ec: 55, fluoride: 58, nitrate: 70, iron: 12, arsenic: 6, uranium: 30 },
-    "Jodhpur": { ec: 65, fluoride: 62, nitrate: 58, iron: 11, arsenic: 5, uranium: 35 },
-    "Karauli": { ec: 36, fluoride: 34, nitrate: 46, iron: 17, arsenic: 4, uranium: 16 },
-    "Kota": { ec: 32, fluoride: 35, nitrate: 40, iron: 18, arsenic: 3, uranium: 15 },
-    "Nagaur": { ec: 75, fluoride: 85, nitrate: 72, iron: 9, arsenic: 7, uranium: 42 },
-    "Pali": { ec: 58, fluoride: 62, nitrate: 50, iron: 14, arsenic: 5, uranium: 28 },
-    "Pratapgarh": { ec: 30, fluoride: 32, nitrate: 38, iron: 22, arsenic: 3, uranium: 14 },
-    "Rajsamand": { ec: 38, fluoride: 40, nitrate: 45, iron: 20, arsenic: 4, uranium: 18 },
-    "Sawai Madhopur": { ec: 34, fluoride: 32, nitrate: 48, iron: 16, arsenic: 5, uranium: 16 },
-    "Sikar": { ec: 52, fluoride: 55, nitrate: 78, iron: 12, arsenic: 5, uranium: 28 },
-    "Sirohi": { ec: 45, fluoride: 48, nitrate: 42, iron: 15, arsenic: 4, uranium: 22 },
-    "Tonk": { ec: 42, fluoride: 44, nitrate: 58, iron: 13, arsenic: 5, uranium: 20 },
-    "Udaipur": { ec: 35, fluoride: 38, nitrate: 42, iron: 20, arsenic: 4, uranium: 18 }
-};
 
 // Depth to Water Level (mbgl) - Pre-monsoon and Post-monsoon 2024 trends
 export const DISTRICT_WATER_LEVEL_DATA = {

@@ -156,10 +156,15 @@ class AquiferDataListSerializer(serializers.ModelSerializer):
 
 
 class YearDataSerializer(serializers.Serializer):
-    """Serializer for year-specific data queries"""
-    year = serializers.IntegerField()
+    """Serializer for year-specific data queries with location context"""
     well_id = serializers.CharField()
     village_name = serializers.CharField()
+    district = serializers.CharField()
+    block = serializers.CharField()
+    latitude = serializers.FloatField(allow_null=True)
+    longitude = serializers.FloatField(allow_null=True)
+    aquifer = serializers.CharField(allow_null=True)
+    year = serializers.IntegerField()
     pre_monsoon = serializers.FloatField(allow_null=True)
     post_monsoon = serializers.FloatField(allow_null=True)
     seasonal_change = serializers.FloatField(allow_null=True)

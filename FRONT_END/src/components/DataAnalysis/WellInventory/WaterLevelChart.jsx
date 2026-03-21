@@ -22,7 +22,7 @@ const WaterLevelChart = ({ data, height, showDots = true, isExpanded }) => {
 
     return (
         <SmartChartContainer height={height || (isExpanded ? '400px' : '300px')}>
-            <LineChart data={processedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <LineChart data={processedData} margin={{ top: 10, right: 50, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} dy={5} />
                 <YAxis

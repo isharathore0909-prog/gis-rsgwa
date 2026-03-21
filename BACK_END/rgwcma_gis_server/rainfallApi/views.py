@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import LimitOffsetPagination
 from django.db.models import Sum, Avg, Count, Max, Min, Q
 from django.db.models.functions import TruncMonth, TruncYear
+from django.core.cache import cache
 from .models import Rainfall
 from .serializers import RainfallSerializer
 
@@ -24,6 +25,8 @@ class IsAdminOrReadOnly(permissions.BasePermission):
         return request.user and request.user.is_staff
 
 from core.filters import HierarchicalLocationFilterBackend
+
+from .utils import calculate_rainfall_stats, calculate_rainfall_summary, safe_round
 
 class RainfallViewSet(viewsets.ModelViewSet):
     """
@@ -57,163 +60,36 @@ class RainfallViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
-        """Aggregation for Sidebar cards."""
+        """Aggregation for Sidebar cards with caching."""
+        # Generate robust cache key from all relevant query params
+        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
+        cache_key = f"rainfall_stats_{'_'.join(loc_params) if loc_params else 'all'}"
+        
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+            
         queryset = self.filter_queryset(self.get_queryset())
+        result = calculate_rainfall_stats(queryset, is_station_data=False)
         
-        # Debug logging
-        total_count = queryset.count()
-        non_null_count = queryset.exclude(rainfall_mm__isnull=True).count()
-        non_zero_count = queryset.exclude(rainfall_mm__isnull=True).exclude(rainfall_mm=0).count()
-        
-        print(f"DEBUG Rainfall Stats:")
-        print(f"  Total records: {total_count}")
-        print(f"  Non-null rainfall_mm: {non_null_count}")
-        print(f"  Non-zero rainfall_mm: {non_zero_count}")
-        
-        stats = queryset.aggregate(
-            total=Sum('rainfall_mm'),
-            avg=Avg('rainfall_mm'),
-            count=Count('id'),
-            max=Max('rainfall_mm')
-        )
-        
-        print(f"  Aggregated stats: {stats}")
-        
-        # Find location of max rainfall
-        max_val = stats.get('max')
-        max_info = {}
-        if max_val:
-            max_record = queryset.filter(rainfall_mm=max_val).first()
-            if max_record:
-                max_info = {
-                    'village': max_record.village.name,
-                    'date': max_record.date
-                }
-
-        # Calculate Average of Station Totals (Better for Statewide view)
-        # 1. Group by village, 2. Sum per village, 3. Avg of sums
-        # Calculate Average of Station Totals (Better for Statewide view)
-        # 1. Group by village, 2. Sum per village, 3. Avg of sums
-        avg_station_total = 0
-        try:
-            if queryset.exists():
-                # Use village_id to avoid potential joins
-                station_avg = queryset.values('village_id').annotate(station_total=Sum('rainfall_mm')).aggregate(avg=Avg('station_total'))
-                avg_station_total = station_avg.get('avg', 0)
-        except Exception as e:
-            print(f"Error calculating station average: {e}")
-            # Fallback to simple average if complex aggregation fails
-            avg_station_total = stats['avg']
-
-        # Calculate Monsoon and Non-Monsoon sums
-        seasonal_stats = queryset.aggregate(
-            monsoon_total=Sum('rainfall_mm', filter=Q(date__month__in=[6, 7, 8, 9])),
-            non_monsoon_total=Sum('rainfall_mm', filter=~Q(date__month__in=[6, 7, 8, 9])),
-            monsoon_count=Count('id', filter=Q(date__month__in=[6, 7, 8, 9])),
-            non_monsoon_count=Count('id', filter=~Q(date__month__in=[6, 7, 8, 9]))
-        )
-
-        result = {
-            'total': round(stats['total'] or 0, 2),
-            'avg': round(stats['avg'] or 0, 2),
-            'avg_station_total': round(avg_station_total or 0, 2),
-            'monsoon_avg': round((seasonal_stats['monsoon_total'] or 0) / (seasonal_stats['monsoon_count'] or 1), 2),
-            'non_monsoon_avg': round((seasonal_stats['non_monsoon_total'] or 0) / (seasonal_stats['non_monsoon_count'] or 1), 2),
-            'count': stats['count'],
-            'max': round(stats['max'] or 0, 2),
-            'max_village': max_info.get('village'),
-            'max_date': max_info.get('date')
-        }
-        
-        print(f"  Returning: {result}")
-        
+        cache.set(cache_key, result, 3600)
         return Response(result)
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """Aggregation for Charts."""
-        from django.db.models.functions import TruncMonth, TruncYear, ExtractMonth
-        from django.db.models import Case, When, Value, IntegerField
-        
-        queryset = self.filter_queryset(self.get_queryset())
+        """Aggregation for Charts with caching."""
         timestep = request.query_params.get('timestep', 'daily').lower()
+        # Generate robust cache key from all relevant query params
+        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
+        cache_key = f"rainfall_summary_{timestep}_{'_'.join(loc_params) if loc_params else 'all'}"
         
-        if timestep == 'monthly':
-            data = queryset.annotate(month=TruncMonth('date')) \
-                           .values('month') \
-                           .annotate(
-                               total=Sum('rainfall_mm'), 
-                               village_count=Count('village_id', distinct=True)
-                           ) \
-                           .order_by('month')
-            return Response([
-                {
-                    'name': d['month'].strftime('%Y-%m') if d['month'] else 'Unknown', 
-                    'total': d['total'], 
-                    'average': round(d['total'] / d['village_count'], 2) if d.get('village_count', 0) > 0 else 0
-                } for d in data
-            ])
-        
-        elif timestep == 'yearly':
-            data = queryset.annotate(year=TruncYear('date')) \
-                           .values('year') \
-                           .annotate(
-                               total=Sum('rainfall_mm'), 
-                               village_count=Count('village_id', distinct=True)
-                           ) \
-                           .order_by('year')
-            return Response([
-                {
-                    'name': d['year'].strftime('%Y') if d['year'] else 'Unknown', 
-                    'total': d['total'], 
-                    'average': round(d['total'] / d['village_count'], 2) if d.get('village_count', 0) > 0 else 0
-                } for d in data
-            ])
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
 
-        elif timestep == 'seasonal':
-            data = queryset.annotate(
-                year=TruncYear('date'),
-                month_num=ExtractMonth('date')
-            ).annotate(
-                is_monsoon=Case(
-                    When(month_num__in=[6, 7, 8, 9], then=Value(1)),
-                    default=Value(0),
-                    output_field=IntegerField()
-                )
-            ).values('year', 'is_monsoon') \
-             .annotate(
-                 total=Sum('rainfall_mm'),
-                 village_count=Count('village_id', distinct=True)
-             ).order_by('year', 'is_monsoon')
-            
-            # Reformat to combine by year
-            years = {}
-            for d in data:
-                try:
-                    if hasattr(d['year'], 'strftime'):
-                        yr = d['year'].strftime('%Y')
-                    else:
-                        yr = str(d['year'])[:4] if d['year'] else 'Unknown'
-                except:
-                    yr = 'Unknown'
+        queryset = self.filter_queryset(self.get_queryset())
+        result = calculate_rainfall_summary(queryset, timestep=timestep, is_station_data=False)
 
-                if yr not in years:
-                    years[yr] = {'name': yr, 'monsoon': 0, 'non_monsoon': 0, 'total': 0, 'average': 0}
-                
-                avg = round(d['total'] / d['village_count'], 2) if d.get('village_count', 0) > 0 else 0
-                if d['is_monsoon'] == 1:
-                    years[yr]['monsoon'] = avg
-                else:
-                    years[yr]['non_monsoon'] = avg
-                
-                years[yr]['total'] += d['total']
-                years[yr]['average'] += avg
-            
-            return Response(list(years.values()))
-            
-        else: # Daily
-            data = queryset.values('date').annotate(total=Sum('rainfall_mm'), average=Avg('rainfall_mm')).order_by('date')
-            return Response([{'name': str(d['date']), 'total': d['total'], 'average': round(d['average'] or 0, 2)} for d in data])
+        cache.set(cache_key, result, 3600)
+        return Response(result)
 
     @action(detail=False, methods=['get'])
     def district_wise(self, request):
@@ -380,10 +256,6 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Apply date filters
         params = self.request.query_params
-
-        
-        # Apply date filters
-        params = self.request.query_params
         if params.get('start_date'):
             queryset = queryset.filter(date__gte=params.get('start_date'))
         if params.get('end_date'):
@@ -398,7 +270,6 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet):
     def stations(self, request):
         """List all stations, optionally filtered by district."""
         stations = RainfallStation.objects.all()
-        
         district = request.query_params.get('district')
         if district:
             stations = stations.filter(district__iexact=district)
@@ -408,160 +279,46 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
-        """Optimized aggregation for Station Data."""
+        """Optimized aggregation for Station Data with caching."""
+        # Generate robust cache key from all relevant query params
+        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
+        cache_key = f"station_rainfall_stats_{'_'.join(loc_params) if loc_params else 'all'}"
+        
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+
         queryset = self.filter_queryset(self.get_queryset()).exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
+        result = calculate_rainfall_stats(queryset, is_station_data=True)
         
-        stats = queryset.aggregate(
-            total=Sum('rainfall_mm'),
-            avg=Avg('rainfall_mm'),
-            count=Count('id'),
-            max=Max('rainfall_mm')
-        )
-        
-        max_record = None
-        if stats['max'] is not None:
-            max_record = queryset.filter(rainfall_mm=stats['max']).select_related('station').first()
-
-        # Calculate Average of Station Totals
-        avg_station_total = 0
-        if queryset.exists():
-            station_totals = queryset.values('station').annotate(total=Sum('rainfall_mm')).aggregate(avg=Avg('total'))
-            avg_station_total = station_totals.get('avg', 0) or 0
-
-        def sanitize(val):
-            import math
-            if val is None: return 0.0
-            try:
-                f = float(val)
-                return 0.0 if math.isnan(f) or math.isinf(f) else f
-            except: return 0.0
-
-        # Calculate Monsoon and Non-Monsoon sums
-        seasonal_stats = queryset.aggregate(
-            monsoon_total=Sum('rainfall_mm', filter=Q(date__month__in=[6, 7, 8, 9])),
-            non_monsoon_total=Sum('rainfall_mm', filter=~Q(date__month__in=[6, 7, 8, 9])),
-            monsoon_count=Count('id', filter=Q(date__month__in=[6, 7, 8, 9])),
-            non_monsoon_count=Count('id', filter=~Q(date__month__in=[6, 7, 8, 9]))
-        )
-
-        return Response({
-            'total': round(sanitize(stats['total']), 2),
-            'avg': round(sanitize(stats['avg']), 2),
-            'avg_station_total': round(sanitize(avg_station_total), 2),
-            'monsoon_avg': round((seasonal_stats['monsoon_total'] or 0) / (seasonal_stats['monsoon_count'] or 1), 2),
-            'non_monsoon_avg': round((seasonal_stats['non_monsoon_total'] or 0) / (seasonal_stats['non_monsoon_count'] or 1), 2),
-            'count': stats['count'],
-            'max': round(sanitize(stats['max']), 2),
-            'max_village': max_record.station.name if max_record else None, 
-            'max_date': max_record.date if max_record else None,
-            'isStationData': True
-        })
+        cache.set(cache_key, result, 3600)
+        return Response(result)
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """Aggregation for Charts (Station Data)."""
-        from django.db.models.functions import TruncMonth, TruncYear, ExtractMonth
-        from django.db.models import Case, When, Value, IntegerField
-        
-        # Filter out Nulls and NaNs to prevent aggregation poisoning
-        queryset = self.filter_queryset(self.get_queryset()).exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
+        """Aggregation for Charts (Station Data) with caching."""
         timestep = request.query_params.get('timestep', 'daily').lower()
+        # Generate robust cache key from all relevant query params
+        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
+        cache_key = f"station_rainfall_summary_{timestep}_{'_'.join(loc_params) if loc_params else 'all'}"
         
-        # Helper to safely round
-        def safe_round(val):
-            if val is None: return 0.0
-            import math
-            try:
-                f = float(val)
-                if math.isnan(f) or math.isinf(f): return 0.0
-                return round(f, 2)
-            except: return 0.0
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
 
-        if timestep == 'monthly':
-            data = queryset.annotate(month=TruncMonth('date')) \
-                           .values('month') \
-                           .annotate(
-                               total=Sum('rainfall_mm'), 
-                               station_count=Count('station', distinct=True)
-                           ) \
-                           .order_by('month')
-            
-            return Response([
-                {
-                    'name': d['month'].strftime('%Y-%m') if d['month'] else 'Unknown', 
-                    'total': safe_round(d['total']), 
-                    'average': safe_round(d['total'] / d['station_count']) if d.get('station_count', 0) > 0 else 0
-                } for d in data
-            ])
-        
-        elif timestep == 'yearly':
-            data = queryset.annotate(year=TruncYear('date')) \
-                           .values('year') \
-                           .annotate(
-                               total=Sum('rainfall_mm'), 
-                               station_count=Count('station', distinct=True)
-                           ) \
-                           .order_by('year')
-                           
-            return Response([
-                {
-                    'name': d['year'].strftime('%Y') if d['year'] else 'Unknown', 
-                    'total': safe_round(d['total']), 
-                    'average': safe_round(d['total'] / d['station_count']) if d.get('station_count', 0) > 0 else 0
-                } for d in data
-            ])
+        queryset = self.filter_queryset(self.get_queryset()).exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
+        result = calculate_rainfall_summary(queryset, timestep=timestep, is_station_data=True)
 
-        elif timestep == 'seasonal':
-            data = queryset.annotate(
-                year=TruncYear('date'),
-                month_num=ExtractMonth('date')
-            ).annotate(
-                is_monsoon=Case(
-                    When(month_num__in=[6, 7, 8, 9], then=Value(1)),
-                    default=Value(0),
-                    output_field=IntegerField()
-                )
-            ).values('year', 'is_monsoon') \
-             .annotate(
-                 total=Sum('rainfall_mm'),
-                 station_count=Count('station', distinct=True)
-             ).order_by('year', 'is_monsoon')
-
-            years = {}
-            for d in data:
-                try:
-                    if hasattr(d['year'], 'strftime'):
-                        yr = d['year'].strftime('%Y')
-                    else:
-                        yr = str(d['year'])[:4] if d['year'] else 'Unknown'
-                except:
-                    yr = 'Unknown'
-
-                if yr not in years:
-                    years[yr] = {'name': yr, 'monsoon': 0, 'non_monsoon': 0, 'total': 0, 'average': 0}
-                
-                avg = safe_round(d['total'] / d['station_count']) if d.get('station_count', 0) > 0 else 0
-                if d['is_monsoon'] == 1:
-                    years[yr]['monsoon'] = avg
-                else:
-                    years[yr]['non_monsoon'] = avg
-                
-                years[yr]['total'] += safe_round(d['total'])
-                years[yr]['average'] += avg
-            
-            return Response(list(years.values()))
-            
-        else: # Daily
-            data = queryset.values('date').annotate(total=Sum('rainfall_mm'), average=Avg('rainfall_mm')).order_by('date')
-            return Response([{'name': str(d['date']), 'total': safe_round(d['total']), 'average': safe_round(d['average'])} for d in data])
+        cache.set(cache_key, result, 3600)
+        return Response(result)
 
     @action(detail=False, methods=['get'])
     def district_wise(self, request):
         """Aggregate station rainfall data by district."""
-        # Filter out Nulls and NaNs
+        cache_key = f"station_rainfall_district_wise"
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+
         queryset = self.filter_queryset(self.get_queryset()).exclude(rainfall_mm__isnull=True).filter(rainfall_mm__lt=10000)
         
-        # Group by station's district and calculate average
         data = queryset.values('station__district') \
                        .annotate(average_rainfall=Avg('rainfall_mm'), 
                                 total_rainfall=Sum('rainfall_mm'),
@@ -578,9 +335,6 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet):
             for d in data if d['station__district']
         ]
         
-        print(f"[district_wise] Returning {len(result)} districts from station data")
-        for r in result[:5]:  # Log first 5 for debugging
-            print(f"  {r['district']}: {r['average_rainfall']} mm (from {r['record_count']} records)")
-        
+        cache.set(cache_key, result, 3600)
         return Response(result)
 

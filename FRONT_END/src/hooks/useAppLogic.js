@@ -41,6 +41,7 @@ export const useAppLogic = () => {
     const [rainfallDataSource, setRainfallDataSource] = useState('station');
     const [rainfallStations, setRainfallStations] = useState([]);
     const [rainfallStationRecords, setRainfallStationRecords] = useState([]);
+    const [initRetry, setInitRetry] = useState(0);
 
     // Handlers
     const handleCoordinateSearch = useCallback((lat, lng) => {
@@ -170,11 +171,21 @@ export const useAppLogic = () => {
                     setRajasthanData(reprojected || localData);
                 }
 
-                const states = await api.location.getStates({ name: 'Rajasthan' });
-                const stateObj = (states.results || states)?.[0];
-                if (stateObj && !ignore) setRajasthanId(stateObj.id);
+                if (!rajasthanId) {
+                    const states = await api.location.getStates({ name: 'Rajasthan' });
+                    const stateObj = (states.results || states)?.[0];
+                    if (stateObj && !ignore) setRajasthanId(stateObj.id);
+                }
             } catch (err) {
                 console.error('× Error initializing map base:', err);
+                // Robust auto-retry on initialization failure
+                if (!ignore && !rajasthanId) {
+                    const nextWait = Math.min(Math.pow(2, initRetry) * 2000, 30000);
+                    console.log(`⏱️ Retrying map initialization in ${nextWait / 1000}s...`);
+                    setTimeout(() => {
+                        if (!ignore) setInitRetry(prev => prev + 1);
+                    }, nextWait);
+                }
             }
         };
 
@@ -205,7 +216,7 @@ export const useAppLogic = () => {
             });
 
         return () => { ignore = true; };
-    }, []);
+    }, [initRetry]);
 
     // URL Params Handling
     useEffect(() => {
@@ -262,8 +273,12 @@ export const useAppLogic = () => {
                 setRainfallLoading(true);
                 try {
                     const params = { limit: 5000 };
-                    if (filters.district) params.district = toTitleCase(filters.district);
-                    if (filters.block) params.block = toTitleCase(filters.block);
+                    if (filters.district_id) params.district_id = filters.district_id;
+                    else if (filters.district) params.district = toTitleCase(filters.district);
+
+                    if (filters.block_id) params.block_id = filters.block_id;
+                    else if (filters.block) params.block = toTitleCase(filters.block);
+
                     if (filters.dataRangeStart) params.start_date = filters.dataRangeStart;
                     if (filters.dataRangeEnd) params.end_date = filters.dataRangeEnd;
 
@@ -332,9 +347,13 @@ export const useAppLogic = () => {
             try {
                 const neighbor = neighbors?.[0];
                 const params = {
+                    district_id: filters.district_id,
                     district: filters.district || neighbor?.district || neighbor?.properties?.district,
+                    block_id: filters.block_id,
                     block: filters.block || neighbor?.block || neighbor?.properties?.block,
+                    gp_id: filters.gp_id,
                     grampanchayat: filters.gramPanchayat || neighbor?.grampanchayat || neighbor?.properties?.grampanchayat,
+                    village_id: filters.village_id,
                     village_name: filters.village || neighbor?.village || neighbor?.properties?.village
                 };
                 const response = await api.waterQuality.getRecords(params);
@@ -364,9 +383,13 @@ export const useAppLogic = () => {
             setAquiferLoading(true);
             try {
                 const params = {
+                    district_id: filters.district_id,
                     district: filters.district,
+                    block_id: filters.block_id,
                     block: filters.block,
+                    gp_id: filters.gp_id,
                     grampanchayat: filters.gramPanchayat,
+                    village_id: filters.village_id,
                     village_name: filters.village,
                     detailed: 'true'
                 };

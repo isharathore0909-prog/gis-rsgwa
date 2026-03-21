@@ -7,8 +7,8 @@
 
 // Backend API Configuration
 export const BACKEND_API = {
-    BASE_URL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'https://rgwcma-gis.geoplanetsolution.in/api'),
-    API_KEY: import.meta.env.VITE_INTERNAL_API_KEY || 'e32ebc1d-fe04-4bd7-9003-df5274c990e2',
+    BASE_URL: 'http://rgwcma-gis.geoplanetsolution.in/api',
+    API_KEY: 'e32ebc1d-fe04-4bd7-9003-df5274c990e2',
     ENDPOINTS: {
         // Location endpoints
         STATES: '/location/states/',
@@ -60,12 +60,12 @@ export const BACKEND_API = {
 };
 
 // External Boundary API Configuration (Now Proxied through Backend)
-const BACKEND_URL_BASE = import.meta.env.VITE_API_BASE_URL || 'https://rgwcma-gis.geoplanetsolution.in/api';
+const BACKEND_URL_BASE = 'http://rgwcma-gis.geoplanetsolution.in/api';
 
 export const EXTERNAL_API = {
     BASE_URL: BACKEND_URL_BASE,
     // When calling our proxy, we use our internal backend API key
-    API_KEY: import.meta.env.VITE_INTERNAL_API_KEY || 'e32ebc1d-fe04-4bd7-9003-df5274c990e2',
+    API_KEY: 'e32ebc1d-fe04-4bd7-9003-df5274c990e2',
     ENDPOINTS: {
         BOUNDARY_BY_CODE: '/location/external-proxy/boundary-by-code/',
         PINCODE: '/location/pincode/', // Already proxied in backend
@@ -75,9 +75,10 @@ export const EXTERNAL_API = {
 
 // API Request Configuration
 export const API_CONFIG = {
-    TIMEOUT: 30000, // 30 seconds
-    RETRY_ATTEMPTS: 3,
-    RETRY_DELAY: 1000, // 1 second
+    TIMEOUT: 60000, // Increase to 60 seconds
+    RETRY_ATTEMPTS: 5, // Increased from 3
+    RETRY_DELAY: 1000, // 1 second base
+    MAX_RETRY_DELAY: 10000, // 10 seconds max backoff
 };
 
 // Headers Configuration
@@ -108,7 +109,11 @@ export const getInternalApiKeyHeaders = () => ({
 
 // Build full URL
 export const buildBackendUrl = (endpoint, params = {}) => {
-    const url = new URL(`${BACKEND_API.BASE_URL}${endpoint}`);
+    // Ensure terminal slash on base and no leading slash on endpoint to avoid URL constructor issues
+    const base = BACKEND_API.BASE_URL.endsWith('/') ? BACKEND_API.BASE_URL : `${BACKEND_API.BASE_URL}/`;
+    const path = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
+    const url = new URL(`${base}${path}`);
+
     Object.keys(params).forEach(key => {
         if (params[key] !== undefined && params[key] !== null) {
             url.searchParams.append(key, params[key]);

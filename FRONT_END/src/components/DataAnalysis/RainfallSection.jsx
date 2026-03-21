@@ -174,7 +174,7 @@ const RainfallSection = ({
                     : `${viewType === 'yearly' ? 'Annual' : viewType.toUpperCase()} Rainfall Trend (mm)`
             }>
                 <SmartChartContainer height={isExpanded ? '320px' : '240px'} className="bar-chart-wrapper">
-                    <ComposedChart data={aggregatedData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                    <ComposedChart data={aggregatedData} margin={{ top: 20, right: 35, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                         <XAxis
                             dataKey="name"
@@ -186,7 +186,7 @@ const RainfallSection = ({
                         />
                         <YAxis tick={{ fontSize: 10 }} domain={[0, (dataMax) => Math.ceil(dataMax * 1.15)]} />
                         <Tooltip
-                            allowEscapeViewBox={{ x: true, y: true }}
+                            allowEscapeViewBox={{ y: true }}
                             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                             formatter={(value) => [`${value.toFixed(1)} mm`, 'Rainfall']}
                         />

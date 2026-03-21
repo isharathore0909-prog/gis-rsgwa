@@ -27,9 +27,8 @@ export const StateBoundaryLayer = ({
         // If we are in Rainfall mode, we show the whole state with choropleth
         if (filters?.type === 'Rainfall') return data;
 
-        // If a district is selected, we STRICTLY show only that district.
-        // If filters.district is missing but we are NOT in state-wide mode, return empty to prevent "all-state flash"
-        if (!filters?.district) return (filters?.type ? { ...data, features: [] } : data);
+        // If no district is selected, return the whole state boundary data
+        if (!filters?.district) return data;
 
         const features = data.features.filter(f => {
             const p = f.properties;
@@ -69,11 +68,11 @@ export const StateBoundaryLayer = ({
 
                 return {
                     fillColor: isRainfall ? computedColor : 'transparent',
-                    fillOpacity: isRainfall ? 0.75 : 0, // Keep 0 for transparent view, but ensure fill is active
-                    color: isRainfall ? '#475569' : '#94a3b8', // Lighter border for default (Slate 400)
-                    weight: isRainfall ? 1 : 1.2,
-                    dashArray: '', // Always solid lines
-                    fill: true // CRITICAL: Ensure fill is rendered to capture events even if opacity is low/0
+                    fillOpacity: isRainfall ? 0.75 : 0,
+                    color: isRainfall ? '#475569' : '#1e293b', // Darker border for visibility (Slate 900)
+                    weight: isRainfall ? 1 : 1.5,
+                    dashArray: '',
+                    fill: true
                 };
             }}
             interactive={true} // Always interactive

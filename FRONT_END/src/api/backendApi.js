@@ -46,6 +46,22 @@ class BackendAPIClient {
             async (error) => {
                 const originalRequest = error.config;
 
+                // Network error retry logic with exponential backoff
+                if (!error.response || error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+                    originalRequest._retryCount = originalRequest._retryCount || 0;
+                    if (originalRequest._retryCount < API_CONFIG.RETRY_ATTEMPTS) {
+                        originalRequest._retryCount += 1;
+
+                        // Capped backoff for reliability
+                        const rawDelay = Math.pow(2, originalRequest._retryCount - 1) * API_CONFIG.RETRY_DELAY;
+                        const delay = Math.min(rawDelay, API_CONFIG.MAX_RETRY_DELAY || 30000);
+                        console.warn(`🔄 Retrying request (${originalRequest._retryCount}/${API_CONFIG.RETRY_ATTEMPTS}) in ${delay}ms: ${originalRequest.url}`);
+
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return this.client(originalRequest);
+                    }
+                }
+
                 // If error is 401 and we haven't retried yet
                 if (error.response?.status === 401 && !originalRequest._retry) {
                     originalRequest._retry = true;

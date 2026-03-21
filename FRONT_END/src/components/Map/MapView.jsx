@@ -275,9 +275,10 @@ const MapView = ({
         const payload = {
             bbox,
             layers: selectedLayers,
-            location_name: filters?.district || "Rajasthan_Map",
+            location_name: filters?.village || filters?.gramPanchayat || filters?.block || filters?.district || "Rajasthan_Map",
             format: "pdf",
             filters: {
+                type: filters?.type,
                 district: filters?.district,
                 block: filters?.block,
                 gramPanchayat: filters?.gramPanchayat,
@@ -294,7 +295,8 @@ const MapView = ({
         try {
             setIsExporting(true);
             // Show loading indication (custom or rely on browser download UI)
-            const response = await fetch(`${BACKEND_API.BASE_URL}/export/map/`, {
+            const exportUrl = `${BACKEND_API.BASE_URL.endsWith('/') ? BACKEND_API.BASE_URL.slice(0, -1) : BACKEND_API.BASE_URL}/export/map/`;
+            const response = await fetch(exportUrl, {
                 method: "POST",
                 headers: getBackendHeaders(true),
                 body: JSON.stringify(payload)

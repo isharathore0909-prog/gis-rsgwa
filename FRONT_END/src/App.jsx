@@ -180,6 +180,7 @@ function AppContent() {
                         blockData={processedBlockData}
                         rainfallStations={rainfallStations}
                         rainfallStationRecords={rainfallStationRecords}
+                        rainfallDataSource={rainfallDataSource}
                         rainfallLoading={rainfallLoading}
                         waterQualityLoading={waterQualityLoading}
                         aquiferLoading={aquiferLoading}

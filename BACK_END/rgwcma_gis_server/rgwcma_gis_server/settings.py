@@ -78,7 +78,7 @@ SECRET_KEY = 'django-insecure-$^kdt&z_65hhm&pkj-ko9m(jgxj52e6s3nu-pikq#09o9l+$e&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*', '127.0.0.1', 'localhost']
 
 
 # ==============================================================================
@@ -119,6 +119,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -232,6 +233,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files
 MEDIA_URL = '/media/'
@@ -248,7 +251,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 from corsheaders.defaults import default_headers
 
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_HEADERS = ["*"]
+CORS_ALLOW_CREDENTIALS = True
+
+# Explicitly use standard headers for better compatibility
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-auth-key",
+    "authorization",
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "https://rgwcma-mis.geoplanetsolution.com",
+]
 
 CORS_ALLOW_METHODS = [
     "DELETE",
@@ -258,8 +271,6 @@ CORS_ALLOW_METHODS = [
     "POST",
     "PUT",
 ]
-
-CORS_ALLOW_CREDENTIALS = True
 
 CORS_EXPOSE_HEADERS = [
     "x-auth-key",

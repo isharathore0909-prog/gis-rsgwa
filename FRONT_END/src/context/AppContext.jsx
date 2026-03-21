@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 
 const AppContext = createContext();
 
@@ -44,6 +44,52 @@ export const AppContextProvider = ({ children }) => {
     const [basemap, setBasemap] = useState('light-gray');
     const [clickedLocation, setClickedLocation] = useState(null);
     const [isControlsSidebarCollapsed, setIsControlsSidebarCollapsed] = useState(false);
+
+    // --- URL Routing Utils ---
+    const TYPE_SLUGS = useMemo(() => ({
+        'Aquifer': 'aquifer',
+        'Ground Water Resource Estimation': 'gwre',
+        'Rainfall': 'rainfall',
+        'Recharge Structure': 'recharge-structure',
+        'Water Quality': 'water-quality',
+        'Water Resources': 'water-resources',
+        'Well Inventory': 'well-inventory',
+    }), []);
+
+    const SLUG_TO_TYPE = useMemo(() =>
+        Object.fromEntries(Object.entries(TYPE_SLUGS).map(([type, slug]) => [slug, type])),
+        [TYPE_SLUGS]);
+
+    // Update URL when filters.type changes
+    useEffect(() => {
+        const currentPath = window.location.pathname.replace(/^\//, '');
+        const targetSlug = TYPE_SLUGS[filters.type] || '';
+
+        if (targetSlug && currentPath !== targetSlug) {
+            window.history.pushState(null, '', `/${targetSlug}`);
+        } else if (!targetSlug && currentPath !== '' && currentPath !== 'index.html') {
+            // Optional: reset to root if no type selected
+            // window.history.pushState(null, '', '/');
+        }
+    }, [filters.type, TYPE_SLUGS]);
+
+    // Handle initial load and back/forward browser buttons
+    useEffect(() => {
+        const handleLocationChange = () => {
+            const path = window.location.pathname.replace(/^\//, '');
+            const targetType = SLUG_TO_TYPE[path] || '';
+            if (targetType && filters.type !== targetType) {
+                setFilters(prev => ({ ...prev, type: targetType }));
+            }
+        };
+
+        // Parse initial URL
+        handleLocationChange();
+
+        // Listen for popstate
+        window.addEventListener('popstate', handleLocationChange);
+        return () => window.removeEventListener('popstate', handleLocationChange);
+    }, [SLUG_TO_TYPE]); // Only run once on mount (filters.type is updated inside)
 
     // Helpers
     const updateFilters = useCallback((newFilters) => {

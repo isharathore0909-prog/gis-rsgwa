@@ -18,6 +18,8 @@ export const useLocations = (currentFilters) => {
         setLoading(activeFetches.current > 0);
     };
 
+    const [retryCount, setRetryCount] = useState(0);
+
     // Initial fetch of districts
     useEffect(() => {
         let active = true;
@@ -35,22 +37,39 @@ export const useLocations = (currentFilters) => {
 
                 if (!active) return;
 
-                // Robust extraction of results
-                const data = districtRes.results || districtRes;
-                const districts = Array.isArray(data) ? data : (data && typeof data === 'object' ? Object.values(data) : []);
+                // Hyper-robust extraction of results
+                let districts = [];
+                const res = districtRes;
+                if (Array.isArray(res)) districts = res;
+                else if (res?.results && Array.isArray(res.results)) districts = res.results;
+                else if (res?.data?.results && Array.isArray(res.data.results)) districts = res.data.results;
+                else if (res?.data && Array.isArray(res.data)) districts = res.data;
+                else if (res && typeof res === 'object') districts = Object.values(res).filter(item => typeof item === 'object');
 
-                console.log(`✅ useLocations: Received ${districts.length} districts`);
-                setApiDistricts(districts);
+                if (districts.length > 0) {
+                    console.log(`✅ useLocations: Received ${districts.length} districts`);
+                    setApiDistricts(districts);
+                } else {
+                    throw new Error("Empty district results");
+                }
             } catch (error) {
                 console.error("❌ useLocations: Error fetching districts:", error);
-                // On error, we don't set anything to allow retry if triggered by re-render
+
+                // If it fails on start, we should try again after a delay
+                if (active && apiDistricts.length === 0) {
+                    const delay = 5000 + (Math.random() * 2000); // 5-7s jittered delay
+                    console.log(`📡 useLocations: Retrying district fetch in ${Math.round(delay / 1000)}s...`);
+                    setTimeout(() => {
+                        if (active) setRetryCount(c => c + 1);
+                    }, delay);
+                }
             } finally {
                 if (active) setGlobalLoading(false);
             }
         };
         fetchDistricts();
         return () => { active = false; };
-    }, [apiDistricts.length]); // Retry if empty on re-render
+    }, [apiDistricts.length, retryCount]);
 
     // Fetch blocks when district changes
     useEffect(() => {
@@ -63,13 +82,22 @@ export const useLocations = (currentFilters) => {
             console.log(`📡 useLocations: Fetching blocks for "${currentFilters.district}"...`);
             setGlobalLoading(true);
             try {
-                const blockRes = await api.location.getBlocks({
-                    district_name: currentFilters.district,
-                    limit: 200
-                });
+                const params = { limit: 200 };
+                if (currentFilters.district_id) {
+                    params.district = currentFilters.district_id;
+                } else {
+                    params.district_name = currentFilters.district;
+                }
+
+                const blockRes = await api.location.getBlocks(params);
                 if (!active) return;
-                const data = blockRes.results || blockRes;
-                const blocks = Array.isArray(data) ? data : [];
+                let blocks = [];
+                const res = blockRes;
+                if (Array.isArray(res)) blocks = res;
+                else if (res?.results && Array.isArray(res.results)) blocks = res.results;
+                else if (res?.data?.results && Array.isArray(res.data.results)) blocks = res.data.results;
+                else if (res?.data && Array.isArray(res.data)) blocks = res.data;
+                else if (res && typeof res === 'object') blocks = Object.values(res).filter(item => typeof item === 'object');
                 console.log(`✅ useLocations: Received ${blocks.length} blocks for "${currentFilters.district}"`);
                 setApiBlocks(blocks);
             } catch (error) {
@@ -94,13 +122,22 @@ export const useLocations = (currentFilters) => {
             console.log(`📡 useLocations: Fetching GPs for "${currentFilters.block}"...`);
             setGlobalLoading(true);
             try {
-                const gpRes = await api.location.getGrampanchayats({
-                    block_name: currentFilters.block,
-                    limit: 500
-                });
+                const params = { limit: 500 };
+                if (currentFilters.block_id) {
+                    params.block = currentFilters.block_id;
+                } else {
+                    params.block_name = currentFilters.block;
+                }
+
+                const gpRes = await api.location.getGrampanchayats(params);
                 if (!active) return;
-                const data = gpRes.results || gpRes;
-                const gps = Array.isArray(data) ? data : [];
+                let gps = [];
+                const res = gpRes;
+                if (Array.isArray(res)) gps = res;
+                else if (res?.results && Array.isArray(res.results)) gps = res.results;
+                else if (res?.data?.results && Array.isArray(res.data.results)) gps = res.data.results;
+                else if (res?.data && Array.isArray(res.data)) gps = res.data;
+                else if (res && typeof res === 'object') gps = Object.values(res).filter(item => typeof item === 'object');
                 console.log(`✅ useLocations: Received ${gps.length} GPs for "${currentFilters.block}"`);
                 setApiGPs(gps);
             } catch (error) {
@@ -126,15 +163,24 @@ export const useLocations = (currentFilters) => {
             setGlobalLoading(true);
             try {
                 const params = { limit: 1000 };
-                if (currentFilters.gramPanchayat) {
+                if (currentFilters.gp_id) {
+                    params.gp = currentFilters.gp_id;
+                } else if (currentFilters.gramPanchayat) {
                     params.gp_name = currentFilters.gramPanchayat;
+                } else if (currentFilters.block_id) {
+                    params.block = currentFilters.block_id;
                 } else {
                     params.block_name = currentFilters.block;
                 }
                 const villageRes = await api.location.getVillages(params);
                 if (!active) return;
-                const data = villageRes.results || villageRes;
-                const villages = Array.isArray(data) ? data : [];
+                let villages = [];
+                const res = villageRes;
+                if (Array.isArray(res)) villages = res;
+                else if (res?.results && Array.isArray(res.results)) villages = res.results;
+                else if (res?.data?.results && Array.isArray(res.data.results)) villages = res.data.results;
+                else if (res?.data && Array.isArray(res.data)) villages = res.data;
+                else if (res && typeof res === 'object') villages = Object.values(res).filter(item => typeof item === 'object');
                 console.log(`✅ useLocations: Received ${villages.length} villages`);
                 setApiVillages(villages);
             } catch (error) {

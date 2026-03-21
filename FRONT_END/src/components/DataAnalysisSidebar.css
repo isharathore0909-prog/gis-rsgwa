@@ -128,7 +128,7 @@
     text-align: left;
     transition: var(--transition-smooth);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .stat-card::after {
@@ -343,7 +343,7 @@
     background: rgba(255, 255, 255, 0.1);
     margin-top: 0.75rem;
     border-radius: 2px;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .indicator-bar .fill {
@@ -376,7 +376,7 @@
     background: white;
     border-radius: var(--border-radius-md);
     border: 1px solid var(--border-light);
-    overflow: hidden;
+    overflow: visible;
 }
 
 .data-table-sidebar {
@@ -464,7 +464,7 @@
     display: grid;
     grid-template-columns: 1fr;
     gap: 1.25rem;
-    overflow-x: hidden;
+    overflow: visible;
     width: 100%;
 }
 
@@ -586,6 +586,7 @@
     justify-content: center;
     align-items: center;
     width: 100%;
+    overflow: visible;
 }
 
 .quality-legend-simple {

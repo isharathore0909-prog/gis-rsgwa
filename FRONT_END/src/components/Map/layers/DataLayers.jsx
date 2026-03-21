@@ -9,7 +9,7 @@ import {
     AquiferWellMarker,
     PiezometerMarker
 } from '../Markers';
-import { BACKEND_API } from '../../../api/config';
+import { BACKEND_API, buildBackendUrl } from '../../../api/config';
 
 /**
  * Rainfall Markers Layer
@@ -186,7 +186,26 @@ export const WaterQualityMarkersLayer = ({
     records,
     onLocationClick
 }) => {
-    return null; // hide markers per user request
+    if (!isActive || !records || !records.length) return null;
+
+    return (
+        <>
+            {records.map((record, idx) => (
+                record.latitude && record.longitude && (
+                    <WaterQualityMarker
+                        key={`wq-${idx}`}
+                        record={record}
+                        onMarkerClick={(rec, latlng) => onLocationClick(latlng, [{
+                            ...rec,
+                            id: rec.well_id || rec.id,
+                            location: rec.village_name || rec.village || 'Unknown',
+                            type: 'water_quality_well'
+                        }])}
+                    />
+                )
+            ))}
+        </>
+    );
 };
 
 /**
@@ -294,7 +313,10 @@ export const AquiferVectorLayer = ({
     // Use backend's spatially-intersecting (clipped) API if district is selected.
     // Fallback to static optimised file for full state view.
     const dataUrl = district
-        ? `${BACKEND_API.BASE_URL}/spatial/layers/intersect/?layer_type=aquifer&district=${district}`
+        ? buildBackendUrl(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_INTERSECT, {
+            layer_type: 'aquifer',
+            district
+        })
         : '/data/aquifer_opt.json';
 
     return (
@@ -330,15 +352,23 @@ export const WaterResourcesLayers = ({
     const map = useMap();
 
     useEffect(() => {
-        if (map) {
-            const handleDragStart = () => {
-                map.closeTooltip();
-            };
-            map.on('dragstart', handleDragStart);
-            return () => {
-                map.off('dragstart', handleDragStart);
-            };
-        }
+        if (!map) return;
+
+        const handleDragStart = () => {
+            // Defensive call to closeTooltip to avoid TypeError if map state is inconsistent
+            if (typeof map.closeTooltip === 'function') {
+                try {
+                    map.closeTooltip();
+                } catch (e) {
+                    // Silently fail if Leaflet's internal state is wonky during drag
+                }
+            }
+        };
+
+        map.on('dragstart', handleDragStart);
+        return () => {
+            map.off('dragstart', handleDragStart);
+        };
     }, [map]);
 
     const canalStyle = useMemo(() => ({

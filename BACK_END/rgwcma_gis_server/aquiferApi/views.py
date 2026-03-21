@@ -4,10 +4,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Avg, Max, Min, Count, Q
+from django.core.cache import cache
 from .models import AquiferData
 from .serializers import AquiferDataSerializer, AquiferDataListSerializer, YearDataSerializer
 
 from core.filters import HierarchicalLocationFilterBackend
+
+from .utils import calculate_aquifer_stats, calculate_aquifer_yearly_trends
 
 class AquiferDataViewSet(viewsets.ModelViewSet):
     """
@@ -41,12 +44,10 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         Optimized: Fetch related administrative names ONLY when needed.
         """
         queryset = super().get_queryset()
-        
         if self.action in ['list', 'retrieve']:
             queryset = queryset.select_related(
                 'village__grampanchayat__block__district__state'
             )
-            
         return queryset
 
     @action(detail=False, methods=['get'])
@@ -55,15 +56,17 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         Get data for a specific year - Optimized to avoid full object instantiation
         """
         year = request.query_params.get('year', 2024)
-        try:
-            year = int(year)
-        except ValueError:
-            year = 2024
+        try: year = int(year)
+        except (ValueError, TypeError): year = 2024
+        
+        if not (2015 <= year <= 2024):
+             return Response({'error': f'Year {year} not supported. Support range: 2015-2024'}, status=400)
         
         pre_field = f'pre_{year}'
         pst_field = f'pst_{year}'
         
-        queryset = self.get_queryset()
+        # Build optimized queryset
+        queryset = self.filter_queryset(self.get_queryset())
         
         # Use .values() for high performance
         data = queryset.values(
@@ -71,41 +74,36 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
             'village__name', 
             'village__grampanchayat__block__name',
             'village__grampanchayat__block__district__name',
+            'village__latitude', 'village__longitude',
             pre_field, pst_field
         )
         
-        # Format results in a single pass
-        results = []
-        for item in data:
-            pre_val = item.get(pre_field)
-            pst_val = item.get(pst_field)
-            results.append({
+        results = [
+            {
                 'well_id': item['well_id'],
                 'village_name': item['village__name'],
                 'district': item['village__grampanchayat__block__district__name'],
                 'block': item['village__grampanchayat__block__name'],
-                'latitude': item['latitude'],
-                'longitude': item['longitude'],
+                'latitude': item['latitude'] if item['latitude'] is not None else item['village__latitude'],
+                'longitude': item['longitude'] if item['longitude'] is not None else item['village__longitude'],
                 'year': year,
-                'pre_monsoon': pre_val,
-                'post_monsoon': pst_val,
-                'seasonal_change': (pst_val - pre_val) if pre_val is not None and pst_val is not None else None
-            })
+                'pre_monsoon': item.get(pre_field),
+                'post_monsoon': item.get(pst_field),
+                'seasonal_change': (item.get(pst_field) - item.get(pre_field)) 
+                                   if item.get(pre_field) is not None and item.get(pst_field) is not None else None,
+                'aquifer': item['aquifer']
+            } for item in data
+        ]
         
-        return Response({
-            'year': year,
-            'count': len(results),
-            'data': results
-        })
+        serializer = YearDataSerializer(results, many=True)
+        return Response({'year': year, 'count': len(results), 'data': serializer.data})
 
     @action(detail=False, methods=['get'])
     def trends(self, request):
         """
         Get trend analysis for all wells - Optimized with .values()
         """
-        queryset = self.get_queryset()
-        
-        # Define all the fields we need for trends
+        queryset = self.filter_queryset(self.get_queryset())
         years = range(2015, 2025)
         fields = ['well_id', 'village__name', 'village__grampanchayat__block__district__name']
         for year in years:
@@ -115,13 +113,8 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         trends = []
         
         for item in data:
-            pre_trend = []
-            pst_trend = []
-            for year in years:
-                pre_val = item.get(f'pre_{year}')
-                pst_val = item.get(f'pst_{year}')
-                if pre_val is not None: pre_trend.append({'year': year, 'value': pre_val})
-                if pst_val is not None: pst_trend.append({'year': year, 'value': pst_val})
+            pre_trend = [{'year': y, 'value': item.get(f'pre_{y}')} for y in years if item.get(f'pre_{y}') is not None]
+            pst_trend = [{'year': y, 'value': item.get(f'pst_{y}')} for y in years if item.get(f'pst_{y}') is not None]
             
             trends.append({
                 'well_id': item['well_id'],
@@ -133,169 +126,105 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
                 }
             })
         
-        return Response({
-            'count': len(trends),
-            'trends': trends
-        })
+        return Response({'count': len(trends), 'trends': trends})
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """
-        Get statistical summary of groundwater levels
-        GET /api/aquifer/statistics/?year=2024
+        Get statistical summary of groundwater levels with optimized DB access and caching.
         """
         year = request.query_params.get('year', 2024)
-        try:
-            year = int(year)
-        except ValueError:
-            year = 2024
+        try: year = int(year)
+        except (ValueError, TypeError): year = 2024
         
-        queryset = self.get_queryset()
+        if not (2015 <= year <= 2024):
+             return Response({'error': f'Year {year} not supported. Support range: 2015-2024'}, status=400)
+            
+            
+        # Generate robust cache key from all relevant query params
+        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
+        cache_key = f"aquifer_stats_{year}_{'_'.join(loc_params) if loc_params else 'all'}"
         
-        # Calculate statistics for the specified year using DB aggregation
-        # This is much faster and avoids loading geometry fields that might be corrupted
-        pre_field = f'pre_{year}'
-        pst_field = f'pst_{year}'
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
         
-        # Perform aggregation in one query
-        agg_stats = queryset.aggregate(
-            total_wells=Count('id'),
-            wells_with_pre_data=Count(pre_field),
-            wells_with_pst_data=Count(pst_field),
-            avg_pre=Avg(pre_field),
-            min_pre=Min(pre_field),
-            max_pre=Max(pre_field),
-            avg_pst=Avg(pst_field),
-            min_pst=Min(pst_field),
-            max_pst=Max(pst_field)
-        )
+        queryset = self.filter_queryset(self.get_queryset())
+        final_response = calculate_aquifer_stats(year, queryset)
         
-        # Calculate long-term average across all years for which data exists
-        years = range(2015, 2025)
-        longterm_agg = {}
-        for y in years:
-            longterm_agg[f'pre_{y}'] = Avg(f'pre_{y}')
-            longterm_agg[f'pst_{y}'] = Avg(f'pst_{y}')
-        
-        longterm_results = queryset.aggregate(**longterm_agg)
-        valid_vals = [v for v in longterm_results.values() if v is not None]
-        avg_longterm = sum(valid_vals) / len(valid_vals) if valid_vals else None
-        
-        stats = {
-            'year': year,
-            'total_wells': agg_stats['total_wells'],
-            'wells_with_pre_data': agg_stats['wells_with_pre_data'],
-            'wells_with_pst_data': agg_stats['wells_with_pst_data'],
-            'avg_pre_monsoon': agg_stats['avg_pre'],
-            'avg_pst_monsoon': agg_stats['avg_pst'],
-            'avg_longterm': round(avg_longterm, 2) if avg_longterm is not None else None,
-            'min_pre_monsoon': agg_stats['min_pre'],
-            'max_pre_monsoon': agg_stats['max_pre'],
-            'min_pst_monsoon': agg_stats['min_pst'],
-            'max_pst_monsoon': agg_stats['max_pst']
-        }
-        
-        # Aquifer type distribution (already uses .values() which is safe)
-        aquifer_dist = queryset.values('aquifer').annotate(
-            count=Count('id')
-        ).order_by('-count')
-        
-        return Response({
-            'summary': stats,
-            'aquifer_distribution': list(aquifer_dist),
-        })
+        cache.set(cache_key, final_response, 3600)
+        return Response(final_response)
 
     @action(detail=False, methods=['get'])
     def yearly_statistics(self, request):
         """
-        Get aggregated groundwater level trends (pre/pst/avg) for all years.
-        Aggregates across all wells in the filtered queryset.
+        Get aggregated groundwater level trends (pre/pst/avg) for all years with caching.
         """
-        queryset = self.get_queryset()
-        years = range(2015, 2025)
+        # Generate robust cache key from all relevant query params
+        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
+        cache_key = f"aquifer_yearly_stats_{'_'.join(loc_params) if loc_params else 'all'}"
         
-        # Build aggregation map for all years
-        agg_map = {}
-        for year in years:
-            agg_map[f'pre_{year}'] = Avg(f'pre_{year}')
-            agg_map[f'pst_{year}'] = Avg(f'pst_{year}')
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
             
-        results = queryset.aggregate(**agg_map)
+        queryset = self.filter_queryset(self.get_queryset())
+        yearly_data = calculate_aquifer_yearly_trends(queryset)
         
-        # Format the yearly data
-        yearly_data = []
-        for year in years:
-            pre_val = results[f'pre_{year}']
-            pst_val = results[f'pst_{year}']
-            
-            avg_val = None
-            if pre_val is not None and pst_val is not None:
-                avg_val = round((pre_val + pst_val) / 2, 2)
-            elif pre_val is not None:
-                avg_val = round(pre_val, 2)
-            elif pst_val is not None:
-                avg_val = round(pst_val, 2)
-                
-            yearly_data.append({
-                'year': str(year),
-                'pre_monsoon': round(pre_val, 2) if pre_val is not None else None,
-                'post_monsoon': round(pst_val, 2) if pst_val is not None else None,
-                'average': avg_val
-            })
-            
-        return Response({
+        final_response = {
             'total_wells': queryset.count(),
             'yearly_trends': yearly_data
-        })
+        }
+        
+        cache.set(cache_key, final_response, 3600)
+        return Response(final_response)
 
     @action(detail=False, methods=['get'])
     def by_location(self, request):
         """
         Get aquifer data grouped by location using optimized DB aggregation.
-        GET /api/aquifer/by_location/?level=district&year=2024
         """
         level = request.query_params.get('level', 'district')
-        year = int(request.query_params.get('year', 2024))
-        queryset = self.get_queryset()
-        
-        pre_field = f'pre_{year}'
-        pst_field = f'pst_{year}'
-        
-        if level == 'district':
-            # Perform grouping and averaging in the database
-            data = queryset.values(
-                'village__grampanchayat__block__district__name'
-            ).annotate(
-                wells=Count('id'),
-                avg_pre=Avg(pre_field),
-                avg_pst=Avg(pst_field)
-            ).order_by('village__grampanchayat__block__district__name')
+        try:
+            year = int(request.query_params.get('year', 2024))
+        except (ValueError, TypeError):
+            year = 2024
             
-            result = [
-                {
-                    'district': d['village__grampanchayat__block__district__name'],
-                    'wells': d['wells'],
-                    'avg_pre': round(d['avg_pre'], 2) if d['avg_pre'] is not None else None,
-                    'avg_pst': round(d['avg_pst'], 2) if d['avg_pst'] is not None else None,
-                }
-                for d in data if d['village__grampanchayat__block__district__name']
-            ]
-            
-            return Response({
-                'level': 'district',
-                'year': year,
-                'data': result
-            })
+        if not (2015 <= year <= 2024):
+             return Response({'error': f'Year {year} not supported. Support range: 2015-2024'}, status=400)
         
-        return Response({
-            'error': 'Invalid level parameter. Use "district".'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        if level != 'district':
+             return Response({'error': 'Invalid level parameter. Use "district".'}, status=status.HTTP_400_BAD_REQUEST)
+
+        cache_key = f"aquifer_loc_stats_{year}_{request.query_params.get('district_id', 'all')}"
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+
+        queryset = self.filter_queryset(self.get_queryset())
+        data = queryset.values(
+            'village__grampanchayat__block__district__name'
+        ).annotate(
+            wells=Count('id'),
+            avg_pre=Avg(f'pre_{year}'),
+            avg_pst=Avg(f'pst_{year}')
+        ).order_by('village__grampanchayat__block__district__name')
+        
+        result = [
+            {
+                'district': d['village__grampanchayat__block__district__name'],
+                'wells': d['wells'],
+                'avg_pre': round(d['avg_pre'], 2) if d['avg_pre'] is not None else None,
+                'avg_pst': round(d['avg_pst'], 2) if d['avg_pst'] is not None else None,
+            }
+            for d in data if d['village__grampanchayat__block__district__name']
+        ]
+        
+        final_response = {'level': 'district', 'year': year, 'data': result}
+        cache.set(cache_key, final_response, 3600)
+        return Response(final_response)
 
     @action(detail=False, methods=['get'])
     def nearby(self, request):
         """
         Optimized nearby search using spatial_nearby utility.
-        Supports both 'radius_km' and 'radius' parameters.
         """
         lat = request.query_params.get('latitude')
         lon = request.query_params.get('longitude')
@@ -305,50 +234,22 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
             return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            lat = float(lat)
-            lon = float(lon)
-            radius_km = float(radius)
-            
+            lat, lon, radius_km = float(lat), float(lon), float(radius)
             from core.utils import spatial_nearby
-            nearby_wells = spatial_nearby(queryset, lat, lon, radius_km)
+            nearby_wells = spatial_nearby(self.queryset, lat, lon, radius_km)
+            # Apply filters too
+            nearby_wells = self.filter_queryset(nearby_wells)
         except (ValueError, TypeError):
             return Response({'error': 'Invalid numeric parameters'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not nearby_wells.exists():
-            return Response({
-                'count': 0,
-                'message': 'No wells found within the specified radius.',
-                'averages': None
-            })
+            return Response({'count': 0, 'message': 'No wells found.', 'averages': None})
 
-        # Calculate averages for all years in a single optimized DB query
-        years = range(2015, 2025)
-        agg_map = {}
-        for year in years:
-            agg_map[f'pre_{year}'] = Avg(f'pre_{year}')
-            agg_map[f'pst_{year}'] = Avg(f'pst_{year}')
+        # Reuse yearly trend logic
+        yearly_trends = calculate_aquifer_yearly_trends(nearby_wells)
         
-        results = nearby_wells.aggregate(**agg_map)
-        
-        # Format the output efficiently
-        averages = {}
-        for year in years:
-            pre_val = results[f'pre_{year}']
-            pst_val = results[f'pst_{year}']
-            
-            avg_val = None
-            if pre_val is not None and pst_val is not None:
-                avg_val = round((pre_val + pst_val) / 2, 2)
-            elif pre_val is not None:
-                avg_val = round(pre_val, 2)
-            elif pst_val is not None:
-                avg_val = round(pst_val, 2)
-                
-            averages[str(year)] = {
-                'pre': round(pre_val, 2) if pre_val is not None else None,
-                'pst': round(pst_val, 2) if pst_val is not None else None,
-                'avg': avg_val
-            }
+        # Reformat for the nearby response
+        averages = { t['year']: { 'pre': t['pre_monsoon'], 'pst': t['post_monsoon'], 'avg': t['average'] } for t in yearly_trends }
 
         return Response({
             'latitude': lat,

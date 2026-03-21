@@ -12,14 +12,14 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Avg, Max, Min, Count, Q, F
+from django.core.cache import cache
 import math
 import re
 import traceback
 
 from .models import WaterQuality
 from .serializers import WaterQualitySerializer, WaterQualityListSerializer
-from .utils import calculate_wqi, check_quality_status
-
+from .utils import calculate_wqi, check_quality_status, calculate_water_quality_stats
 
 from core.filters import HierarchicalLocationFilterBackend, RangeFilterSet
 from locationApi.models import Grampanchayat
@@ -53,122 +53,61 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Optimized with select_related ONLY for list/retrieve actions.
-        Location filtering now handled by HierarchicalLocationFilterBackend.
         """
         queryset = super().get_queryset()
-        
-        # Optimization: Fetch related administrative names in a single query
         if self.action in ['list', 'retrieve']:
             queryset = queryset.select_related(
                 'village__grampanchayat__block__district__state'
             )
-        
         return queryset
-
-
-    # =========================================================================
-    # CUSTOM ACTIONS
-    # =========================================================================
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """
-        Get comprehensive statistical summary of water quality parameters.
-        Includes calculated WQI and overall status based on filtered data.
+        Get comprehensive statistical summary of water quality parameters with caching.
         """
-        queryset = self.get_queryset()
-        if hasattr(queryset, 'select_related'):
-            queryset = queryset.select_related(None) 
+        # Generate robust cache key from all relevant query params
+        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
+        cache_key = f"wq_stats_{'_'.join(loc_params) if loc_params else 'all'}"
         
-        # Aggregate statistics
-        aggregation_params = {
-            'total_wells': Count('well_id', distinct=True),
-            'total_records': Count('id'),
-            'avg_ph': Avg('ph'),
-            'avg_hardness': Avg('hardness'),
-            'avg_alkalinity': Avg('alkalinity'),
-            'avg_nitrate': Avg('nitrate'),
-            'avg_fluoride': Avg('fluoride'),
-            'avg_ec': Avg('ec'),
-            'avg_tds': Avg('tds'),
-            # Exceedance counts
-            'ec_exceedance': Count('id', filter=Q(ec__gt=3000)),
-            'fluoride_exceedance': Count('id', filter=Q(fluoride__gt=1.5)),
-            'nitrate_exceedance': Count('id', filter=Q(nitrate__gt=45)),
-            'hardness_exceedance': Count('id', filter=Q(hardness__gt=600)),
-            'tds_exceedance': Count('id', filter=Q(tds__gt=2000)),
-        }
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
 
-        # Helper to check if field exists in model
-        def field_exists(model, field_name):
-            try:
-                model._meta.get_field(field_name)
-                return True
-            except Exception:
-                return False
-
-        # Optional fields based on model presence
-        if field_exists(WaterQuality, 'iron'):
-            aggregation_params['avg_iron'] = Avg('iron')
-            aggregation_params['iron_exceedance'] = Count('id', filter=Q(iron__gt=1.0))
-        
-        if field_exists(WaterQuality, 'arsenic'):
-            aggregation_params['avg_arsenic'] = Avg('arsenic')
-            aggregation_params['arsenic_exceedance'] = Count('id', filter=Q(arsenic__gt=10))
-            
-        if field_exists(WaterQuality, 'uranium'):
-            aggregation_params['avg_uranium'] = Avg('uranium')
-            aggregation_params['uranium_exceedance'] = Count('id', filter=Q(uranium__gt=30))
-            
-        if field_exists(WaterQuality, 'chloride'):
-            aggregation_params['avg_chloride'] = Avg('chloride')
-            aggregation_params['chloride_exceedance'] = Count('id', filter=Q(chloride__gt=1000))
-
-        stats = queryset.aggregate(**aggregation_params)
-        
-        # Round averages and prep summary
-        summary = {}
-        for k, v in stats.items():
-            if k.startswith('avg_'):
-                summary[k] = round(v, 2) if v is not None else 0
-            else:
-                summary[k] = v or 0
+        queryset = self.filter_queryset(self.get_queryset())
+        summary = calculate_water_quality_stats(queryset, WaterQuality)
         
         # Calculate WQI and Status based on aggregated averages
         wqi_data = calculate_wqi(summary)
         quality_status = check_quality_status(summary)
         
-        # Well type distribution
+        # Well type distribution (separate query)
         well_types = queryset.values('type_of_well').annotate(
             count=Count('id')
         ).order_by('-count')
         
-        return Response({
+        res = {
             'summary': summary,
             'wqi': wqi_data,
             'status': quality_status,
             'well_type_distribution': list(well_types),
-        })
+        }
+        cache.set(cache_key, res, 3600)
+        return Response(res)
 
     @action(detail=False, methods=['get'])
     def by_location(self, request):
         """
-        Get water quality data aggregated by location level.
-        
-        Endpoint: GET /api/water-quality/by_location/?level=district
-        
-        Query Parameters:
-            level (str): Aggregation level - 'district' or 'block'
-        
-        Returns aggregated data including:
-        - Record count per location
-        - Average pH and TDS values
-        
-        Returns:
-            Response: JSON containing location-aggregated data
+        Get water quality data aggregated by location level with caching.
         """
         level = request.query_params.get('level', 'district')
-        queryset = self.get_queryset()
+        # Generate robust cache key from all relevant query params
+        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
+        cache_key = f"wq_by_loc_{level}_{'_'.join(loc_params) if loc_params else 'all'}"
+        
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+            
+        queryset = self.filter_queryset(self.get_queryset())
         
         if level == 'district':
             data = queryset.values(
@@ -179,10 +118,12 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
                 avg_tds=Avg('tds'),
             ).order_by('-count')
             
-            return Response({
+            res = {
                 'level': 'district',
                 'data': list(data)
-            })
+            }
+            cache.set(cache_key, res, 3600)
+            return Response(res)
         
         elif level == 'block':
             data = queryset.values(
@@ -194,10 +135,12 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
                 avg_tds=Avg('tds'),
             ).order_by('-count')
             
-            return Response({
+            res = {
                 'level': 'block',
                 'data': list(data)
-            })
+            }
+            cache.set(cache_key, res, 3600)
+            return Response(res)
         
         return Response({
             'error': 'Invalid level parameter. Use "district" or "block".'
@@ -372,7 +315,7 @@ class ContourMapView(APIView):
             # 6. Generate Map Image
             heatmap_url = generate_contour_map(
                 proj_pts, proj_bounds, width, height, p=2.5, 
-                buckets=analysis['buckets'], show_labels=not analysis['is_quality'],
+                buckets=analysis['buckets'], show_labels=True,
                 boundary_geojson=boundary_data
             )
 

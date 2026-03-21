@@ -14,10 +14,14 @@ class HierarchicalLocationFilterBackend(drf_filters.BaseFilterBackend):
         # Get filters from view or use default
         location_filters = getattr(view, 'location_filters', {
             'state': 'village__grampanchayat__block__district__state__name__iexact',
+            'state_id': 'village__grampanchayat__block__district__state_id',
             'district': 'village__grampanchayat__block__district__name__iexact',
+            'district_id': 'village__grampanchayat__block__district_id',
             'block': 'village__grampanchayat__block__name__iexact',
+            'block_id': 'village__grampanchayat__block_id',
             'grampanchayat': 'village__grampanchayat__name__iexact',
             'gram_panchayat': 'village__grampanchayat__name__iexact',
+            'gp_id': 'village__grampanchayat_id',
             'village_name': 'village__name__iexact',
             'village': 'village__name__iexact',
             'village_id': 'village_id',

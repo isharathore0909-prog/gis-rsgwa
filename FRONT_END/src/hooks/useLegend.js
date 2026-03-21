@@ -4,7 +4,8 @@ import {
     THEMATIC_PALETTE,
     BLUE_PALETTE,
     WATER_QUALITY_PALETTE,
-    GWRE_COLORS
+    GWRE_COLORS,
+    AQUIFER_COLORS
 } from '../constants/mapConstants';
 
 /**
@@ -83,74 +84,99 @@ export const useLegendData = (
         }
         // Water Quality Layer
         else if (filters?.type === 'Water Quality') {
+            const items = [];
             if (filters.showEC) {
-                return [
-                    { label: '< 500 µS/cm', color: '#10b981' },
-                    { label: '500 - 1000 µS/cm', color: '#34d399' },
-                    { label: '1000 - 1500 µS/cm', color: '#6ee7b7' },
-                    { label: '1500 - 2000 µS/cm', color: '#a7f3d0' },
-                    { label: '2000 - 2500 µS/cm', color: '#fef08a' },
-                    { label: '2500 - 3000 µS/cm', color: '#fde047' },
-                    { label: '3000 - 3500 µS/cm', color: '#facc15' },
-                    { label: '3500 - 4000 µS/cm', color: '#fbbf24' },
-                    { label: '4000 - 4500 µS/cm', color: '#f59e0b' },
-                    { label: '4500 - 5000 µS/cm', color: '#f97316' },
-                    { label: '> 5000 µS/cm', color: '#ef4444' },
-                    { label: 'No Data', color: '#ccc' }
-                ];
-            } else if (filters.showNitrate) {
-                return [
-                    { label: '< 10 mg/L', color: '#10b981' },
-                    { label: '10 - 30 mg/L', color: '#34d399' },
-                    { label: '30 - 50 mg/L', color: '#fde047' },
-                    { label: '50 - 70 mg/L', color: '#fbbf24' },
-                    { label: '70 - 90 mg/L', color: '#f97316' },
-                    { label: '> 90 mg/L', color: '#ef4444' },
-                    { label: 'No Data', color: '#ccc' }
-                ];
-            } else if (filters.showFluoride) {
-                return [
-                    { label: '< 0.5 mg/L', color: '#10b981' },
-                    { label: '0.5 - 1.0 mg/L', color: '#34d399' },
-                    { label: '1.0 - 1.5 mg/L', color: '#fde047' },
-                    { label: '1.5 - 2.0 mg/L', color: '#facc15' },
-                    { label: '2.0 - 2.5 mg/L', color: '#fbbf24' },
-                    { label: '2.5 - 3.0 mg/L', color: '#f97316' },
-                    { label: '> 3.0 mg/L', color: '#ef4444' },
-                    { label: 'No Data', color: '#ccc' }
-                ];
-            } else if (filters.showTDS) {
-                return [
-                    { label: '< 500 mg/L', color: '#10b981' },
-                    { label: '500 - 1000 mg/L', color: '#34d399' },
-                    { label: '1000 - 1500 mg/L', color: '#fde047' },
-                    { label: '1500 - 2000 mg/L', color: '#facc15' },
-                    { label: '2000 - 2500 mg/L', color: '#fbbf24' },
-                    { label: '2500 - 3000 mg/L', color: '#f97316' },
-                    { label: '> 3000 mg/L', color: '#ef4444' },
-                    { label: 'No Data', color: '#ccc' }
-                ];
+                items.push(
+                    { label: 'EC: < 500 µS/cm', color: '#10b981' },
+                    { label: 'EC: 500–1000 µS/cm', color: '#34d399' },
+                    { label: 'EC: 1000–1500 µS/cm', color: '#6ee7b7' },
+                    { label: 'EC: 1500–2000 µS/cm', color: '#a7f3d0' },
+                    { label: 'EC: 2000–2500 µS/cm', color: '#fef08a' },
+                    { label: 'EC: 2500–3000 µS/cm', color: '#fde047' },
+                    { label: 'EC: 3000–3500 µS/cm', color: '#facc15' },
+                    { label: 'EC: 3500–4000 µS/cm', color: '#fbbf24' },
+                    { label: 'EC: 4000–4500 µS/cm', color: '#f59e0b' },
+                    { label: 'EC: 4500–5000 µS/cm', color: '#f97316' },
+                    { label: 'EC: > 5000 µS/cm', color: '#ef4444' }
+                );
             }
-
-            if (!waterQualityRecords.length) return [];
-            return WATER_QUALITY_PALETTE;
+            if (filters.showNitrate) {
+                items.push(
+                    { label: 'Nitrate: < 10 mg/L', color: '#10b981' },
+                    { label: 'Nitrate: 10–30 mg/L', color: '#34d399' },
+                    { label: 'Nitrate: 30–50 mg/L', color: '#fde047' },
+                    { label: 'Nitrate: 50–70 mg/L', color: '#fbbf24' },
+                    { label: 'Nitrate: 70–90 mg/L', color: '#f97316' },
+                    { label: 'Nitrate: > 90 mg/L', color: '#ef4444' }
+                );
+            }
+            if (filters.showFluoride) {
+                items.push(
+                    { label: 'Fluoride: < 0.5 mg/L', color: '#10b981' },
+                    { label: 'Fluoride: 0.5–1.0 mg/L', color: '#34d399' },
+                    { label: 'Fluoride: 1.0–1.5 mg/L', color: '#fde047' },
+                    { label: 'Fluoride: 1.5–2.0 mg/L', color: '#facc15' },
+                    { label: 'Fluoride: 2.0–2.5 mg/L', color: '#fbbf24' },
+                    { label: 'Fluoride: 2.5–3.0 mg/L', color: '#f97316' },
+                    { label: 'Fluoride: > 3.0 mg/L', color: '#ef4444' }
+                );
+            }
+            if (filters.showTDS) {
+                items.push(
+                    { label: 'TDS: < 500 mg/L', color: '#10b981' },
+                    { label: 'TDS: 500–1000 mg/L', color: '#34d399' },
+                    { label: 'TDS: 1000–1500 mg/L', color: '#fde047' },
+                    { label: 'TDS: 1500–2000 mg/L', color: '#facc15' },
+                    { label: 'TDS: 2000–2500 mg/L', color: '#fbbf24' },
+                    { label: 'TDS: 2500–3000 mg/L', color: '#f97316' },
+                    { label: 'TDS: > 3000 mg/L', color: '#ef4444' }
+                );
+            }
+            if (items.length > 0) items.push({ label: 'No Data', color: '#ccc' });
+            if (!items.length && !waterQualityRecords.length) return [];
+            return items.length ? items : WATER_QUALITY_PALETTE;
         }
-        // Block-based features (GWRE, Rainfall)
-        else if (isBlockFeature && ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type)) {
-            const data = (filters?.type === 'Ground Water Resource Estimation' && gwreData)
-                ? gwreData
-                : blockBoundaryData;
-
-            if (!data) return [];
-
-            const propKey = filters?.type === 'Ground Water Resource Estimation'
-                ? 'GWDL'
-                : legendFeature;
-            values = data.features.map(f => getFeatureProperty(f, propKey));
+        // Ground Water Resource Estimation – always show GWDL category colors
+        else if (filters?.type === 'Ground Water Resource Estimation') {
+            return [
+                { label: 'Safe', color: GWRE_COLORS.safe, isCategorical: true },
+                { label: 'Semi Critical', color: GWRE_COLORS.semi, isCategorical: true },
+                { label: 'Critical', color: GWRE_COLORS.critical, isCategorical: true },
+                { label: 'Over Exploited', color: GWRE_COLORS.over, isCategorical: true },
+                { label: 'Saline', color: GWRE_COLORS.saline, isCategorical: true },
+                { label: 'No Data', color: '#ccc', isCategorical: true }
+            ];
         }
-        // Well Inventory / Aquifer
-        else if (filters?.type === 'Well Inventory' || filters?.type === 'Aquifer') {
-            return []; // Aquifer uses custom color mapping
+        // Well Inventory – show aquifer type color swatches
+        else if (filters?.type === 'Well Inventory') {
+            return [
+                ...Object.entries(AQUIFER_COLORS).map(([name, color]) => ({
+                    label: name,
+                    color,
+                    isCategorical: true
+                })),
+                { label: 'No Data', color: '#ccc', isCategorical: true }
+            ];
+        }
+        // Aquifer – show the aquifer type swatches (same palette)
+        else if (filters?.type === 'Aquifer') {
+            return [
+                ...Object.entries(AQUIFER_COLORS).map(([name, color]) => ({
+                    label: name,
+                    color,
+                    isCategorical: true
+                })),
+                { label: 'No Data', color: '#ccc', isCategorical: true }
+            ];
+        }
+        // Water Resources – show enabled sub-layers
+        else if (filters?.type === 'Water Resources') {
+            const items = [];
+            if (filters?.showCanals) items.push({ label: 'Canals', color: '#00bcd4', isCategorical: true });
+            if (filters?.showWaterbodies) items.push({ label: 'Waterbodies', color: '#3b82f6', isCategorical: true });
+            if (filters?.showMicro) items.push({ label: 'Micro Watershed', color: '#8b5cf6', isCategorical: true });
+            if (filters?.showDams) items.push({ label: 'Dams', color: '#0ea5e9', isCategorical: true });
+            return items;
         }
         else {
             return [];
@@ -233,6 +259,14 @@ export const useLegendData = (
         return finalLegend;
     }, [
         filters?.type,
+        filters?.showEC,
+        filters?.showNitrate,
+        filters?.showFluoride,
+        filters?.showTDS,
+        filters?.showCanals,
+        filters?.showWaterbodies,
+        filters?.showMicro,
+        filters?.showDams,
         legendFeature,
         numClasses,
         blockBoundaryData,

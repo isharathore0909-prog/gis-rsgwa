@@ -6,6 +6,7 @@
 *.zip
 *.xlsx
 *.csv
+*.tar
 
 # Django
 __pycache__/

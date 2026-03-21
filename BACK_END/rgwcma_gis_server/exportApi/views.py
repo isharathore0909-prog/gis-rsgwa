@@ -59,17 +59,43 @@ class ExportMapView(APIView):
 
             # Render
             renderer = MapRenderer()
-            display_title = f"Map of {clean_loc}" if clean_loc and clean_loc.lower() != 'map' else "Map of Study Area"
+            
+            filters = data.get('filters', {})
+            layer_type = filters.get('type')
+            base_title = "MAP"
+            if layer_type:
+                if layer_type == "Ground Water Resource Estimation":
+                    base_title = "GROUNDWATER ESTIMATION MAP"
+                elif layer_type == "Water Quality":
+                    param = ""
+                    if filters.get('showEC'): param = "(EC) "
+                    elif filters.get('showTDS'): param = "(TDS) "
+                    elif filters.get('showNitrate'): param = "(NITRATE) "
+                    elif filters.get('showFluoride'): param = "(FLUORIDE) "
+                    base_title = f"WATER QUALITY {param}MAP".strip()
+                elif layer_type == "Well Inventory":
+                    base_title = "WELL INVENTORY MAP"
+                else:
+                    base_title = f"{layer_type.upper()} MAP"
+            
+            loc_disp = clean_loc.upper() if clean_loc and clean_loc.lower() != 'map' else "STUDY AREA"
+            display_title = f"{base_title} OF {loc_disp}"
             
             custom_styles = data.get('custom_styles', {})
-            filters = data.get('filters', {})
             renderer.render(bbox, layers, output_path, title=display_title, custom_styles=custom_styles, filters=filters)
 
-            # Generate absolute URL for the file
-            file_url = request.build_absolute_uri(settings.MEDIA_URL + 'temp_exports/' + filename)
+            # Verification: Ensure file was created
+            if not os.path.exists(output_path):
+                raise FileNotFoundError(f"Renderer failed to create output file: {output_path}")
 
-            # print(file_url, bbox)
+            # Generate absolute URL for the file
+            # settings.MEDIA_URL is often '/media/' so we ensure no double slash with temp_exports
+            media_part = str(settings.MEDIA_URL).rstrip('/') + '/temp_exports/' + filename
+            file_url = request.build_absolute_uri(media_part)
             
+            import logging
+            logging.getLogger(__name__).info(f"✅ Map successfully exported to {output_path}")
+
             return Response({
                 'status': 'success',
                 'message': 'Map exported successfully',
@@ -78,5 +104,6 @@ class ExportMapView(APIView):
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
-            print(f"Export Error: {e}")
+            import logging
+            logging.getLogger(__name__).error(f"❌ Export Execution Failed: {e}", exc_info=True)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

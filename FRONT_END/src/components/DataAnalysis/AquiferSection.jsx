@@ -158,7 +158,7 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
                             <BarChart
                                 data={aquiferData}
                                 layout="vertical"
-                                margin={{ top: 10, right: 40, left: 0, bottom: 10 }}
+                                margin={{ top: 10, right: 50, left: 0, bottom: 10 }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                 <XAxis type="number" hide domain={[0, 'dataMax']} dataKey="percent" />
@@ -170,7 +170,7 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
                                     axisLine={{ stroke: '#e2e8f0' }}
                                     tickLine={false}
                                 />
-                                <Tooltip content={<AquiferTooltip />} />
+                                <Tooltip allowEscapeViewBox={{ y: true }} content={<AquiferTooltip />} />
                                 <Bar
                                     dataKey="percent"
                                     fill="#3b82f6"

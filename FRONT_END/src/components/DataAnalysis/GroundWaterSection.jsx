@@ -46,7 +46,7 @@ const GroundWaterSection = ({
                             <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={5} dataKey="value">
                                 {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                             </Pie>
-                            <Tooltip allowEscapeViewBox={{ x: true, y: true }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                            <Tooltip allowEscapeViewBox={{ y: true }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                         </PieChart>
                     </SmartChartContainer>
 
@@ -71,11 +71,11 @@ const GroundWaterSection = ({
 
             <AnalysisCard title="Ground Water Level (mbgl)">
                 <SmartChartContainer height={isExpanded ? '350px' : '260px'} className="bar-chart-wrapper">
-                    <BarChart data={waterLevelChartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <BarChart data={waterLevelChartData} margin={{ top: 20, right: 40, left: 0, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} reversed />
-                        <Tooltip allowEscapeViewBox={{ x: true, y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                        <Tooltip allowEscapeViewBox={{ y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                         <Bar dataKey="value" radius={[0, 0, 4, 4]}>
                             {waterLevelChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                         </Bar>
@@ -104,7 +104,7 @@ const GroundWaterSection = ({
                             width={70}
                             tick={{ fontSize: 10, fontWeight: 500 }}
                         />
-                        <Tooltip allowEscapeViewBox={{ x: true, y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                        <Tooltip allowEscapeViewBox={{ y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                         <Bar dataKey="value" fill="#8884d8" name="Area (sq km)" radius={[0, 4, 4, 0]}>
                             {aquiferData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.color || '#3b82f6'} />
@@ -145,7 +145,7 @@ const GroundWaterSection = ({
                             tick={{ fontSize: 10, fontWeight: 500 }}
                         />
                         <Tooltip
-                            allowEscapeViewBox={{ x: true, y: true }}
+                            allowEscapeViewBox={{ y: true }}
                             cursor={{ fill: 'transparent' }}
                             content={({ active, payload }) => {
                                 if (active && payload && payload.length) {

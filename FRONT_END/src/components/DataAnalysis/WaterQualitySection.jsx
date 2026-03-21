@@ -168,12 +168,13 @@ const WaterQualitySection = ({
                                                     { name: 'Hardness', pre: waterQualityAvailability.summary.avg_pre_hardness, post: waterQualityAvailability.summary.avg_post_hardness },
                                                     { name: 'Alkalinity', pre: waterQualityAvailability.summary.avg_pre_alkalinity, post: waterQualityAvailability.summary.avg_post_alkalinity },
                                                 ]}
-                                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                                margin={{ top: 10, right: 35, left: -20, bottom: 0 }}
                                             >
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                                                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                                                 <YAxis tick={{ fontSize: 10 }} />
                                                 <Tooltip
+                                                    allowEscapeViewBox={{ y: true }}
                                                     content={({ active, payload, label }) => {
                                                         if (active && payload && payload.length) {
                                                             const isTds = label === 'TDS/10';
@@ -229,7 +230,7 @@ const WaterQualitySection = ({
                             <BarChart
                                 data={qualityData}
                                 layout="vertical"
-                                margin={{ top: 10, right: 30, left: 80, bottom: 5 }}
+                                margin={{ top: 10, right: 45, left: 80, bottom: 5 }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                 <XAxis type="number" domain={[0, 100]} hide />
@@ -240,7 +241,7 @@ const WaterQualitySection = ({
                                     tick={{ fontSize: 11, fontWeight: 500 }}
                                 />
                                 <Tooltip
-                                    allowEscapeViewBox={{ x: true, y: true }}
+                                    allowEscapeViewBox={{ y: true }}
                                     cursor={{ fill: 'transparent' }}
                                     content={({ active, payload }) => {
                                         if (active && payload && payload.length) {
@@ -274,12 +275,13 @@ const WaterQualitySection = ({
                                         { name: 'Hardness', pre: waterQualityAvailability.summary.avg_pre_hardness, post: waterQualityAvailability.summary.avg_post_hardness },
                                         { name: 'Alkalinity', pre: waterQualityAvailability.summary.avg_pre_alkalinity, post: waterQualityAvailability.summary.avg_post_alkalinity },
                                     ]}
-                                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                                    margin={{ top: 20, right: 36, left: 20, bottom: 5 }}
                                 >
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                                     <YAxis tick={{ fontSize: 11 }} />
                                     <Tooltip
+                                        allowEscapeViewBox={{ y: true }}
                                         content={({ active, payload, label }) => {
                                             if (active && payload && payload.length) {
                                                 const isTds = label.includes('TDS');

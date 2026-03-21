@@ -120,6 +120,10 @@ export const LegendWidget = ({
 }) => {
     if (!isActive || !showLegend || !legendData.length) return null;
 
+    // Only show the thematic controls (feature selector + steps) for layers
+    // that actually support continuous/discretised classification.
+    const showThematicControls = isActive === 'Rainfall';
+
     return (
         <div className="legend-widget animated-fade-in">
             <div className="legend-header">
@@ -132,31 +136,33 @@ export const LegendWidget = ({
                 <button className="legend-hide-btn" onClick={onHide}>Hide</button>
             </div>
 
-            <div className="legend-controls-row">
-                <select
-                    className="legend-select"
-                    value={legendFeature}
-                    onChange={e => onFeatureChange(e.target.value)}
-                >
-                    {featureOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                        </option>
-                    ))}
-                </select>
-                <div className="classes-selector">
-                    <label>Steps</label>
+            {showThematicControls && (
+                <div className="legend-controls-row">
                     <select
-                        className="tiny-select"
-                        value={numClasses}
-                        onChange={e => onClassesChange(parseInt(e.target.value))}
+                        className="legend-select"
+                        value={legendFeature}
+                        onChange={e => onFeatureChange(e.target.value)}
                     >
-                        {[3, 4, 5, 6, 7].map(n => (
-                            <option key={n} value={n}>{n}</option>
+                        {featureOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                            </option>
                         ))}
                     </select>
+                    <div className="classes-selector">
+                        <label>Steps</label>
+                        <select
+                            className="tiny-select"
+                            value={numClasses}
+                            onChange={e => onClassesChange(parseInt(e.target.value))}
+                        >
+                            {[3, 4, 5, 6, 7].map(n => (
+                                <option key={n} value={n}>{n}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="legend-items">
                 {legendData.map((item, i) => (
@@ -172,6 +178,7 @@ export const LegendWidget = ({
         </div>
     );
 };
+
 
 /**
  * Map Warning Overlay

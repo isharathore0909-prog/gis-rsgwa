@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ImageOverlay, useMap } from 'react-leaflet';
 import api from '../../../api';
 
@@ -17,6 +17,7 @@ const WaterQualityContourLayer = ({
     const [bounds, setBounds] = useState(null);
     const [loading, setLoading] = useState(false);
     const [opacity, setOpacity] = useState(0); // Hide until fully loaded
+    const loadingRef = useRef(false);
     const map = useMap();
 
     // Auto-zoom when bounds are set
@@ -31,7 +32,11 @@ const WaterQualityContourLayer = ({
             console.log(`📡 ContourLayer (${parameter}): Inactive or missing District selection`, { isActive, parameter, district: filters?.district });
             setContourImage(null);
             setBounds(null);
-            if (onLoading) onLoading(false);
+            setLoading(false);
+            if (loadingRef.current) {
+                loadingRef.current = false;
+                if (onLoading) onLoading(false);
+            }
             return;
         }
 
@@ -40,6 +45,7 @@ const WaterQualityContourLayer = ({
             setBounds(null);
             setOpacity(0);
             setLoading(true);
+            loadingRef.current = true;
             if (onLoading) onLoading(true);
             const gpId = filters.gp_id;
             const blockId = filters.block_id;
@@ -51,7 +57,10 @@ const WaterQualityContourLayer = ({
                 if (!gpId && !blockId && !distId) {
                     console.warn(`⚠️ ContourLayer (${parameter}): No location ID found in filters`);
                     setLoading(false);
-                    if (onLoading) onLoading(false);
+                    if (loadingRef.current) {
+                        loadingRef.current = false;
+                        if (onLoading) onLoading(false);
+                    }
                     return;
                 }
 
@@ -79,14 +88,20 @@ const WaterQualityContourLayer = ({
                 } else {
                     console.warn(`⚠️ ContourLayer (${parameter}): Response missing heatmap_url or bbox`, response);
                     setLoading(false);
-                    if (onLoading) onLoading(false);
+                    if (loadingRef.current) {
+                        loadingRef.current = false;
+                        if (onLoading) onLoading(false);
+                    }
                 }
             } catch (error) {
                 console.error(`❌ ContourLayer (${parameter}): Error fetching backend contour:`, error);
                 setContourImage(null);
                 setBounds(null);
                 setLoading(false);
-                if (onLoading) onLoading(false);
+                if (loadingRef.current) {
+                    loadingRef.current = false;
+                    if (onLoading) onLoading(false);
+                }
             }
         };
 
@@ -109,11 +124,17 @@ const WaterQualityContourLayer = ({
                 load: () => {
                     setOpacity(0.8);
                     setLoading(false);
-                    if (onLoading) onLoading(false);
+                    if (loadingRef.current) {
+                        loadingRef.current = false;
+                        if (onLoading) onLoading(false);
+                    }
                 },
                 error: () => {
                     setLoading(false);
-                    if (onLoading) onLoading(false);
+                    if (loadingRef.current) {
+                        loadingRef.current = false;
+                        if (onLoading) onLoading(false);
+                    }
                 }
             }}
         />

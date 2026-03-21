@@ -68,6 +68,13 @@ def ensure_wgs84(geom: Any) -> Any:
     if not geom or not isinstance(geom, dict):
         return geom
 
+    def swap_recursive(obj):
+        if isinstance(obj, list) and len(obj) >= 2 and isinstance(obj[0], (int, float)):
+            return [obj[1], obj[0]] + obj[2:]
+        if isinstance(obj, list):
+            return [swap_recursive(item) for item in obj]
+        return obj
+
     try:
         # Extract a sample coordinate for heuristic check
         coords = []
@@ -92,42 +99,25 @@ def ensure_wgs84(geom: Any) -> Any:
             # Rajasthan/India: Lon 68-98, Lat 8-38.
             # If x is 20-30 and y is 70-80, they are definitely flipped.
             if 15.0 < x < 40.0 and 65.0 < y < 100.0:
-                def swap_recursive(obj):
-                    if isinstance(obj, list) and len(obj) >= 2 and isinstance(obj[0], (int, float)):
-                        return [obj[1], obj[0]] + obj[2:]
-                    if isinstance(obj, list):
-                        return [swap_recursive(item) for item in obj]
-                    return obj
                 geom = swap_recursive(geom)
-                # Re-extract for meter check below
                 x, y = y, x
                 swapped = True
 
             # --- 2. Projected Coordinates Detection (Meters) ---
-            # If values are in hundreds of thousands or millions, they are meters.
             if abs(x) > 180 or abs(y) > 90:
                 try:
                     g = GEOSGeometry(json.dumps(geom))
-                    # Heuristic for Rajasthan/India projected systems
-                    # UTM 43N Northing is ~2.5M - 3.5M, but Easting (x) is usually < 1M.
-                    # Web Mercator X for India is ~7.5M - 10M, and Y is ~1M - 4M.
                     if 2000000 < abs(y) < 4000000:
-                        if abs(x) < 1000000:
-                            g.srid = 32643 # UTM 43N (Rajasthan)
-                        else:
-                            g.srid = 3857 # Web Mercator
+                        g.srid = 32643 if abs(x) < 1000000 else 3857
                     else:
-                        g.srid = 3857 # Fallback to Web Mercator
+                        g.srid = 3857
                     
                     g.transform(4326)
                     return json.loads(g.geojson)
                 except Exception as ex:
                     logger.warning(f"Spatial fix-up failed: {ex}")
             
-            # If we swapped, we should probably stop and return the swapped version 
-            # unless it also needs meter reprojection (which is handled above).
-            if swapped:
-                return geom
+            if swapped: return geom
     except Exception as e:
         logger.debug(f"ensure_wgs84 heuristic skipped: {e}")
         
@@ -154,11 +144,11 @@ def get_address_from_lat_lon(lat: float, lon: float) -> tuple[Optional[Dict[str,
         JOIN {Block._meta.db_table} b ON g.block_id = b.id
         JOIN {District._meta.db_table} d ON b.district_id = d.id
         WHERE v.latitude IS NOT NULL AND v.longitude IS NOT NULL
-        ORDER BY ((v.latitude - %s)^2 + (v.longitude - %s)^2) ASC
+        ORDER BY ((v.latitude - %s) * (v.latitude - %s) + (v.longitude - %s) * (v.longitude - %s)) ASC
         LIMIT 1
     """
     with connection.cursor() as cursor:
-        cursor.execute(query, [lat, lon])
+        cursor.execute(query, [lat, lat, lon, lon])
         row = cursor.fetchone()
         if row:
             address = {
@@ -210,6 +200,25 @@ class DistrictViewSet(BaseLocationViewSet):
     serializer_class = DistrictSerializer
 
     def get_queryset(self) -> QuerySet:
+        # 🧪 AUTO-SEED: If no districts exist, try to seed them from LocationCode
+        if not District.objects.exists():
+            try:
+                from .models import LocationCode, State, Country
+                india, _ = Country.objects.get_or_create(name="India")
+                rajasthan, _ = State.objects.get_or_create(name="Rajasthan", country=india)
+                
+                codes = LocationCode.objects.values('dist_name', 'dist_code').distinct()
+                for entry in codes:
+                    if entry['dist_code']:
+                        name = entry['dist_name'].strip()
+                        District.objects.get_or_create(
+                            code=entry['dist_code'], 
+                            defaults={'name': name, 'state': rajasthan}
+                        )
+                logger.info("✅ Auto-seeded districts from LocationCode")
+            except Exception as e:
+                logger.warning(f"District auto-seed failed: {e}")
+
         queryset = super().get_queryset()
         state_id = self.request.query_params.get('state')
         state_name = self.request.query_params.get('state_name')
@@ -222,9 +231,27 @@ class BlockViewSet(BaseLocationViewSet):
     serializer_class = BlockSerializer
 
     def get_queryset(self) -> QuerySet:
-        queryset = super().get_queryset()
         dist_id = self.request.query_params.get('district')
         dist_name = self.request.query_params.get('district_name')
+
+        # 🧪 AUTO-SEED: If no blocks exist for this district, seed from LocationCode
+        if dist_name and not Block.objects.filter(district__name__iexact=dist_name).exists():
+             try:
+                from .models import LocationCode, District
+                dist_obj = District.objects.filter(name__iexact=dist_name).first()
+                if dist_obj:
+                    codes = LocationCode.objects.filter(dist_name__iexact=dist_name).values('block_name', 'block_code').distinct()
+                    for entry in codes:
+                        if entry['block_code']:
+                            Block.objects.get_or_create(
+                                code=entry['block_code'], 
+                                defaults={'name': entry['block_name'].strip(), 'district': dist_obj}
+                            )
+                    logger.info(f"✅ Auto-seeded blocks for district {dist_name}")
+             except Exception as e:
+                logger.warning(f"Block auto-seed failed for {dist_name}: {e}")
+
+        queryset = super().get_queryset()
         if dist_id: queryset = queryset.filter(district_id=dist_id)
         if dist_name: queryset = queryset.filter(district__name__iexact=dist_name)
         return queryset
@@ -234,9 +261,27 @@ class GPViewSet(BaseLocationViewSet):
     serializer_class = GPSerializer
 
     def get_queryset(self) -> QuerySet:
-        queryset = super().get_queryset()
         block_id = self.request.query_params.get('block')
         block_name = self.request.query_params.get('block_name')
+
+        # 🧪 AUTO-SEED: If no GPs exist for this block, seed from LocationCode
+        if block_name and not Grampanchayat.objects.filter(block__name__iexact=block_name).exists():
+             try:
+                from .models import LocationCode, Block
+                block_obj = Block.objects.filter(name__iexact=block_name).first()
+                if block_obj:
+                    codes = LocationCode.objects.filter(block_name__iexact=block_name).values('gp_name', 'gp_code').distinct()
+                    for entry in codes:
+                        if entry['gp_code']:
+                            Grampanchayat.objects.get_or_create(
+                                code=entry['gp_code'], 
+                                defaults={'name': entry['gp_name'].strip(), 'block': block_obj}
+                            )
+                    logger.info(f"✅ Auto-seeded GPs for block {block_name}")
+             except Exception as e:
+                logger.warning(f"GP auto-seed failed for {block_name}: {e}")
+
+        queryset = super().get_queryset()
         if block_id: queryset = queryset.filter(block_id=block_id)
         if block_name: queryset = queryset.filter(block__name__iexact=block_name)
         return queryset
@@ -403,15 +448,15 @@ class BoundaryCollectionView(APIView):
                     if loc: item_code = loc.vlg_code
                 
                 if item_code:
-                    cache_key = f"boundary_{layer}_{item_code}"
-                    geom = cache.get(cache_key)
+                    item_cache_key = f"boundary_{layer}_{item_code}"
+                    geom = cache.get(item_cache_key)
                     
                     if not geom:
                         # Only fetch externally for manageable sets to avoid timeouts
                         if total_count < 150:
                             geom = BoundaryByCodeView.fetch_external_boundary(layer, item_code)
                             if geom: 
-                                cache.set(cache_key, geom, 3600 * 24 * 7) # Cache for 1 week
+                                cache.set(item_cache_key, geom, 3600 * 24 * 7) # Cache for 1 week
                                 external_count += 1
                                 # Auto-persist to DB
                                 try:
@@ -554,7 +599,8 @@ class BoundaryByCodeView(APIView):
         if not obj and layer == 'district':
             entry = LocationCode.objects.filter(dist_code=code).first() or LocationCode.objects.filter(dist_name__iexact=code).first()
             if entry:
-                st = State.objects.filter(name__iexact='Rajasthan').first()
+                india, _ = Country.objects.get_or_create(name="India")
+                st, _ = State.objects.get_or_create(name="Rajasthan", defaults={'country': india})
                 obj, _ = District.objects.update_or_create(code=entry.dist_code, defaults={'name': entry.dist_name, 'state': st})
 
         if not obj: return Response({"error": "Resource not found"}, status=404)
@@ -567,7 +613,7 @@ class BoundaryByCodeView(APIView):
         geom = json.loads(db_geom['geom_geojson']) if db_geom and db_geom['geom_geojson'] else None
         
         if not geom:
-            geom = self.fetch_and_save_boundary(model, layer, obj)
+            geom = BoundaryByCodeView.fetch_and_save_boundary(model, layer, obj)
 
         # Apply spatial heuristic fix-up (Crucial for fixing 'map in wrong place')
         geom = ensure_wgs84(geom)

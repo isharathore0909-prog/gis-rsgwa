@@ -11,6 +11,7 @@ from core.filters import HierarchicalLocationFilterBackend
 
 class WaterQualityAvailabilityViewSet(viewsets.ModelViewSet):
     queryset = WaterQualityAvailability.objects.all()
+    serializer_class = WaterQualityAvailabilitySerializer
     authentication_classes = []
     permission_classes = [AllowAny]
     filter_backends = [
@@ -41,7 +42,7 @@ class WaterQualityAvailabilityViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
-        queryset = self.get_queryset()
+        queryset = self.filter_queryset(self.get_queryset())
         if hasattr(queryset, 'select_related'):
             queryset = queryset.select_related(None) 
         

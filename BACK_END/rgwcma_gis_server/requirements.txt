@@ -25,5 +25,7 @@ geopandas
 matplotlib
 shapely
 gunicorn
+whitenoise==6.8.2
 scipy
 pyproj
+django-extensions==3.2.3

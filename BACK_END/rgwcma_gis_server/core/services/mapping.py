@@ -1,8 +1,33 @@
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import io
 import base64
 import math
+import os
+
+def _get_label_font(size=12):
+    """Load a TrueType font for contour labels with fallback to PIL default."""
+    candidate_paths = [
+        # Linux / Docker
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        # Windows
+        "C:/Windows/Fonts/arialbd.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/calibrib.ttf",
+        # macOS
+        "/Library/Fonts/Arial Bold.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+    ]
+    for path in candidate_paths:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size), True
+            except Exception:
+                continue
+    # Ultimate fallback – tiny but always available
+    return ImageFont.load_default(), False
 
 def hex_to_rgb(hex_str):
     hex_str = hex_str.lstrip('#')
@@ -52,33 +77,41 @@ def generate_contour_map(points, bounds, width=600, height=500, p=2.0, buckets=N
             result[i:i+chunk_size] = np.sum(w * v_pts, axis=1) / w_sum
         return result.reshape(grid_x.shape)
 
-    grid = idw_vectorized(pts_x, pts_y, pts_v, X, Y, p)
+    from scipy.ndimage import gaussian_filter
+    grid_raw = idw_vectorized(pts_x, pts_y, pts_v, X, Y, p)
+    # Smooth the grid to heavily reduce noise and small clustered artifact bubbles
+    grid = gaussian_filter(grid_raw, sigma=6.0)
     
-    # Mapping logic from MIS_RSGWA
-    if buckets and len(buckets) > 0:
-        g_min = min(b['min'] for b in buckets)
-        g_max = max(b['max'] for b in buckets)
-    else:
-        g_min = np.min(grid) if grid.size > 0 else 0
-        g_max = np.max(grid) if grid.size > 0 else 10
-    
-    if g_min == g_max:
-        g_max = g_min + 1
-    
-    amplify = 50
-    amp_min = g_min
-    amp_range = (g_max - g_min) * amplify
-    c_step = max(amp_range / 40.0, 0.1) if amp_range > 0.01 else 0.1
- 
-    def get_line_idx(v):
-        return np.floor(( (v - amp_min) * amplify ) / c_step)
+    # Improved contour interval calculation to ignore extreme outliers
+    _tmin = np.percentile(grid, 2) if grid.size > 0 else 0
+    _tmax = np.percentile(grid, 98) if grid.size > 0 else 10
+    if _tmin == _tmax:
+        _tmin, _tmax = np.min(grid), np.max(grid)
+    if _tmin == _tmax:
+        _tmax = _tmin + 1
 
-    line_indices = get_line_idx(grid)
-    lines_x = np.zeros_like(grid, dtype=bool)
-    lines_y = np.zeros_like(grid, dtype=bool)
-    lines_x[:, 1:] = line_indices[:, 1:] != line_indices[:, :-1]
-    lines_y[1:, :] = line_indices[1:, :] != line_indices[:-1, :]
-    is_line_grid = lines_x | lines_y
+    # Aiming for fewer intervals (wider separation) to reduce dense clusters
+    rough_step = (_tmax - _tmin) / 5.0
+    if rough_step <= 0: rough_step = 1.0
+    magnitude = 10 ** np.floor(np.log10(rough_step)) if rough_step > 0 else 1
+    rel_step = rough_step / magnitude
+    if rel_step < 1.5: nice_step = 1 * magnitude
+    elif rel_step < 3: nice_step = 2 * magnitude
+    elif rel_step < 7: nice_step = 5 * magnitude
+    else: nice_step = 10 * magnitude
+
+    line_indices = np.floor(grid / nice_step)
+    x_diff = line_indices[:, 1:] != line_indices[:, :-1]
+    y_diff = line_indices[1:, :] != line_indices[:-1, :]
+
+    levels_x = np.full_like(grid, np.nan)
+    levels_x[:, 1:][x_diff] = np.maximum(line_indices[:, 1:][x_diff], line_indices[:, :-1][x_diff])
+    
+    levels_y = np.full_like(grid, np.nan)
+    levels_y[1:, :][y_diff] = np.maximum(line_indices[1:, :][y_diff], line_indices[:-1, :][y_diff])
+    
+    contour_levels = np.fmax(levels_x, levels_y)
+    is_line_grid = ~np.isnan(contour_levels)
 
     data = np.zeros((height, width, 4), dtype=np.uint8)
     if buckets:
@@ -134,25 +167,75 @@ def generate_contour_map(points, bounds, width=600, height=500, p=2.0, buckets=N
         if has_polygons:
             mask_arr = np.array(mask_img)
             data[mask_arr == 0, 3] = 0
+            is_line_grid = is_line_grid & (mask_arr > 0)
 
     img = Image.fromarray(data, 'RGBA')
     if show_labels:
         draw = ImageDraw.Draw(img)
-        unique_lids = np.unique(line_indices)
-        step = max(1, len(unique_lids) // 10)
-        for lid in unique_lids[::step]:
-            if lid < 0: continue
-            mask = is_line_grid & (np.abs(line_indices - lid) < 0.5)
-            coords = np.argwhere(mask)
-            if len(coords) > 100:
-                label_val = (lid * c_step / amplify) + amp_min
-                label_text = f"{label_val:.1f}"
-                for p_idx in [len(coords)//3, 2*len(coords)//3]:
-                    y_px, x_px = coords[p_idx]
-                    if 25 < x_px < width - 25 and 25 < y_px < height - 25:
-                        draw.text((x_px-1, y_px-1), label_text, fill=(255,255,255,230))
-                        draw.text((x_px+1, y_px+1), label_text, fill=(255,255,255,230))
-                        draw.text((x_px, y_px), label_text, fill=(0,0,0,255))
+        font, is_truetype = _get_label_font(size=8)
+
+        def _draw_label(x_px, y_px, text):
+            """Draw a single label with white outline for contrast."""
+            if not (20 < x_px < width - 20 and 20 < y_px < height - 20):
+                return
+            if is_truetype:
+                for dx, dy in [(-1,-1),(-1,1),(1,-1),(1,1),(-1,0),(1,0),(0,-1),(0,1)]:
+                    draw.text((x_px + dx, y_px + dy), text,
+                              fill=(255, 255, 255, 220), font=font, anchor='mm')
+                draw.text((x_px, y_px), text, fill=(0, 0, 0, 255), font=font, anchor='mm')
+            else:
+                try:
+                    bbox = font.getbbox(text)
+                    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+                except Exception:
+                    tw, th = len(text) * 6, 10
+                tx, ty = x_px - tw // 2, y_px - th // 2
+                for dx, dy in [(-1,-1),(-1,1),(1,-1),(1,1),(-1,0),(1,0),(0,-1),(0,1)]:
+                    draw.text((tx + dx, ty + dy), text, fill=(255, 255, 255, 220), font=font)
+                draw.text((tx, ty), text, fill=(0, 0, 0, 255), font=font)
+
+        from scipy.ndimage import label as segment_label
+        unique_levels = np.unique(contour_levels[is_line_grid])
+
+        # use 8-connectivity to trace distinct lines accurately
+        structure = np.ones((3,3), dtype=int)
+
+        for k in unique_levels:
+            mask = is_line_grid & (contour_levels == k)
+            labeled_array, num_features = segment_label(mask, structure=structure)
+            if num_features == 0:
+                continue
+
+            label_val = k * nice_step
+            if nice_step >= 1:
+                label_text = f"{int(round(label_val))}"
+            else:
+                label_text = f"{label_val:.2f}".rstrip('0').rstrip('.')
+            if label_text == '-0' or label_text == '': label_text = '0'
+
+            # Collect all segments and their sizes
+            segments = []
+            for f_idx in range(1, num_features + 1):
+                coords = np.argwhere(labeled_array == f_idx)
+                if len(coords) >= 15:   # Only consider substantial lines so values are readable
+                    segments.append(coords)
+
+            if not segments:
+                continue
+
+            # Sort segments by length (longest first)
+            segments.sort(key=lambda c: len(c), reverse=True)
+
+            # Label EVERY substantial segment
+            for seg_coords in segments:
+                seg_len = len(seg_coords)
+                # Number of labels proportional to segment length (1 label space every 250px)
+                num_labels = max(1, seg_len // 250)
+
+                for i in range(num_labels):
+                    p_idx = seg_len * (2 * i + 1) // (2 * num_labels)
+                    y_px, x_px = seg_coords[p_idx]
+                    _draw_label(int(x_px), int(y_px), label_text)
     
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
