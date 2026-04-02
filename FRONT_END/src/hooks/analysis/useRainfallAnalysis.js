@@ -11,171 +11,187 @@ export const useRainfallAnalysis = ({
     selectedBoundary,
     blockData,
     rainfallStations,
+    dynamicBoundaries = [],
     rainfallDataSource = 'station',
-    parentRainfallLoading
+    parentRainfallLoading,
+    rajasthanId
 }) => {
     const [rainfallStatsData, setRainfallStatsData] = useState(null);
     const [rainfallSummaryData, setRainfallSummaryData] = useState([]);
+    const [intersectingStationIds, setIntersectingStationIds] = useState([]);
     const [rainfallError, setRainfallError] = useState(null);
-    const [rainfallLoading, setRainfallLoading] = useState(true);
-    const lastRainfallDeps = useRef({
-        isRainfall, displayRegion, displayBlock,
-        gp: globalFilters?.gramPanchayat, v: globalFilters?.village,
-        start: globalFilters?.dataRangeStart, end: globalFilters?.dataRangeEnd,
-        ts: globalFilters?.timestep, lat: clickedLocation?.lat, lng: clickedLocation?.lng
-    });
-    const rainfallParamsCacheRef = useRef(null);
+    const [rainfallLoading, setRainfallLoading] = useState(false);
+    const [apiRetryCount, setApiRetryCount] = useState(0);
 
-    // Sync loading state to filter changes
-    if (isRainfall && (
-        lastRainfallDeps.current.isRainfall !== isRainfall ||
-        lastRainfallDeps.current.displayRegion !== displayRegion ||
-        lastRainfallDeps.current.displayBlock !== displayBlock ||
-        lastRainfallDeps.current.gp !== globalFilters?.gramPanchayat ||
-        lastRainfallDeps.current.v !== globalFilters?.village ||
-        lastRainfallDeps.current.start !== globalFilters?.dataRangeStart ||
-        lastRainfallDeps.current.end !== globalFilters?.dataRangeEnd ||
-        lastRainfallDeps.current.ts !== globalFilters?.timestep ||
-        lastRainfallDeps.current.lat !== clickedLocation?.lat ||
-        lastRainfallDeps.current.lng !== clickedLocation?.lng
-    )) {
-        if (!rainfallLoading) {
-            setRainfallLoading(true);
-            setRainfallStatsData(null);
-            setRainfallSummaryData([]);
-        }
-        lastRainfallDeps.current = {
-            isRainfall, displayRegion, displayBlock,
-            gp: globalFilters?.gramPanchayat, v: globalFilters?.village,
-            start: globalFilters?.dataRangeStart, end: globalFilters?.dataRangeEnd,
-            ts: globalFilters?.timestep, lat: clickedLocation?.lat, lng: clickedLocation?.lng
-        };
-    }
+    // Persist parameters to avoid redundant network calls and loops
+    const lastParamsRef = useRef(null);
 
     useEffect(() => {
         let ignore = false;
+        let controller = new AbortController();
+
         if (!isRainfall) {
             setRainfallStatsData(null);
             setRainfallSummaryData([]);
+            setIntersectingStationIds([]);
             setRainfallError(null);
-            rainfallParamsCacheRef.current = null;
+            lastParamsRef.current = null;
             return;
         }
 
         const fetchRainfallStats = async () => {
-            const baseParams = {};
+            if (!rajasthanId) {
+                setRainfallLoading(false);
+                return;
+            }
+            // Wait for 300ms to debounce rapid property changes (e.g. while dragging map)
+            await new Promise(resolve => setTimeout(resolve, 300));
+            if (ignore) return;
+
             const toTitleCase = (str) => {
                 if (!str) return str;
                 const strValue = typeof str === 'string' ? str : String(str);
                 return strValue.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
             };
 
-            const isStation = rainfallDataSource === 'station';
-            if (globalFilters?.district_id && !isStation) {
-                baseParams.district_id = globalFilters.district_id;
-            } else if (displayRegion && displayRegion !== 'Rajasthan') {
-                const regionStr = typeof displayRegion === 'string' ? displayRegion : String(displayRegion);
-                baseParams.district = toTitleCase(regionStr.trim());
+            // 1. Build Base Parameters
+            const baseParams = {};
+            const isStateOverview = !displayRegion || displayRegion === 'Rajasthan';
+
+            if (!isStateOverview) {
+                if (displayRegion) baseParams.district = toTitleCase(displayRegion);
+                if (globalFilters?.block_id) baseParams.block_id = globalFilters.block_id;
+                else if (displayBlock) baseParams.block = toTitleCase(displayBlock);
+                if (globalFilters?.gp_id) baseParams.gp_id = globalFilters.gp_id;
+                else if (globalFilters?.gramPanchayat) baseParams.gram_panchayat = globalFilters.gramPanchayat;
+                if (globalFilters?.village_id) baseParams.village_id = globalFilters.village_id;
+                else if (globalFilters?.village) baseParams.village = globalFilters.village;
             }
 
-            if (globalFilters?.block_id) {
-                baseParams.block_id = globalFilters.block_id;
-            } else if (displayBlock) {
-                const blockStr = typeof displayBlock === 'string' ? displayBlock : String(displayBlock);
-                baseParams.block = toTitleCase(blockStr.trim());
-            }
-
-            if (globalFilters?.gp_id) {
-                baseParams.gp_id = globalFilters.gp_id;
-            } else if (globalFilters?.gramPanchayat) {
-                const gpStr = typeof globalFilters.gramPanchayat === 'string' ? globalFilters.gramPanchayat : String(globalFilters.gramPanchayat);
-                baseParams.gram_panchayat = gpStr.trim();
-            }
-
-            if (globalFilters?.village_id) {
-                baseParams.village_id = globalFilters.village_id;
-            } else if (globalFilters?.village) {
-                const villageStr = typeof globalFilters.village === 'string' ? globalFilters.village : String(globalFilters.village);
-                baseParams.village = villageStr.trim();
-            }
             if (globalFilters?.dataRangeStart) baseParams.start_date = globalFilters.dataRangeStart;
             if (globalFilters?.dataRangeEnd) baseParams.end_date = globalFilters.dataRangeEnd;
+            if (globalFilters?.timestep) baseParams.timestep = globalFilters.timestep;
 
-            if (baseParams.district === 'Rajasthan') delete baseParams.district;
+            // 2. Resolve Target Geometry
+            let targetFeature = null;
+            if (neighbor?.geometry) targetFeature = neighbor;
+            else if (selectedBoundary?.geometry) targetFeature = selectedBoundary;
+
+            const featureId = targetFeature
+                ? (targetFeature.id || targetFeature.properties?.id || JSON.stringify(targetFeature.geometry.coordinates).slice(0, 40))
+                : 'none';
+
+            // Stable key including important factors
+            const paramsKey = `${JSON.stringify(baseParams)}-${featureId}-${rainfallStations?.length || 0}`;
+
+            if (lastParamsRef.current === paramsKey) {
+                return;
+            }
+            lastParamsRef.current = paramsKey;
 
             setRainfallLoading(true);
             try {
-                let currentBaseParams = { ...baseParams };
-                let currentSummaryParams = { ...baseParams, timestep: globalFilters?.timestep || 'monthly' };
+                let currentIntersectingIds = [];
+                let finalBaseParams = { ...baseParams };
 
-                // Apply spatial filtering if block, GP, or village is selected
-                if ((displayBlock || globalFilters?.gramPanchayat || globalFilters?.village) && rainfallStations?.length > 0) {
-                    try {
-                        const turf = await import('@turf/turf');
-                        let targetFeature = null;
+                // 3. Spatial Filtering
+                if (!isStateOverview && targetFeature && rainfallStations?.length > 0) {
+                    const turf = await import('@turf/turf');
+                    if (ignore) return;
 
-                        if (neighbor && neighbor.geometry) {
-                            targetFeature = neighbor;
-                        } else if (selectedBoundary && selectedBoundary.geometry) {
-                            targetFeature = selectedBoundary;
-                        } else if (displayBlock && blockData?.features) {
-                            targetFeature = blockData.features.find(f => {
-                                const bName = (f.properties?.BLOCK_NAME || f.properties?.Block || f.properties?.name || '').toString().toUpperCase().trim();
-                                return bName === displayBlock.toString().toUpperCase().trim();
-                            });
+                    const ids = [];
+                    const stationPoints = [];
+
+                    rainfallStations.forEach(station => {
+                        if (station.latitude && station.longitude) {
+                            const pt = turf.point([parseFloat(station.longitude), parseFloat(station.latitude)], { id: station.id || station.station_id });
+                            stationPoints.push(pt);
+                            if (turf.booleanPointInPolygon(pt, targetFeature)) {
+                                ids.push(station.id || station.station_id);
+                            }
                         }
+                    });
 
-                        if (targetFeature && targetFeature.geometry) {
-                            const intersectingStationIds = [];
-                            rainfallStations.forEach(station => {
-                                if (station.latitude && station.longitude) {
-                                    const pt = turf.point([parseFloat(station.longitude), parseFloat(station.latitude)]);
-                                    if (turf.booleanPointInPolygon(pt, targetFeature)) {
-                                        intersectingStationIds.push(station.id || station.station_id);
-                                    }
-                                }
-                            });
-                            const idsStr = intersectingStationIds.length > 0 ? intersectingStationIds.join(',') : '-1';
-                            currentBaseParams.station_ids = idsStr;
-                            currentSummaryParams.station_ids = idsStr;
-                        }
-                    } catch (e) {
-                        console.warn('[RainfallStats] Spatial filtering failed:', e);
+                    if (ids.length === 0 && stationPoints.length > 0) {
+                        try {
+                            const centroid = turf.centroid(targetFeature);
+                            const nearest = turf.nearestPoint(centroid, turf.featureCollection(stationPoints));
+                            if (nearest?.properties?.id) ids.push(nearest.properties.id);
+                        } catch (e) { }
+                    }
+
+                    if (ids.length > 0) {
+                        finalBaseParams.station_ids = ids.join(',');
+                        currentIntersectingIds = ids;
+                    } else if (displayBlock || globalFilters?.gramPanchayat) {
+                        finalBaseParams.station_ids = '-1';
                     }
                 }
 
+                if (ignore) return;
 
+                // 4. Parallel Fetch with Abort Signal support if api client supports it
+                // We'll use the signal to cancel axios requests if supported
                 const [stats, summary] = await Promise.all([
-                    isStation
-                        ? api.rainfall.getStationStatistics(currentBaseParams)
-                        : api.rainfall.getStatistics(currentBaseParams),
-                    isStation
-                        ? api.rainfall.getStationSummary(currentSummaryParams)
-                        : api.rainfall.getSummary(currentSummaryParams)
+                    api.rainfall.getStationStatistics(finalBaseParams),
+                    api.rainfall.getStationSummary({ ...finalBaseParams, timestep: globalFilters?.timestep || 'monthly' })
                 ]);
 
                 if (!ignore) {
-                    setRainfallStatsData(stats);
-                    setRainfallSummaryData(summary);
+                    // Extract station names for UI transparency
+                    const stationNames = (stats.isStationData && stats.maxVillage)
+                        ? [stats.maxVillage]
+                        : (rainfallStations.filter(s => currentIntersectingIds.includes(s.id)).map(s => s.name));
+
+                    setRainfallStatsData({
+                        ...stats,
+                        stationNames,
+                        isFallback: currentIntersectingIds.length === 1 && !isStateOverview && !targetFeature?.properties?.name?.toUpperCase()?.includes(stationNames[0]?.toUpperCase())
+                    });
+                    setRainfallSummaryData(summary || []);
+                    setIntersectingStationIds(currentIntersectingIds);
                     setRainfallError(null);
                 }
             } catch (err) {
                 if (!ignore) {
-                    console.error('Failed to fetch rainfall stats:', err);
-                    setRainfallError(err.message);
+                    console.error('Rainfall fetch failed:', err);
+                    // If backend returned connection error, retry after a delay
+                    if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error'))) {
+                        const delay = 5000 * (apiRetryCount + 1);
+                        setTimeout(() => {
+                            if (!ignore) setApiRetryCount(prev => prev + 1);
+                        }, delay);
+                    } else {
+                        setRainfallError(err.message);
+                    }
                 }
             } finally {
                 if (!ignore) setRainfallLoading(false);
             }
         };
 
+        const safetyTimeout = setTimeout(() => {
+            if (!ignore) setRainfallLoading(false);
+        }, 30000);
+
         fetchRainfallStats();
-        return () => { ignore = true; };
-    }, [isRainfall, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, globalFilters?.dataRangeStart, globalFilters?.dataRangeEnd, globalFilters?.timestep, clickedLocation, rainfallStations, rainfallDataSource, selectedBoundary, neighbor, blockData]);
+
+        return () => {
+            ignore = true;
+            controller.abort();
+            clearTimeout(safetyTimeout);
+        };
+    }, [
+        isRainfall, displayRegion, displayBlock,
+        globalFilters?.gramPanchayat, globalFilters?.village,
+        globalFilters?.dataRangeStart, globalFilters?.dataRangeEnd, globalFilters?.timestep,
+        rainfallStations?.length, rainfallDataSource, selectedBoundary, neighbor, blockData, dynamicBoundaries?.length, rajasthanId, apiRetryCount
+    ]);
 
     return {
         rainfallStatsData,
         rainfallSummaryData,
+        intersectingStationIds,
         rainfallLoading: parentRainfallLoading || rainfallLoading,
         rainfallError
     };

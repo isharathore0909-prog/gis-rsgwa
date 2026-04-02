@@ -1,7 +1,8 @@
 import { RAJASTHAN_DAMS_DATA } from '../data/damsData';
 import { getPolygonCentroid } from './mapUtils';
+import { filterGeoJsonByBoundary } from './spatialFilters';
 
-export const getAttributeData = (filters, processedBlockData, neighbors, rainfallPoints, waterQualityRecords, aquiferRecords, selectedDams, canalData, waterbodyData, microData, rainfallStations, rainfallStationRecords) => {
+export const getAttributeData = (filters, processedBlockData, neighbors, rainfallPoints, waterQualityRecords, aquiferRecords, selectedDams, canalData, waterbodyData, microData, rainfallStations, rainfallStationRecords, intersectingStationIds, rainfallStats, selectedBoundary) => {
     if (!filters || !filters.type) return null;
 
     if (filters.type === 'Ground Water Resource Estimation') {
@@ -110,71 +111,81 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
                         geometry: geometry
                     };
                 }).filter(f => f !== null && f.geometry !== null);
-                combinedFeatures = [...combinedFeatures, ...damFeatures];
+
+                // Use spatial filter to handle GP/Village hierarchy even if names aren't in damsData
+                const filteredDams = filterGeoJsonByBoundary({ type: 'FeatureCollection', features: damFeatures }, selectedBoundary, {
+                    field: 'District',
+                    value: filters.district,
+                    block: filters.block
+                });
+                combinedFeatures = [...combinedFeatures, ...filteredDams.features];
             }
         }
 
         if (filters.showCanals && canalData?.features) {
-            const canalFeatures = canalData.features
-                .filter(f => {
-                    if (!filters.district) return true;
-                    const dist = (f.properties.DIST_NAME || f.properties.District || f.properties.DISTRICT || '').toLowerCase();
-                    return dist === filters.district.toLowerCase();
-                })
-                .map((f, idx) => ({
-                    ...f,
-                    id: f.id || `canal-${idx}`,
-                    properties: {
-                        ...f.properties,
-                        'Category': 'Canal',
-                        'Name': f.properties.NAME || f.properties.Name || 'Unnamed Canal',
-                        'District': f.properties.DIST_NAME || f.properties.District || f.properties.DISTRICT || '-',
-                        'Type': f.properties.TYPE || f.properties.Type || 'Canal'
-                    }
-                }));
+            const filteredCanals = filterGeoJsonByBoundary(canalData, selectedBoundary, {
+                field: 'District',
+                value: filters.district,
+                block: filters.block,
+                gp: filters.gramPanchayat
+            });
+
+            const canalFeatures = filteredCanals.features.map((f, idx) => ({
+                ...f,
+                id: f.id || `canal-${idx}`,
+                properties: {
+                    ...f.properties,
+                    'Category': 'Canal',
+                    'Name': f.properties.NAME || f.properties.Name || 'Unnamed Canal',
+                    'District': f.properties.DIST_NAME || f.properties.District || f.properties.DISTRICT || '-',
+                    'Type': f.properties.TYPE || f.properties.Type || 'Canal'
+                }
+            }));
             combinedFeatures = [...combinedFeatures, ...canalFeatures];
         }
 
         if (filters.showWaterbodies && waterbodyData?.features) {
-            const waterbodyFeatures = waterbodyData.features
-                .filter(f => {
-                    if (!filters.district) return true;
-                    const dist = (f.properties.DIST_NAME || f.properties.District || f.properties.DISTRICT || '').toLowerCase();
-                    return dist === filters.district.toLowerCase();
-                })
-                .map((f, idx) => ({
-                    ...f,
-                    id: f.id || `wb-${idx}`,
-                    properties: {
-                        ...f.properties,
-                        'Category': 'Waterbody',
-                        'Name': f.properties.NAME || f.properties.Name || 'Unnamed Waterbody',
-                        'District': f.properties.DIST_NAME || f.properties.District || f.properties.DISTRICT || '-',
-                        'Type': f.properties.TYPE || f.properties.Type || 'Waterbody'
-                    }
-                }));
+            const filteredWaterbodies = filterGeoJsonByBoundary(waterbodyData, selectedBoundary, {
+                field: 'District',
+                value: filters.district,
+                block: filters.block,
+                gp: filters.gramPanchayat
+            });
+
+            const waterbodyFeatures = filteredWaterbodies.features.map((f, idx) => ({
+                ...f,
+                id: f.id || `wb-${idx}`,
+                properties: {
+                    ...f.properties,
+                    'Category': 'Waterbody',
+                    'Name': f.properties.NAME || f.properties.Name || 'Unnamed Waterbody',
+                    'District': f.properties.DIST_NAME || f.properties.District || f.properties.DISTRICT || '-',
+                    'Type': f.properties.TYPE || f.properties.Type || 'Waterbody'
+                }
+            }));
             combinedFeatures = [...combinedFeatures, ...waterbodyFeatures];
         }
 
         if (filters.showMicro && microData?.features) {
-            const microFeatures = microData.features
-                .filter(f => {
-                    if (!filters.district) return true;
-                    const dist = (f.properties.District || f.properties.DISTRICT || '').toLowerCase();
-                    return dist === filters.district.toLowerCase();
-                })
-                .map((f, idx) => ({
-                    ...f,
-                    id: f.id || `micro-${idx}`,
-                    properties: {
-                        ...f.properties,
-                        'Category': 'Micro Structure',
-                        'Name': f.properties.Name || 'Unnamed Structure',
-                        'District': f.properties.District || '-',
-                        'Block': f.properties.Block || '-',
-                        'Village': f.properties.Village || '-'
-                    }
-                }));
+            const filteredMicro = filterGeoJsonByBoundary(microData, selectedBoundary, {
+                field: 'District',
+                value: filters.district,
+                block: filters.block,
+                village: filters.village
+            });
+
+            const microFeatures = filteredMicro.features.map((f, idx) => ({
+                ...f,
+                id: f.id || `micro-${idx}`,
+                properties: {
+                    ...f.properties,
+                    'Category': 'Micro Structure',
+                    'Name': f.properties.Name || 'Unnamed Structure',
+                    'District': f.properties.District || '-',
+                    'Block': f.properties.Block || '-',
+                    'Village': f.properties.Village || '-'
+                }
+            }));
             combinedFeatures = [...combinedFeatures, ...microFeatures];
         }
 
@@ -201,7 +212,12 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
             }, {});
 
             const stationFeatures = rainfallStations.filter(station => {
-                // Apply manual filters to stations if needed
+                // If we have precise intersecting station IDs from the analysis hook, use them!
+                if (intersectingStationIds && intersectingStationIds.length > 0) {
+                    return intersectingStationIds.includes(station.id) || intersectingStationIds.includes(station.station_id);
+                }
+
+                // Fallback to district filter if no precise IDs available
                 if (filters.district) {
                     return (station.district || '').toUpperCase() === filters.district.toUpperCase();
                 }
@@ -212,6 +228,12 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
                 // Calculate stats
                 const totalRainfall = sRecords.reduce((sum, r) => sum + (r.rainfall_mm || 0), 0);
                 const avgRainfall = sRecords.length > 0 ? totalRainfall / sRecords.length : 0;
+
+                // Sync count with backend stats if we only have one station selected (common case for Block/GP)
+                let recordCount = sRecords.length;
+                if (recordCount > 0 && rainfallStats?.count && (intersectingStationIds?.length === 1 || rainfallStats?.stationNames?.includes(station.name))) {
+                    recordCount = rainfallStats.count;
+                }
 
                 // Get latest record
                 const latestRecord = sRecords.length > 0
@@ -229,7 +251,7 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
                         'Latest Rainfall (mm)': latestRecord ? Number(latestRecord.rainfall_mm).toFixed(2) : '0.00',
                         'Total Rainfall (mm)': totalRainfall.toFixed(2),
                         'Avg Rainfall (mm)': avgRainfall.toFixed(2),
-                        'Record Count': sRecords.length
+                        'Record Count': recordCount
                     },
                     geometry: {
                         type: 'Point',
@@ -338,13 +360,13 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
                     'Village': p.village_details?.name || p.village_name || '-',
                     'Aquifer': p.aquifer || '-',
                     'Depth (m)': p.well_depth || '-',
-                    'Static WL': p.static_water_level || '-'
+                    'Static WL': p.pre_2024 || p.pst_2024 || p.latest_pre?.value || p.latest_pst?.value || '-'
                 };
 
-                // Add year-wise water level data
+                // Add year-wise water level data using standard backend keys (underscores)
                 for (let year = 2015; year <= 2024; year++) {
-                    props[`Pre ${year}`] = p[`pre_${year}`] || '-';
-                    props[`Post ${year}`] = p[`pst_${year}`] || '-';
+                    props[`pre_${year}`] = p[`pre_${year}`] || '-';
+                    props[`pst_${year}`] = p[`pst_${year}`] || '-';
                 }
 
                 return {

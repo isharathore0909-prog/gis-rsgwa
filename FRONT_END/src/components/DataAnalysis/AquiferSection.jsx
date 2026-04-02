@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import AnalysisCard from './Common/AnalysisCard';
 import SmartChartContainer from './Common/SmartChartContainer';
+import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 import './AquiferSection.css';
 
 // Custom tooltip for the aquifer bar chart
@@ -58,16 +59,11 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
 
     if (isLoading) {
         return (
-            <div className="aquifer-section">
-                <AnalysisCard style={{ textAlign: 'center', padding: '3rem', marginTop: '1rem' }}>
-                    <div className="aq-spinner-wrap">
-                        <div className="aq-spinner"></div>
-                        <h3 style={{ color: '#64748b', marginBottom: '0.5rem' }}>Loading Aquifer Data...</h3>
-                        <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-                            Spatially intersecting aquifer layer with selected boundary...
-                        </p>
-                    </div>
-                </AnalysisCard>
+            <div className="aquifer-section" style={{ position: 'relative', minHeight: '300px' }}>
+                <GlassLoadingOverlay
+                    message="Exploring Aquifers..."
+                    subtext="Analyzing subterranean geological formations"
+                />
             </div>
         );
     }
@@ -142,7 +138,7 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
                             <span className="aq-stat-label">{hasArea ? 'Total Area' : 'Total Features'}</span>
                         </div>
                         <div className="aq-stat-chip">
-                            <span className="aq-stat-value">{aquiferData[0]?.name?.split(' ').slice(0, 2).join(' ')}</span>
+                            <span className="aq-stat-value">{aquiferData[0]?.name}</span>
                             <span className="aq-stat-label">Dominant Type</span>
                         </div>
                     </div>
@@ -177,6 +173,7 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
                                     barSize={22}
                                     radius={[0, 6, 6, 0]}
                                     minPointSize={2}
+                                    isAnimationActive={false}
                                     label={{
                                         position: 'right',
                                         formatter: (v) => `${Number(v).toFixed(1)}%`,

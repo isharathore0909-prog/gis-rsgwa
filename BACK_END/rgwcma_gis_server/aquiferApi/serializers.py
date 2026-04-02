@@ -168,3 +168,21 @@ class YearDataSerializer(serializers.Serializer):
     pre_monsoon = serializers.FloatField(allow_null=True)
     post_monsoon = serializers.FloatField(allow_null=True)
     seasonal_change = serializers.FloatField(allow_null=True)
+
+class AquiferMapSerializer(serializers.ModelSerializer):
+    """Ultra-slim serializer for map markers to minimize performance impact"""
+    village_name = serializers.CharField(source='village.name', read_only=True)
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AquiferData
+        fields = ['id', 'well_id', 'latitude', 'longitude', 'village_name', 'aquifer']
+
+    def get_latitude(self, obj):
+        if obj.latitude: return obj.latitude
+        return obj.village.latitude if obj.village else None
+    
+    def get_longitude(self, obj):
+        if obj.longitude: return obj.longitude
+        return obj.village.longitude if obj.village else None

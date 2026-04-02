@@ -8,9 +8,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import RechargeStructure
 from .serializers import RechargeStructureSerializer
 from locationApi.models import Village
-
 from core.filters import HierarchicalLocationFilterBackend
-
+from core.services.cache_utils import build_cache_key
 from django.core.cache import cache
 
 
@@ -72,9 +71,7 @@ class RechargeStructureViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Optimized statistical analysis using database grouping and caching."""
-        # Generate robust cache key from all relevant query params
-        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
-        cache_key = f"recharge_stats_{'_'.join(loc_params) if loc_params else 'all'}"
+        cache_key = build_cache_key("recharge_stats", request)
         cached_res = cache.get(cache_key)
         if cached_res:
             return Response(cached_res)

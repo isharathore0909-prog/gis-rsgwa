@@ -110,7 +110,8 @@ def calculate_water_quality_stats(queryset, model):
         try:
             model._meta.get_field(field)
             aggregation_params[f'avg_{field}'] = avg_agg
-            aggregation_params[f'count_{field}_exceedance'] = exc_agg # Rename for clarity
+            # Ensure name matches frontend expectation (no count_ prefix)
+            aggregation_params[f'{field}_exceedance'] = exc_agg
         except: pass
 
     stats = queryset.aggregate(**aggregation_params)

@@ -12,6 +12,7 @@ import {
     Line
 } from 'recharts';
 import AnalysisCard from './Common/AnalysisCard';
+import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 import './RechargeStructureSection.css';
 
 const RechargeStructureSection = ({ displayRegion, displayBlock, stats, isLoading, isExpanded }) => {
@@ -29,11 +30,11 @@ const RechargeStructureSection = ({ displayRegion, displayBlock, stats, isLoadin
 
     if (isLoading) {
         return (
-            <div className="recharge-section">
-                <AnalysisCard style={{ textAlign: 'center', padding: '3rem', marginTop: '1rem' }}>
-                    <div className="loading-spinner"></div>
-                    <p style={{ color: '#94a3b8', marginTop: '1rem' }}>Fetching recharge structure data...</p>
-                </AnalysisCard>
+            <div className="recharge-section" style={{ position: 'relative', minHeight: '300px' }}>
+                <GlassLoadingOverlay
+                    message="Indexing Structures"
+                    subtext="Retrieving recharge infrastructure data"
+                />
             </div>
         );
     }

@@ -1,9 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import api from '../../api';
 import {
-    DISTRICT_QUALITY_DATA,
-    getBlockWaterQuality,
-    getDistrictWaterQuality,
     checkWaterQualityStatus,
     calculateWQI
 } from '../../data/blockWaterQualityData';
@@ -13,28 +10,30 @@ export const useWaterQualityAnalysis = ({
     globalFilters,
     displayRegion,
     displayBlock,
-    neighbor
+    neighbor,
+    rajasthanId
 }) => {
     const [waterQualityStats, setWaterQualityStats] = useState(null);
     const [waterQualityAvailability, setWaterQualityAvailability] = useState(null);
     const [waterQualityLoading, setWaterQualityLoading] = useState(true);
     const [waterQualityError, setWaterQualityError] = useState(null);
+    const [apiRetryCount, setApiRetryCount] = useState(0);
     const lastWQParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village });
 
-    // Sync loading state to filter changes during render phase to avoid "No Data" flash
-    if (isWaterQuality && (
-        lastWQParams.current.displayRegion !== displayRegion ||
-        lastWQParams.current.displayBlock !== displayBlock ||
-        lastWQParams.current.gp !== globalFilters?.gramPanchayat ||
-        lastWQParams.current.v !== globalFilters?.village
-    )) {
-        if (!waterQualityLoading) {
-            setWaterQualityLoading(true);
+    // Sync loading state to filter changes via effect to avoid double-loading
+    useEffect(() => {
+        if (isWaterQuality && (
+            lastWQParams.current.displayRegion !== displayRegion ||
+            lastWQParams.current.displayBlock !== displayBlock ||
+            lastWQParams.current.gp !== globalFilters?.gramPanchayat ||
+            lastWQParams.current.v !== globalFilters?.village
+        )) {
             setWaterQualityStats(null);
             setWaterQualityAvailability(null);
+            setWaterQualityLoading(true);
+            lastWQParams.current = { displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village };
         }
-        lastWQParams.current = { displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village };
-    }
+    }, [isWaterQuality, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village]);
 
     const qualityData = useMemo(() => {
         if (waterQualityStats?.summary) {
@@ -54,49 +53,17 @@ export const useWaterQualityAnalysis = ({
             ].filter(d => d.value > 0 || ['E.C.', 'Fluoride', 'Nitrate'].includes(d.subject));
         }
 
-        if (displayRegion && DISTRICT_QUALITY_DATA[displayRegion]) {
-            const q = DISTRICT_QUALITY_DATA[displayRegion];
-            return [
-                { subject: 'E.C.', value: q.ec_exceedance || q.ec || 0, label: '> 3000 µS/cm' },
-                { subject: 'Fluoride', value: q.fluoride_exceedance || q.fluoride || 0, label: '> 1.5 mg/l' },
-                { subject: 'Nitrate', value: q.nitrate_exceedance || q.nitrate || 0, label: '> 45 mg/l' },
-                { subject: 'Hardness', value: q.hardness_exceedance || q.hardness || 0, label: '> 600 mg/l' },
-                { subject: 'Iron', value: q.iron_exceedance || q.iron || 0, label: '> 1.0 mg/l' },
-                { subject: 'Arsenic', value: q.arsenic_exceedance || q.arsenic || 0, label: '> 0.01 mg/l' }
-            ];
-        }
-
-        const values = Object.values(DISTRICT_QUALITY_DATA);
-        if (values.length === 0) return [];
-
-        const sum = values.reduce((acc, curr) => ({
-            ec: acc.ec + curr.ec,
-            fluoride: acc.fluoride + curr.fluoride,
-            nitrate: acc.nitrate + curr.nitrate,
-            iron: acc.iron + curr.iron,
-            arsenic: acc.arsenic + curr.arsenic,
-            uranium: acc.uranium + curr.uranium
-        }), { ec: 0, fluoride: 0, nitrate: 0, iron: 0, arsenic: 0, uranium: 0 });
-
-        const count = values.length;
-        return [
-            { subject: 'E.C.', value: Math.round(sum.ec / count), label: '> 3000 µS/cm' },
-            { subject: 'Fluoride', value: Math.round(sum.fluoride / count), label: '> 1.5 mg/l' },
-            { subject: 'Nitrate', value: Math.round(sum.nitrate / count), label: '> 45 mg/l' },
-            { subject: 'Iron', value: Math.round(sum.iron / count), label: '> 1.0 mg/l' },
-            { subject: 'Arsenic', value: Math.round(sum.arsenic / count), label: '> 0.01 mg/l' },
-            { subject: 'Uranium', value: Math.round(sum.uranium / count), label: '> 30 ppb' }
-        ];
+        return [];
     }, [displayRegion, waterQualityStats]);
 
     useEffect(() => {
         let ignore = false;
-        if (!isWaterQuality) {
-            setWaterQualityStats(null);
-            return;
-        }
 
         const fetchWaterQuality = async () => {
+            if (!rajasthanId) {
+                setWaterQualityLoading(false);
+                return;
+            }
             setWaterQualityLoading(true);
             setWaterQualityError(null);
             try {
@@ -123,14 +90,28 @@ export const useWaterQualityAnalysis = ({
                 ]);
 
                 if (!ignore) {
-                    setWaterQualityStats(stats);
-                    setWaterQualityAvailability(availability || null);
+                    setWaterQualityStats(prev => {
+                        if (JSON.stringify(prev) === JSON.stringify(stats)) return prev;
+                        return stats;
+                    });
+                    setWaterQualityAvailability(prev => {
+                        if (JSON.stringify(prev) === JSON.stringify(availability)) return prev;
+                        return availability || null;
+                    });
                 }
             } catch (error) {
                 if (!ignore) {
                     console.error('Error fetching water quality data:', error);
-                    setWaterQualityError(error.message);
-                    setWaterQualityStats(null);
+                    // If backend returned connection error, retry after a delay
+                    if (apiRetryCount < 3 && (!error.response || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error'))) {
+                        const delay = 5000 * (apiRetryCount + 1);
+                        setTimeout(() => {
+                            if (!ignore) setApiRetryCount(prev => prev + 1);
+                        }, delay);
+                    } else {
+                        setWaterQualityError(error.message);
+                        setWaterQualityStats(null);
+                    }
                 }
             } finally {
                 if (!ignore) {
@@ -141,7 +122,7 @@ export const useWaterQualityAnalysis = ({
 
         fetchWaterQuality();
         return () => { ignore = true; };
-    }, [isWaterQuality, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, neighbor?.well_id]);
+    }, [isWaterQuality, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, neighbor?.well_id, rajasthanId, apiRetryCount]);
 
     const blockWaterQualityData = useMemo(() => {
         if (isWaterQuality && neighbor?.type === 'water_quality_well') {
@@ -158,7 +139,7 @@ export const useWaterQualityAnalysis = ({
             };
         }
 
-        if (isWaterQuality && waterQualityStats?.summary && waterQualityStats.summary.total_records > 0) {
+        if (waterQualityStats?.summary && waterQualityStats.summary.total_records > 0) {
             const summary = waterQualityStats.summary;
             const regionName = displayRegion || 'Rajasthan';
             const bData = {
@@ -184,24 +165,7 @@ export const useWaterQualityAnalysis = ({
             };
         }
 
-        if (!displayRegion) return null;
-
-        let normalizedRegion = displayRegion;
-        if (normalizedRegion.includes('Ganganagar')) normalizedRegion = 'Ganganagar';
-
-        if (displayBlock) {
-            const bData = getBlockWaterQuality(normalizedRegion, displayBlock);
-            if (bData) {
-                return {
-                    ...bData,
-                    status: checkWaterQualityStatus(bData),
-                    wqi: calculateWQI(bData)
-                };
-            }
-            return { isNoData: true, block: displayBlock };
-        } else {
-            return getDistrictWaterQuality(normalizedRegion);
-        }
+        return { isNoData: true, block: displayBlock || displayRegion || 'Rajasthan' };
     }, [displayRegion, displayBlock, isWaterQuality, waterQualityStats, neighbor]);
 
     return {

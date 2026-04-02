@@ -6,6 +6,7 @@ import {
 import AnalysisCard from './Common/AnalysisCard';
 import MiniStatusCard from './Common/MiniStatusCard';
 import SmartChartContainer from './Common/SmartChartContainer';
+import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 import { calculateLinearTrendLine } from '../../utils/statsUtils';
 import './RainfallSection.css';
 
@@ -53,18 +54,23 @@ const RainfallSection = ({
         };
 
         const grouped = rainfallPoints.reduce((acc, curr) => {
-            const date = parseDate(curr.date || curr.rainfall_date);
+            // Support both backend 'ts' and frontend 'date'/'rainfall_date'
+            const rawDate = curr.ts || curr.date || curr.rainfall_date;
+            const date = parseDate(rawDate);
             if (!date) return acc;
 
             let key;
-            if (viewType === 'daily') key = curr.date || curr.rainfall_date;
+            if (viewType === 'daily') key = rawDate.toString().split('T')[0];
             else if (viewType === 'monthly') key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
             else if (viewType === 'yearly' || viewType === 'seasonal') key = `${date.getFullYear()}`;
             else return acc;
 
-            if (!acc[key]) acc[key] = { name: key, total: 0, monsoonTotal: 0, nonMonsoonTotal: 0, uniqueIds: new Set() };
-            const val = (curr.rainfall_mm || curr.rainfall_in_mm || 0);
+            if (!acc[key]) acc[key] = { name: key, total: 0, monsoonTotal: 0, nonMonsoonTotal: 0, count: 0, uniqueIds: new Set() };
+
+            // Support both backend 'rainfall' and frontend 'rainfall_mm'
+            const val = (curr.rainfall ?? curr.rainfall_mm ?? curr.rainfall_in_mm ?? 0);
             acc[key].total += val;
+            acc[key].count += 1;
 
             const month = date.getMonth() + 1; // 1-indexed
             if ([6, 7, 8, 9].includes(month)) {
@@ -73,17 +79,21 @@ const RainfallSection = ({
                 acc[key].nonMonsoonTotal += val;
             }
 
-            acc[key].uniqueIds.add(getUniqueId(curr));
+            const id = getUniqueId(curr);
+            if (id) acc[key].uniqueIds.add(id);
             return acc;
         }, {});
 
         const results = Object.values(grouped)
-            .map(d => ({
-                ...d,
-                average: d.uniqueIds.size > 0 ? parseFloat((d.total / d.uniqueIds.size).toFixed(2)) : 0,
-                monsoon: d.uniqueIds.size > 0 ? parseFloat((d.monsoonTotal / d.uniqueIds.size).toFixed(2)) : 0,
-                non_monsoon: d.uniqueIds.size > 0 ? parseFloat((d.nonMonsoonTotal / d.uniqueIds.size).toFixed(2)) : 0
-            }))
+            .map(d => {
+                const divisor = d.uniqueIds.size > 0 ? d.uniqueIds.size : (d.count || 1);
+                return {
+                    ...d,
+                    average: parseFloat((d.total / divisor).toFixed(2)),
+                    monsoon: parseFloat((d.monsoonTotal / divisor).toFixed(2)),
+                    non_monsoon: parseFloat((d.nonMonsoonTotal / divisor).toFixed(2))
+                };
+            })
             .sort((a, b) => {
                 if (viewType === 'daily') return new Date(a.name) - new Date(b.name);
                 return a.name.localeCompare(b.name);
@@ -120,26 +130,35 @@ const RainfallSection = ({
         return sum / aggregatedData.length;
     }, [aggregatedData]);
 
-    if (isLoading || !rainfallStats) {
+    const title = useMemo(() => {
+        if (rainfallStats?.isNearbyData) return `Rainfall Overview: Nearby Data (${rainfallStats.radius_km}km radius)`;
+
+        let label = (analysisLevel === 'State' || !displayRegion) ? 'Statewide' : displayRegion;
+        if (rainfallStats?.isFallback && rainfallStats?.stationNames?.length > 0) {
+            label = `${label} (Station: ${rainfallStats.stationNames[0]})`;
+        }
+        return `Rainfall Overview: ${label}`;
+    }, [rainfallStats, analysisLevel, displayRegion]);
+
+    if (isLoading) {
         return (
-            <div className="rainfall-grid animated-entry">
-                <AnalysisCard className="full-width-card centered-loading">
-                    <div className="spinner"></div>
-                    <h3>Analyzing Rainfall Patterns</h3>
-                    <p>Fetching historical records and calculating trends for <strong>{displayRegion || 'Rajasthan'}</strong>...</p>
-                </AnalysisCard>
+            <div className="rainfall-grid animated-entry" style={{ position: 'relative', minHeight: '300px' }}>
+                <GlassLoadingOverlay
+                    message="Analyzing Rainfall Patterns"
+                    subtext={`Fetching records for ${displayRegion || 'Rajasthan'}`}
+                />
             </div>
         );
     }
 
-    const hasNoData = propViewType === 'loading' || rainfallStats?.isEmpty;
+    const hasNoData = !rainfallStats || rainfallStats?.isEmpty || (rainfallStats && !rainfallStats.count && !rainfallStats.average && !rainfallStats.total);
     if (hasNoData) {
         return (
             <div className="rainfall-grid animated-entry">
                 <AnalysisCard className="full-width-card centered-loading">
-                    <div className="spinner"></div>
-                    <h3>Loading data...</h3>
-                    <p>Processing historical records and calculating trends for <strong>{displayRegion || 'Rajasthan'}</strong>...</p>
+                    <span style={{ fontSize: '2rem' }}>📊</span>
+                    <h3>No Rainfall Data Found</h3>
+                    <p>We couldn't find any historical rainfall records for <strong>{displayRegion || 'this selection'}</strong>. Try a different region or time range.</p>
                 </AnalysisCard>
             </div>
         );
@@ -147,11 +166,7 @@ const RainfallSection = ({
 
     return (
         <div className="rainfall-grid animated-entry">
-            <AnalysisCard title={
-                rainfallStats?.isNearbyData
-                    ? `Rainfall Overview: Nearby Data (${rainfallStats.radius_km}km radius)`
-                    : `Rainfall Overview: ${analysisLevel === 'State' ? 'Statewide' : displayRegion}`
-            }>
+            <AnalysisCard title={title}>
                 <div className="status-summary-grid">
                     <MiniStatusCard
                         value={`${computedAverage.toFixed(2)} mm`}
@@ -167,7 +182,6 @@ const RainfallSection = ({
                     <MiniStatusCard value={`${Number(rainfallStats?.max ?? 0).toFixed(2)} mm`} label="Highest Record" color="#94a3b8" />
                 </div>
             </AnalysisCard>
-
             <AnalysisCard title={
                 viewType === 'seasonal'
                     ? 'Monsoon vs Non-Monsoon Trend (mm)'
@@ -193,23 +207,41 @@ const RainfallSection = ({
                         <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                         {viewType === 'seasonal' ? (
                             <>
-                                <Bar dataKey="monsoon" name="Monsoon (Jun-Sep)" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                                <Bar
+                                    dataKey="monsoon"
+                                    name="Monsoon (Jun-Sep)"
+                                    fill="#3b82f6"
+                                    radius={[4, 4, 0, 0]}
+                                    isAnimationActive={false}
+                                >
                                     <LabelList dataKey="monsoon" position="top" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 600 }} formatter={(val) => Math.round(val)} />
                                 </Bar>
-                                <Bar dataKey="non_monsoon" name="Non-Monsoon" fill="#f4a261" radius={[4, 4, 0, 0]}>
+                                <Bar
+                                    dataKey="non_monsoon"
+                                    name="Non-Monsoon"
+                                    fill="#f4a261"
+                                    radius={[4, 4, 0, 0]}
+                                    isAnimationActive={false}
+                                >
                                     <LabelList dataKey="non_monsoon" position="top" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 600 }} formatter={(val) => Math.round(val)} />
                                 </Bar>
-                                <Line type="monotone" dataKey="monsoonTrend" name="Monsoon Trend" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeWidth={2} />
-                                <Line type="monotone" dataKey="nonMonsoonTrend" name="Non-Monsoon Trend" stroke="#e67e22" strokeDasharray="5 5" dot={false} strokeWidth={2} />
+                                <Line type="monotone" dataKey="monsoonTrend" name="Monsoon Trend" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeWidth={2} isAnimationActive={false} />
+                                <Line type="monotone" dataKey="nonMonsoonTrend" name="Non-Monsoon Trend" stroke="#e67e22" strokeDasharray="5 5" dot={false} strokeWidth={2} isAnimationActive={false} />
                             </>
                         ) : (
                             <>
-                                <Bar dataKey="average" name={viewType === 'yearly' ? 'Annual Rainfall' : 'Avg Rain (mm)'} fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                                <Bar
+                                    dataKey="average"
+                                    name={viewType === 'yearly' ? 'Annual Rainfall' : 'Avg Rain (mm)'}
+                                    fill="#3b82f6"
+                                    radius={[4, 4, 0, 0]}
+                                    isAnimationActive={false}
+                                >
                                     {viewType === 'yearly' && (
                                         <LabelList dataKey="average" position="top" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 600 }} formatter={(val) => Math.round(val)} />
                                     )}
                                 </Bar>
-                                <Line type="monotone" dataKey="trend" name="Linear Trend" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeWidth={2} />
+                                <Line type="monotone" dataKey="trend" name="Linear Trend" stroke="#ef4444" strokeDasharray="5 5" dot={false} strokeWidth={2} isAnimationActive={false} />
                             </>
                         )}
                     </ComposedChart>
@@ -248,7 +280,7 @@ const RainfallSection = ({
                     <div className="no-record-msg">No record available for this selection</div>
                 )}
             </AnalysisCard>
-        </div>
+        </div >
     );
 };
 

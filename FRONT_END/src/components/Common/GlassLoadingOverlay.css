@@ -1,0 +1,133 @@
+.glass-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all 0.3s ease;
+    border-radius: inherit;
+}
+
+.glass-loading-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 90%;
+    text-align: center;
+    animation: glassSlideUp 0.5s ease-out;
+}
+
+.glass-spinner-container {
+    position: relative;
+    width: 60px;
+    height: 60px;
+}
+
+.glass-spinner-outer {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 3px solid transparent;
+    border-top-color: #3b82f6;
+    border-right-color: #3b82f6;
+    border-radius: 50%;
+    animation: glassSpin 1s linear infinite;
+}
+
+.glass-spinner-inner {
+    position: absolute;
+    top: 15%;
+    left: 15%;
+    width: 70%;
+    height: 70%;
+    border: 3px solid transparent;
+    border-bottom-color: #60a5fa;
+    border-left-color: #60a5fa;
+    border-radius: 50%;
+    animation: glassSpinReverse 1.5s linear infinite;
+}
+
+.glass-loading-text h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #1e3a8a;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.glass-loading-text p {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.9rem;
+    color: #4b5563;
+}
+
+.glass-loading-subtext {
+    font-weight: 700;
+    color: #2563eb;
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+@keyframes glassSpin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes glassSpinReverse {
+    from {
+        transform: rotate(360deg);
+    }
+
+    to {
+        transform: rotate(0deg);
+    }
+}
+
+@keyframes glassSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Dark mode adjustments if needed */
+[data-theme='dark'] .glass-loading-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .glass-loading-text h3 {
+    color: #f1f5f9;
+}
+
+[data-theme='dark'] .glass-loading-text p {
+    color: #94a3b8;
+}

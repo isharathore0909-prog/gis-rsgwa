@@ -7,7 +7,7 @@
 
 // Backend API Configuration
 export const BACKEND_API = {
-    BASE_URL: 'http://rgwcma-gis.geoplanetsolution.in/api',
+    BASE_URL: 'http://127.0.0.1:8000/api',
     API_KEY: 'e32ebc1d-fe04-4bd7-9003-df5274c990e2',
     ENDPOINTS: {
         // Location endpoints
@@ -29,11 +29,13 @@ export const BACKEND_API = {
         RAINFALL_SUMMARY: '/rainfall/records/summary/',
         RAINFALL_NEARBY: '/rainfall/records/nearby/',
         RAINFALL_DISTRICT_WISE: '/rainfall/records/district_wise/',
+        RAINFALL_LOCATION_WISE: '/rainfall/records/location_wise/',
         RAINFALL_STATIONS: '/rainfall/station-records/stations/',
         RAINFALL_STATION_RECORDS: '/rainfall/station-records/',
         RAINFALL_STATION_STATISTICS: '/rainfall/station-records/statistics/',
         RAINFALL_STATION_SUMMARY: '/rainfall/station-records/summary/',
         RAINFALL_STATION_DISTRICT_WISE: '/rainfall/station-records/district_wise/',
+        RAINFALL_STATION_LOCATION_WISE: '/rainfall/station-records/location_wise/',
         WATER_QUALITY: '/water-quality/',
         WATER_QUALITY_STATISTICS: '/water-quality/statistics/',
         WATER_QUALITY_CONTOUR: '/water-quality/contour-map/',
@@ -60,14 +62,14 @@ export const BACKEND_API = {
 };
 
 // External Boundary API Configuration (Now Proxied through Backend)
-const BACKEND_URL_BASE = 'http://rgwcma-gis.geoplanetsolution.in/api';
+const BACKEND_URL_BASE = 'http://127.0.0.1:8000/api';
 
 export const EXTERNAL_API = {
     BASE_URL: BACKEND_URL_BASE,
     // When calling our proxy, we use our internal backend API key
     API_KEY: 'e32ebc1d-fe04-4bd7-9003-df5274c990e2',
     ENDPOINTS: {
-        BOUNDARY_BY_CODE: '/location/external-proxy/boundary-by-code/',
+        BOUNDARY_BY_CODE: '/location/boundary-by-code/',
         PINCODE: '/location/pincode/', // Already proxied in backend
         MULTIPLE_POINTS: '/location/external-proxy/mpinp/',
     }
@@ -76,9 +78,9 @@ export const EXTERNAL_API = {
 // API Request Configuration
 export const API_CONFIG = {
     TIMEOUT: 60000, // Increase to 60 seconds
-    RETRY_ATTEMPTS: 5, // Increased from 3
-    RETRY_DELAY: 1000, // 1 second base
-    MAX_RETRY_DELAY: 10000, // 10 seconds max backoff
+    RETRY_ATTEMPTS: 10, // Increased from 5 to 10 for better resilience during startup
+    RETRY_DELAY: 1000,
+    MAX_RETRY_DELAY: 15000, // 15 seconds max backoff
 };
 
 // Headers Configuration

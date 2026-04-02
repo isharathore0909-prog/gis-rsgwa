@@ -7,7 +7,7 @@ import DataAnalysisSidebar from './components/DataAnalysisSidebar';
 import MapView from './components/Map/MapView';
 
 // Hooks
-import { useBoundaryHierarchy, useAppLogic } from './hooks';
+import { useBoundaryHierarchy, useAppLogic, useDataAnalysis } from './hooks';
 
 // Styles
 import './App.css';
@@ -46,8 +46,27 @@ function AppContent() {
         selectedBoundary,
         selectedLevel,
         loading: boundariesLoading,
-        currentLevel
+        currentLevel,
+        hierarchy
     } = useBoundaryHierarchy(filters, rajasthanId);
+
+    // Lift analysis logic to share between Map and Sidebar
+    const analysisResults = useDataAnalysis({
+        globalFilters: filters,
+        clickedLocation,
+        neighbors,
+        selectedBoundary,
+        blockData: processedBlockData,
+        rainfallPoints,
+        rainfallStations,
+        rainfallStationRecords,
+        rainfallDataSource,
+        parentRainfallLoading: rainfallLoading,
+        parentWaterQualityLoading: waterQualityLoading,
+        parentAquiferLoading: aquiferLoading,
+        parentRechargeLoading: waterResourcesLoading,
+        rajasthanId // Pass the backend readiness signal
+    });
 
     // Memoize attribute data
     const attributeData = useMemo(() =>
@@ -55,9 +74,12 @@ function AppContent() {
             filters, processedBlockData, neighbors, rainfallPoints,
             waterQualityRecords, aquiferRecords, selectedDams,
             canalData, waterbodyData, microData,
-            rainfallStations, rainfallStationRecords
+            rainfallStations, rainfallStationRecords,
+            analysisResults?.intersectingStationIds,
+            analysisResults?.rainfallStats,
+            selectedBoundary
         ),
-        [filters, processedBlockData, neighbors, rainfallPoints, waterQualityRecords, aquiferRecords, selectedDams, canalData, waterbodyData, microData, rainfallStations, rainfallStationRecords]
+        [filters, processedBlockData, neighbors, rainfallPoints, waterQualityRecords, aquiferRecords, selectedDams, canalData, waterbodyData, microData, rainfallStations, rainfallStationRecords, analysisResults?.intersectingStationIds, analysisResults?.rainfallStats, selectedBoundary]
     );
 
     const onExportData = useCallback(async () => {
@@ -80,8 +102,40 @@ function AppContent() {
 
     const handleLocationClick = useCallback((latlng, data) => {
         setClickedLocation(latlng);
-        setNeighbors(data || []);
-    }, [setClickedLocation, setNeighbors]);
+
+        // Standardize data: markers often pass [record] instead of record
+        const rawItem = (Array.isArray(data) && data.length > 0) ? data[0] : (Array.isArray(data) ? null : data);
+
+        if (!rawItem) {
+            setNeighbors([]);
+            return;
+        }
+
+        // Resolve slim map markers to full historical records if available
+        let resolvedItem = rawItem;
+        const type = filters?.type;
+
+        if (type === 'Well Inventory' && aquiferRecords?.length > 0) {
+            const fullRecord = aquiferRecords.find(r =>
+                (r.id && r.id === rawItem.id) ||
+                (r.well_id && r.well_id === rawItem.well_id) ||
+                (r.well_id && r.well_id === rawItem.id) // Fallback for components that set id=well_id
+            );
+            if (fullRecord) {
+                resolvedItem = { ...fullRecord, type: 'well_inventory_well' };
+            }
+        } else if (type === 'Water Quality' && waterQualityRecords?.length > 0) {
+            const fullRecord = waterQualityRecords.find(r =>
+                (r.id && r.id === rawItem.id) ||
+                (r.well_id && r.well_id === rawItem.well_id)
+            );
+            if (fullRecord) {
+                resolvedItem = { ...fullRecord, type: 'water_quality_well' };
+            }
+        }
+
+        setNeighbors([resolvedItem]);
+    }, [setClickedLocation, setNeighbors, filters?.type, aquiferRecords, waterQualityRecords]);
 
     // Calculate dynamic empty message for AttributeTable
     const attributeTableEmptyMessage = useMemo(() => {
@@ -122,6 +176,7 @@ function AppContent() {
                             selectedBoundary={selectedBoundary}
                             selectedLevel={selectedLevel}
                             currentLevel={currentLevel}
+                            hierarchy={hierarchy}
                             rainfallPoints={rainfallPoints}
                             rainfallDataSource={rainfallDataSource}
                             rainfallStations={rainfallStations}
@@ -129,7 +184,7 @@ function AppContent() {
                             selectedWellInventory={selectedWellInventory}
                             onToggleWellInventory={handleToggleWellInventory}
                             isDataAnalysisSidebarHidden={hideSidebarForLayers}
-                            isLoading={boundariesLoading || rainfallLoading || waterQualityLoading || aquiferLoading || waterResourcesLoading}
+                            isLoading={boundariesLoading || rainfallLoading || waterQualityLoading || aquiferLoading || waterResourcesLoading || analysisResults.gwreLoading}
                             searchCoordinates={searchCoordinates}
                             exportTrigger={exportTrigger}
                             // Props that are still needed because MapView isn't fully context-ified yet
@@ -140,6 +195,9 @@ function AppContent() {
                             microData={microData}
                             canalData={canalData}
                             waterbodyData={waterbodyData}
+                            aquiferRecords={aquiferRecords}
+                            waterQualityRecords={waterQualityRecords}
+                            aquiferPolygons={analysisResults.aquiferPolygons}
                         />
                     </div>
 
@@ -185,6 +243,8 @@ function AppContent() {
                         waterQualityLoading={waterQualityLoading}
                         aquiferLoading={aquiferLoading}
                         rechargeLoading={waterResourcesLoading}
+                        analysisResults={analysisResults}
+                        dynamicBoundaries={dynamicBoundaries}
                     />
                 )}
             </div>

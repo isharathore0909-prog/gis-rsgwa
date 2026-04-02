@@ -80,10 +80,12 @@ export const BlockBoundaryLayer = React.memo(({
                     : null;
 
                 // Bind tooltip once
+                /*
                 layer.bindTooltip(`
                     <div style="font-weight:bold">${feature.properties.BLOCK_NAME || feature.properties.Block}</div>
                     ${displayVal ? `<div>${displayVal}</div>` : ''}
                 `, { sticky: true, className: 'custom-map-tooltip' });
+                */
 
                 layer.on({
                     click: e => {
@@ -106,6 +108,8 @@ export const BlockBoundaryLayer = React.memo(({
 export const DrillDownBoundariesLayer = ({
     data,
     filters,
+    legendFeature,
+    legendData,
     currentLevel,
     onFiltersApply,
     onLocationClick,
@@ -115,7 +119,7 @@ export const DrillDownBoundariesLayer = ({
 
     return (
         <GeoJSON
-            key={`dynamic-drill-${data.features.length}-${filters?.district}-${filters?.block}-${currentLevel}`}
+            key={`dynamic-drill-${data.features?.length || 0}-${filters?.district}-${filters?.block}-${filters?.gramPanchayat}-${filters?.village}-${currentLevel}`}
             ref={geoJsonRef}
             data={data}
             pointToLayer={(_, latlng) => L.circleMarker(latlng, {
@@ -134,13 +138,17 @@ export const DrillDownBoundariesLayer = ({
                 // Only show boundaries for the CURRENT level of exploration.
                 // If nothing selected -> show districts.
                 // If district selected -> show blocks.
-                // If block selected -> hide these boundaries (as selection highlight handles it).
+                // If block selected -> show gps.
+                // If gp selected -> show villages.
                 let isRelevantLevel = false;
                 if (!filters?.district) isRelevantLevel = isDist;
                 else if (!filters?.block) isRelevantLevel = isBlock;
+                else if (!filters?.gramPanchayat) isRelevantLevel = ['gp', 'GP', 'grampanchayat', 'gram_panchayat'].includes(level);
+                else isRelevantLevel = level === 'village' || level === 'VILLAGE';
 
                 // CRITICAL: Even if level matches, verify PARENT matches to prevent ghosts
                 // from the previous district/block showing at the wrong coordinates.
+                // This check only applies to block-level features when a district is selected.
                 if (isRelevantLevel && filters?.district && isBlock) {
                     const featDist = (feature.properties.DIST_NAME || feature.properties.District || feature.properties.district || '').toString().toUpperCase();
                     if (featDist && featDist.replace(/[^A-Z0-9]/g, '') !== filters.district.toUpperCase().replace(/[^A-Z0-9]/g, '')) {
@@ -158,11 +166,18 @@ export const DrillDownBoundariesLayer = ({
                     };
                 }
 
+                const isThematic = filters?.type === 'Rainfall';
+                let val;
+                if (isThematic && legendFeature) {
+                    val = feature.properties[legendFeature] ?? feature.properties.avg_rainfall;
+                }
+                const hasData = val !== null && val !== undefined && val !== "No Data";
+
                 return {
-                    fillColor: 'transparent',
-                    fillOpacity: 0,
-                    color: isDist ? '#1e40af' : '#059669', // Blue for Dist, Emerald for Block
-                    weight: isDist ? 2.5 : 2
+                    fillColor: isThematic ? (hasData ? getFeatureColor(val, legendData) : 'transparent') : 'transparent',
+                    fillOpacity: isThematic ? (hasData ? 0.75 : 0) : 0,
+                    color: isDist ? '#1e40af' : (isThematic ? '#64748b' : '#059669'),
+                    weight: isDist ? 2.5 : (isThematic ? 1 : 2)
                 };
             }}
             onEachFeature={(feature, layer) => {
@@ -175,15 +190,27 @@ export const DrillDownBoundariesLayer = ({
                 let isRelevantLevel = false;
                 if (!filters?.district) isRelevantLevel = level === 'district';
                 else if (!filters?.block) isRelevantLevel = level === 'block';
+                else if (!filters?.gramPanchayat) isRelevantLevel = ['gp', 'GP', 'grampanchayat', 'gram_panchayat'].includes(level);
+                else isRelevantLevel = level === 'village' || level === 'VILLAGE';
 
                 if (!isRelevantLevel) return;
 
                 // Bind tooltip with level info
+
+                const isThematic = filters?.type === 'Rainfall';
+                let val;
+                if (isThematic && legendFeature) {
+                    val = feature.properties[legendFeature] ?? feature.properties.avg_rainfall;
+                }
+                const displayVal = (isThematic && val !== null && val !== undefined) ? `${Number(val).toFixed(1)} mm` : null;
+
                 const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
                 layer.bindTooltip(`
                     <div style="font-size: 10px; color: #64748b; margin-bottom: 2px;">${levelLabel}</div>
                     <div style="font-weight: bold;">${name}</div>
-                `, { sticky: true });
+                    ${displayVal ? `<div>${displayVal}</div>` : ''}
+                `, { sticky: true, className: isThematic ? 'custom-map-tooltip' : '' });
+
                 layer.on({
                     click: e => {
                         if (onLocationClick) {
@@ -198,7 +225,7 @@ export const DrillDownBoundariesLayer = ({
                         if (!nextFilters.district) onFiltersApply({ ...nextFilters, district: name });
                         else if (!nextFilters.block) onFiltersApply({ ...nextFilters, block: name });
                         else if (!nextFilters.gramPanchayat) onFiltersApply({ ...nextFilters, gramPanchayat: name });
-                        else onFiltersApply({ ...nextFilters, village: name });
+                        else if (level === 'village' || level === 'VILLAGE') onFiltersApply({ ...nextFilters, village: name });
 
                         const bounds = e.target.getBounds();
                         if (bounds.isValid()) {

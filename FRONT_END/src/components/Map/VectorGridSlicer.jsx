@@ -3,6 +3,7 @@ import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { BACKEND_API } from '../../api/config';
 import { resolveAquiferDistrict } from '../../constants/districtAliases';
+import { filterGeoJsonByBoundary, getFeatureBbox } from '../../utils/spatialFilters';
 // Ensure leaflet.vectorgrid is imported
 // Side-effect import to attach to L.vectorGrid
 import 'leaflet.vectorgrid/dist/Leaflet.VectorGrid.bundled.js';
@@ -16,27 +17,6 @@ import 'leaflet.vectorgrid/dist/Leaflet.VectorGrid.bundled.js';
  */
 const dataCache = new Map();
 
-// ─── Geometry helpers ────────────────────────────────────────────────────────
-function computeBbox(feature) {
-    let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-    function walk(coords) {
-        if (!Array.isArray(coords)) return;
-        if (typeof coords[0] === 'number') {
-            const [lon, lat] = coords;
-            if (lon < minLon) minLon = lon;
-            if (lat < minLat) minLat = lat;
-            if (lon > maxLon) maxLon = lon;
-            if (lat > maxLat) maxLat = lat;
-        } else { coords.forEach(walk); }
-    }
-    walk(feature?.geometry?.coordinates);
-    return [minLon, minLat, maxLon, maxLat];
-}
-function bboxOverlap(a, b) {
-    if (!a || !b) return false;
-    return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 const VectorGridSlicer = ({ data, dataUrl, style, active, layerName, filter, onFeatureClick, onLoading }) => {
     const map = useMap();
@@ -139,57 +119,41 @@ const VectorGridSlicer = ({ data, dataUrl, style, active, layerName, filter, onF
             if (!filter || !filter.field || !filter.value) return geoData;
             if (!geoData.features || !Array.isArray(geoData.features)) return geoData;
 
-            const primaryField = filter.field;
-            const blockVal = filter.block?.toString().toUpperCase().trim();
+            // Use the centralized spatial filter utility
+            const filteredData = filterGeoJsonByBoundary(geoData, filter.boundary, filter);
 
-            // ── Pass 1: name-based filter ────────────────────────────────────
-            const resolvedFilterVal = (primaryField === 'New_Dist' || primaryField === 'DIST_NAME')
-                ? resolveAquiferDistrict(filter.value)
-                : filter.value.toString().toUpperCase().trim();
+            // If we have no features after filtering, it might be due to a district name mismatch 
+            // especially for new districts. Try the spatial BBox fallback for the district if needed.
+            if (filteredData.features.length === 0 && !filter.boundary) {
+                try {
+                    const distGeoJSON = dataCache.get('__district__') ||
+                        await fetch('/district.geojson').then(r => r.ok ? r.json() : null);
+                    if (distGeoJSON) dataCache.set('__district__', distGeoJSON);
 
-            const applyBlockFilter = (features) => {
-                if (!blockVal) return features;
-                return features.filter(f => {
-                    const p = f.properties;
-                    const bVal = p.BLOCK_NAME || p.Block || p.BLOCK || p.block_name || p.taluka;
-                    return bVal ? bVal.toString().toUpperCase().trim() === blockVal : true;
-                });
-            };
+                    const resolvedFilterVal = resolveAquiferDistrict(filter.value);
+                    const distFeature = distGeoJSON?.features?.find(f => {
+                        const n = (f.properties?.New_Dist || '').toString().toUpperCase().trim();
+                        return n === filter.value.toString().toUpperCase().trim() || n === resolvedFilterVal;
+                    });
 
-            const nameMatches = geoData.features.filter(f => {
-                const props = f.properties;
-                const distVal = props[primaryField] || props.DIST_NAME || props.District
-                    || props.DISTRICT || props.district || props.DIST_N;
-                return distVal && distVal.toString().toUpperCase().trim() === resolvedFilterVal;
-            });
+                    if (distFeature) {
+                        const distBbox = getFeatureBbox(distFeature);
+                        const bboxMatches = geoData.features.filter(f => {
+                            const fBox = getFeatureBbox(f);
+                            if (!fBox || !distBbox) return false;
 
-            if (nameMatches.length > 0) {
-                return { ...geoData, features: applyBlockFilter(nameMatches) };
-            }
-
-            // ── Pass 2: spatial bbox overlap fallback ────────────────────────
-            try {
-                const distGeoJSON = dataCache.get('__district__') ||
-                    await fetch('/district.geojson').then(r => r.ok ? r.json() : null);
-                if (distGeoJSON) dataCache.set('__district__', distGeoJSON);
-
-                const distNameUpper = filter.value.toString().toUpperCase().trim();
-                const distFeature = distGeoJSON?.features?.find(f => {
-                    const n = (f.properties?.New_Dist || '').toString().toUpperCase().trim();
-                    return n === distNameUpper || n === resolvedFilterVal;
-                });
-
-                if (distFeature) {
-                    const distBbox = computeBbox(distFeature);
-                    const bboxMatches = geoData.features.filter(f => bboxOverlap(computeBbox(f), distBbox));
-                    return { ...geoData, features: applyBlockFilter(bboxMatches) };
+                            // Check for overlap [minX, minY, maxX, maxY]
+                            return distBbox[0] <= fBox[2] && distBbox[2] >= fBox[0] &&
+                                distBbox[1] <= fBox[3] && distBbox[3] >= fBox[1];
+                        });
+                        return { ...geoData, features: bboxMatches };
+                    }
+                } catch (e) {
+                    console.warn('[VectorGridSlicer] Spatial bbox fallback failed:', e);
                 }
-            } catch (e) {
-                console.warn('[VectorGridSlicer] Spatial bbox fallback failed:', e);
             }
 
-            // Nothing found — return empty so the layer clears
-            return { ...geoData, features: [] };
+            return filteredData;
         };
 
         const fetchAndRender = async () => {

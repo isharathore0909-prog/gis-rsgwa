@@ -7,10 +7,12 @@ export const useRechargeAnalysis = ({
     analysisName,
     globalFilters,
     displayRegion,
-    displayBlock
+    displayBlock,
+    rajasthanId
 }) => {
     const [rechargeStats, setRechargeStats] = useState(null);
     const [rechargeLoading, setRechargeLoading] = useState(true);
+    const [apiRetryCount, setApiRetryCount] = useState(0);
     const lastRechargeParams = useRef({ level: analysisLevel, name: analysisName });
 
     useEffect(() => {
@@ -21,6 +23,10 @@ export const useRechargeAnalysis = ({
         }
 
         const fetchRechargeStats = async () => {
+            if (!rajasthanId) {
+                setRechargeLoading(false);
+                return;
+            }
             setRechargeLoading(true);
             try {
                 const params = {};
@@ -34,9 +40,25 @@ export const useRechargeAnalysis = ({
                 else if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
 
                 const data = await api.rechargeStructure.getStatistics(params);
-                if (!ignore) setRechargeStats(data);
+                if (!ignore) {
+                    setRechargeStats(prev => {
+                        if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
+                        return data;
+                    });
+                }
             } catch (err) {
-                console.error('Failed to fetch recharge stats:', err);
+                if (!ignore) {
+                    console.error('Failed to fetch recharge stats:', err);
+                    // If backend returned connection error, retry after a delay
+                    if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error'))) {
+                        const delay = 5000 * (apiRetryCount + 1);
+                        setTimeout(() => {
+                            if (!ignore) setApiRetryCount(prev => prev + 1);
+                        }, delay);
+                    } else {
+                        setRechargeStats(null);
+                    }
+                }
             } finally {
                 if (!ignore) setRechargeLoading(false);
             }
@@ -44,7 +66,7 @@ export const useRechargeAnalysis = ({
 
         fetchRechargeStats();
         return () => { ignore = true; };
-    }, [isRechargeStructure, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.district_id, globalFilters?.block_id, globalFilters?.gp_id, globalFilters?.village_id]);
+    }, [isRechargeStructure, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.district_id, globalFilters?.block_id, globalFilters?.gp_id, globalFilters?.village_id, rajasthanId, apiRetryCount]);
 
     return {
         rechargeStats,

@@ -11,7 +11,6 @@ import WellInventorySection from './DataAnalysis/WellInventorySection';
 import RechargeStructureSection from './DataAnalysis/RechargeStructureSection';
 
 // Hooks & Context
-import { useDataAnalysis } from '../hooks/useDataAnalysis';
 import { useAppContext } from '../context/AppContext';
 
 // Utils
@@ -29,9 +28,9 @@ const DataAnalysisSidebar = ({
     blockData,
     rainfallPoints = [],
     selectedWellInventory = [],
-    onToggleWellInventory,
-    onClearWellInventory,
-    onSetWellInventory,
+    onToggleWellInventory = () => { },
+    onClearWellInventory = () => { },
+    onSetWellInventory = () => { },
     rainfallStations = [],
     rainfallStationRecords = [],
     rainfallDataSource = 'station',
@@ -39,6 +38,9 @@ const DataAnalysisSidebar = ({
     waterQualityLoading: parentWaterQualityLoading,
     aquiferLoading: parentAquiferLoading,
     rechargeLoading: parentRechargeLoading,
+    analysisResults,
+    dynamicBoundaries = [],
+    onFiltersApply,
     className = ''
 }) => {
     const {
@@ -47,31 +49,22 @@ const DataAnalysisSidebar = ({
         isControlsSidebarCollapsed
     } = useAppContext();
 
-    // Delegate data processing to the hook
+    // Use externally provided analysis results
     const {
         isGWRE, isRainfall, isWaterQuality, isAquifer, isWellInventory, isRechargeStructure,
         displayRegion, displayBlock, analysisLevel, analysisName, neighbor,
-        pieData, totalBlocks, waterLevelChartData,
+        gwreLoading, pieData, totalBlocks, waterLevelChartData,
         qualityData, blockWaterQualityData, waterQualityLoading, waterQualityStats, waterQualityAvailability,
         aquiferData, aquiferLoading,
         aquiferSpatialFilterApplied, aquiferTotalArea, aquiferTotalCount,
+        aquiferRecords, yearlyTrends, nearbyData, nearbyLoading,
         rainfallStats, rainfallSummaryData, rainfallLoading,
-        rechargeStats, rechargeLoading
-    } = useDataAnalysis({
-        globalFilters,
-        clickedLocation,
-        neighbors,
-        selectedBoundary,
-        blockData,
-        rainfallPoints,
-        rainfallStations,
-        rainfallStationRecords,
-        rainfallDataSource,
-        parentRainfallLoading,
-        parentWaterQualityLoading,
-        parentAquiferLoading,
-        parentRechargeLoading
-    });
+        rechargeStats, rechargeLoading,
+        // Any other properties from analysisResults
+    } = {
+        ...analysisResults,
+        dynamicBoundaries // Inject dynamicBoundaries here or pass separately
+    };
 
     return (
         <aside
@@ -108,6 +101,8 @@ const DataAnalysisSidebar = ({
                         isDatabaseData={waterQualityStats?.total_records > 0}
                         waterQualityAvailability={waterQualityAvailability}
                         isLoading={waterQualityLoading}
+                        globalFilters={globalFilters}
+                        onFilterChange={(field, value) => onFiltersApply?.({ ...globalFilters, [field]: value })}
                     />
                 )}
 
@@ -132,7 +127,7 @@ const DataAnalysisSidebar = ({
                         blockWaterQualityData={blockWaterQualityData}
                         getParameterColor={getParameterColor}
                         isExpanded={isControlsSidebarCollapsed}
-                        isLoading={aquiferLoading}
+                        isLoading={aquiferLoading || waterQualityLoading || (isGWRE ? gwreLoading : false)}
                     />
                 )}
 
@@ -165,6 +160,11 @@ const DataAnalysisSidebar = ({
                             onClearWellInventory={onClearWellInventory}
                             onSetWellInventory={onSetWellInventory}
                             rainfallStations={rainfallStations}
+                            // Pass consolidated data to avoid redundant fetches
+                            aquiferRecords={aquiferRecords}
+                            yearlyTrends={yearlyTrends}
+                            nearbyData={nearbyData}
+                            nearbyLoading={nearbyLoading}
                         />
                         <AquiferSection
                             displayRegion={displayRegion}

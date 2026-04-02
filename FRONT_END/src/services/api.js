@@ -128,6 +128,7 @@ const api = {
     waterQuality: {
         getRecords: (params) => api.get('/water-quality/', params),
         getStatistics: (params) => api.get('/water-quality/statistics/', params),
+        getAvailabilityStatistics: (params) => api.get('/water-quality/availability_statistics/', params),
         getByLocation: (params) => api.get('/water-quality/by_location/', params),
     }
 };

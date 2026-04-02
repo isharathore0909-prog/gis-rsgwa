@@ -36,10 +36,10 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
     if (!processedData.length) return null;
 
     return (
-        <SmartChartContainer height={height || (isExpanded ? '450px' : '350px')}>
-            <ComposedChart data={processedData} margin={{ top: 20, right: 60, left: 20, bottom: 20 }}>
+        <SmartChartContainer height={height || (isExpanded ? '500px' : '400px')}>
+            <ComposedChart data={processedData} margin={{ top: 20, right: 30, left: 10, bottom: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} dy={10} />
+                <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
 
                 {showRainfall && (
                     <YAxis
@@ -86,7 +86,7 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                     }}
                     labelStyle={{ color: '#1e293b', fontWeight: 600, marginBottom: '4px' }}
                 />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
+                <Legend verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: '10px', fontSize: '10px' }} iconType="circle" />
 
                 {showRainfall && (
                     <Bar

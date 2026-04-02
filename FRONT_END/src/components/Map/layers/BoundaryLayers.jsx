@@ -140,10 +140,10 @@ export const SelectionHighlightLayer = ({ data, level }) => {
 
     const getLevelStyle = () => {
         switch (level) {
-            case 'district': return { color: '#0ea5e9', weight: 4.0 }; // Sky Blue, prominent
-            case 'block': return { color: '#059669', weight: 3.0 };    // Emerald, prominent
-            case 'gp': return { color: '#d97706', weight: 2.5 };       // Amber
-            case 'village': return { color: '#ea580c', weight: 2.0 };  // Orange
+            case 'district': return { color: '#0ea5e9', weight: 4.0 };
+            case 'block': return { color: '#059669', weight: 4.0 };
+            case 'gp': return { color: '#d97706', weight: 3.0 };       // Amber
+            case 'village': return { color: '#ea580c', weight: 2.0 };
             default: return { color: '#0ea5e9', weight: 3.0 };
         }
     };
@@ -151,25 +151,24 @@ export const SelectionHighlightLayer = ({ data, level }) => {
     const layerStyle = getLevelStyle();
 
     return (
-        <Pane name="selectionHighlightPane" style={{ zIndex: 650 }}>
-            <GeoJSON
-                key={`highlight-${level}-${data.id || data.properties?.name || data.properties?.vllg_name || 'selected'}`}
-                data={geojsonData}
-                style={{
-                    fillColor: 'transparent',
-                    fillOpacity: 0,
-                    color: layerStyle.color,
-                    weight: layerStyle.weight,
-                    opacity: 1,
-                    lineJoin: 'round',
-                    lineCap: 'round',
-                    dashArray: null
-                }}
-                interactive={false}
-                onEachFeature={() => {
-                    // Tooltips intentionally disabled — no hover labels shown
-                }}
-            />
-        </Pane>
+        <GeoJSON
+            key={`highlight-${level}-${data.id || data.properties?.name || data.properties?.vllg_name || 'selected'}`}
+            data={geojsonData}
+            pane="selectionHighlightPane"
+            style={{
+                fillColor: layerStyle.color,
+                fillOpacity: level === 'gp' ? 0.15 : 0.1, // Subtle fill
+                color: layerStyle.color,
+                weight: layerStyle.weight,
+                opacity: 1,
+                lineJoin: 'round',
+                lineCap: 'round',
+                dashArray: null
+            }}
+            interactive={false}
+            onEachFeature={() => {
+                // Tooltips intentionally disabled — no hover labels shown for selection outlines
+            }}
+        />
     );
 };

@@ -184,11 +184,13 @@ class BackendAPIClient {
     getRainfallSummary(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_SUMMARY, params); }
     getRainfallNearby(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_NEARBY, params); }
     getRainfallDistrictWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_DISTRICT_WISE, params); }
+    getRainfallLocationWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_LOCATION_WISE, params); }
     getRainfallStations(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATIONS, params); }
     getRainfallStationRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_RECORDS, params); }
     getRainfallStationStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_STATISTICS, params); }
     getRainfallStationSummary(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_SUMMARY, params); }
     getRainfallStationDistrictWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_DISTRICT_WISE, params); }
+    getRainfallStationLocationWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_LOCATION_WISE, params); }
 
     getWaterQualityRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY, params); }
     getWaterQualityStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params); }

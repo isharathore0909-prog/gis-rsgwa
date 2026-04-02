@@ -1,6 +1,37 @@
 from django.contrib.gis.db.models.functions import AsGeoJSON, Transform
 from locationApi.models import Grampanchayat, District, Block
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def normalize_geometry_crs(geom):
+    """
+    Ensure a GEOS geometry is in WGS-84 (EPSG:4326).
+
+    Heuristic detection:
+    - centroid.x > 180  → Web Mercator (EPSG:3857)  → transform to 4326
+    - centroid.x > 90   → UTM Zone 43N (EPSG:32643) → transform to 4326
+
+    Returns the geometry (possibly mutated in-place) or None if geom is falsy.
+    """
+    if not geom:
+        return geom
+    try:
+        cx = geom.centroid.x
+        if cx > 2_000_000:
+            geom.srid = 3857
+            geom.transform(4326)
+            logger.debug("normalize_geometry_crs: 3857→4326 (cx=%.1f)", cx)
+        elif cx > 200:
+            geom.srid = 32643
+            geom.transform(4326)
+            logger.debug("normalize_geometry_crs: 32643→4326 (cx=%.1f)", cx)
+    except Exception as exc:
+        logger.warning("normalize_geometry_crs: could not normalize CRS – %s", exc)
+    return geom
+
 
 def get_map_scope(request, gp_id=None, block_id=None, district_id=None):
     """
@@ -15,42 +46,26 @@ def get_map_scope(request, gp_id=None, block_id=None, district_id=None):
             obj = Block.objects.get(id=block_id)
         elif district_id:
             obj = District.objects.get(id=district_id)
-            
+
         if not obj or not obj.geometry:
             return None, None, None, None
 
-        geom = obj.geometry
-        # Check if coordinates are in Web Mercator (EPSG:3857) or UTM Zone 43N (EPSG:32643)
-        ext = geom.extent
-        
-        # ext[0] is the minimum X coordinate (Longitude or Easting)
-        if ext[0] > 2000000:
-            # Huge values > 2 million are Web Mercator (3857)
-            geom.srid = 3857
-            geom.transform(4326)
-            print(f"[FIX] Fixed geometry for {obj.name}: Transformed from 3857 to 4326")
-        elif ext[0] > 200:
-            # Values in the hundreds of thousands are UTM Zone 43N (32643)
-            geom.srid = 32643
-            geom.transform(4326)
-            print(f"[FIX] Fixed geometry for {obj.name}: Transformed from 32643 to 4326")
+        geom = normalize_geometry_crs(obj.geometry)
 
         # 1. Boundary Data (GeoJSON)
         boundary_data = json.loads(geom.geojson)
-        
+
         # 2. Coordinates (Extent)
         # extent returns (xmin, ymin, xmax, ymax)
         bbox_vals = geom.extent
-        
+
         # 3. Formatted BBox string
         bbox_str = f"{bbox_vals[0]},{bbox_vals[1]},{bbox_vals[2]},{bbox_vals[3]}"
-        
+
         return boundary_data, None, bbox_str, bbox_vals
 
     except (Grampanchayat.DoesNotExist, Block.DoesNotExist, District.DoesNotExist):
         return None, None, None, None
     except Exception as e:
-        print(f"Error in get_map_scope: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error("Error in get_map_scope: %s", e, exc_info=True)
         return None, None, None, None

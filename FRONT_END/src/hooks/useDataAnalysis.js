@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 // Specialized hooks
 import { useWaterQualityAnalysis } from './analysis/useWaterQualityAnalysis';
@@ -18,6 +18,7 @@ export const useDataAnalysis = ({
     clickedLocation,
     neighbors,
     selectedBoundary,
+    dynamicBoundaries = [],
     blockData,
     rainfallPoints = [],
     rainfallStations = [],
@@ -26,7 +27,8 @@ export const useDataAnalysis = ({
     parentRainfallLoading = false,
     parentWaterQualityLoading = false,
     parentAquiferLoading = false,
-    parentRechargeLoading = false
+    parentRechargeLoading = false,
+    rajasthanId // Backend readiness signal
 }) => {
     // -------------------------------------------------------------------------
     // 1. Basic Derived Flags & Location Info
@@ -70,17 +72,19 @@ export const useDataAnalysis = ({
         qualityData,
         blockWaterQualityData
     } = useWaterQualityAnalysis({
-        isWaterQuality,
+        isWaterQuality: isWaterQuality || isGWRE || (!isRainfall && !isAquifer && !isWellInventory && !isRechargeStructure),
         globalFilters,
         displayRegion,
         displayBlock,
-        neighbor
+        neighbor,
+        rajasthanId
     });
 
     // Rainfall
     const {
         rainfallStatsData,
         rainfallSummaryData,
+        intersectingStationIds,
         rainfallLoading,
         rainfallError
     } = useRainfallAnalysis({
@@ -93,8 +97,10 @@ export const useDataAnalysis = ({
         selectedBoundary,
         blockData,
         rainfallStations,
+        dynamicBoundaries,
         rainfallDataSource,
-        parentRainfallLoading
+        parentRainfallLoading,
+        rajasthanId
     });
 
     // Aquifer
@@ -105,14 +111,22 @@ export const useDataAnalysis = ({
         spatialStatsLoading,
         aquiferData,
         waterLevelChartData,
-        spatialFilterApplied: aquiferSpatialFilterApplied,
-        totalArea: aquiferTotalArea,
-        totalCount: aquiferTotalCount
+        aquiferPolygons,
+        aquiferRecords,
+        yearlyTrends,
+        nearbyData,
+        nearbyLoading
     } = useAquiferAnalysis({
         isAquifer, isGWRE, isWellInventory, isRainfall, isWaterQuality, isRechargeStructure,
         globalFilters, displayRegion, displayBlock, clickedLocation, neighbor,
-        selectedBoundary, blockData
+        selectedBoundary, blockData, rajasthanId
     });
+
+    // Derive fields previously returned by useAquiferAnalysis
+    const aquiferTotalArea = aquiferSpatialStats?.total_area || 0;
+    const aquiferTotalCount = aquiferSpatialStats?.total_count || 0;
+    const aquiferSpatialFilterApplied = !!aquiferSpatialStats;
+    // -------------------------------------------------------------------------
 
     // GWRE
     const {
@@ -124,7 +138,8 @@ export const useDataAnalysis = ({
         isGWRE,
         globalFilters,
         displayRegion,
-        displayBlock
+        displayBlock,
+        rajasthanId
     });
 
     // Recharge Structure
@@ -137,10 +152,11 @@ export const useDataAnalysis = ({
         analysisName,
         globalFilters,
         displayRegion,
-        displayBlock
+        displayBlock,
+        rajasthanId
     });
 
-    return {
+    return useMemo(() => ({
         // Analysis Metadata
         analysisLevel,
         analysisName,
@@ -175,19 +191,35 @@ export const useDataAnalysis = ({
         aquiferLoading: aquiferLoading || spatialStatsLoading,
         aquiferSpatialStats,
         aquiferData,
+        aquiferPolygons,
         waterLevelChartData,
         aquiferSpatialFilterApplied,
         aquiferTotalArea,
         aquiferTotalCount,
+        aquiferRecords,
+        yearlyTrends,
+        nearbyData,
+        nearbyLoading,
 
         // Rainfall
         rainfallStats: rainfallStatsData,
         rainfallSummaryData,
         rainfallError,
         rainfallLoading,
+        intersectingStationIds,
 
         // Recharge Structure
         rechargeStats,
         rechargeLoading
-    };
+    }), [
+        analysisLevel, analysisName, displayRegion, displayBlock, neighbor,
+        isGWRE, isRainfall, isWaterQuality, isAquifer, isWellInventory, isRechargeStructure,
+        gwreStats, gwreLoading, pieData, totalBlocks,
+        waterQualityStats, waterQualityAvailability, waterQualityLoading, waterQualityError, qualityData, blockWaterQualityData,
+        aquiferStats, aquiferLoading, spatialStatsLoading, aquiferSpatialStats, aquiferData, aquiferPolygons, waterLevelChartData,
+        aquiferSpatialFilterApplied, aquiferTotalArea, aquiferTotalCount,
+        aquiferRecords, yearlyTrends, nearbyData, nearbyLoading,
+        rainfallStatsData, rainfallSummaryData, rainfallError, rainfallLoading, intersectingStationIds,
+        rechargeStats, rechargeLoading
+    ]);
 };

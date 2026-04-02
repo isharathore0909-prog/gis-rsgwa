@@ -49,18 +49,19 @@ export default {
         getByCodes: (codes) => externalApi.fetchBoundaryByCodes(codes),
     },
 
-    // Rainfall API
     rainfall: {
         getRecords: (params) => backendApi.getRainfallRecords(params),
         getStatistics: (params) => backendApi.getRainfallStatistics(params),
         getSummary: (params) => backendApi.getRainfallSummary(params),
         getNearby: (params) => backendApi.getRainfallNearby(params),
         getDistrictWise: (params) => backendApi.getRainfallDistrictWise(params),
+        getLocationWise: (params) => backendApi.getRainfallLocationWise(params),
         getStations: (params) => backendApi.getRainfallStations(params),
         getStationRecords: (params) => backendApi.getRainfallStationRecords(params),
         getStationStatistics: (params) => backendApi.getRainfallStationStatistics(params),
         getStationSummary: (params) => backendApi.getRainfallStationSummary(params),
         getStationDistrictWise: (params) => backendApi.getRainfallStationDistrictWise(params),
+        getStationLocationWise: (params) => backendApi.getRainfallStationLocationWise(params),
     },
 
     // Water Quality API

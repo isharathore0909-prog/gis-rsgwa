@@ -6,10 +6,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Avg, Max, Min, Count, Q
 from django.core.cache import cache
 from .models import AquiferData
-from .serializers import AquiferDataSerializer, AquiferDataListSerializer, YearDataSerializer
-
+from .serializers import AquiferDataSerializer, AquiferDataListSerializer, YearDataSerializer, AquiferMapSerializer
 from core.filters import HierarchicalLocationFilterBackend
-
+from core.services.cache_utils import build_cache_key
 from .utils import calculate_aquifer_stats, calculate_aquifer_yearly_trends
 
 class AquiferDataViewSet(viewsets.ModelViewSet):
@@ -31,23 +30,41 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
     ordering = ['well_id']
 
     def get_serializer_class(self):
-        """Use simplified serializer for list view unless detailed=true"""
+        """Use ultra-slim serializer for map markers, full detailed for sidebar"""
         if self.action == 'list':
+            if self.request.query_params.get('map_markers') == 'true':
+                return AquiferMapSerializer
             if self.request.query_params.get('detailed') == 'true':
                 return AquiferDataSerializer
             return AquiferDataListSerializer
         return AquiferDataSerializer
 
+    def paginate_queryset(self, queryset):
+        """Disable pagination for map-ready requests (all markers in a district)"""
+        if self.request.query_params.get('map_markers') == 'true':
+            return None
+        return super().paginate_queryset(queryset)
+
     def get_queryset(self):
         """
-        Standardized location filtering now handled by HierarchicalLocationFilterBackend.
-        Optimized: Fetch related administrative names ONLY when needed.
+        Optimized query based on action and parameters.
         """
         queryset = super().get_queryset()
-        if self.action in ['list', 'retrieve']:
-            queryset = queryset.select_related(
-                'village__grampanchayat__block__district__state'
-            )
+        
+        if self.action == 'list':
+            if self.request.query_params.get('map_markers') == 'true':
+                # Map Marker Optimization: Only fetch essential fields
+                return queryset.select_related('village').only(
+                    'id', 'well_id', 'latitude', 'longitude', 'aquifer',
+                    'village__name', 'village__latitude', 'village__longitude'
+                )
+            
+            # Standard list view optimization
+            return queryset.select_related('village__grampanchayat__block__district__state')
+            
+        if self.action == 'retrieve':
+            return queryset.select_related('village__grampanchayat__block__district__state')
+            
         return queryset
 
     @action(detail=False, methods=['get'])
@@ -136,15 +153,11 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         year = request.query_params.get('year', 2024)
         try: year = int(year)
         except (ValueError, TypeError): year = 2024
-        
+
         if not (2015 <= year <= 2024):
              return Response({'error': f'Year {year} not supported. Support range: 2015-2024'}, status=400)
-            
-            
-        # Generate robust cache key from all relevant query params
-        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
-        cache_key = f"aquifer_stats_{year}_{'_'.join(loc_params) if loc_params else 'all'}"
-        
+
+        cache_key = build_cache_key("aquifer_stats", request, extra=str(year))
         cached_res = cache.get(cache_key)
         if cached_res: return Response(cached_res)
         
@@ -159,10 +172,7 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         """
         Get aggregated groundwater level trends (pre/pst/avg) for all years with caching.
         """
-        # Generate robust cache key from all relevant query params
-        loc_params = [f"{k}={v}" for k, v in sorted(request.query_params.items()) if k not in ['page', 'format']]
-        cache_key = f"aquifer_yearly_stats_{'_'.join(loc_params) if loc_params else 'all'}"
-        
+        cache_key = build_cache_key("aquifer_yearly_stats", request)
         cached_res = cache.get(cache_key)
         if cached_res: return Response(cached_res)
             

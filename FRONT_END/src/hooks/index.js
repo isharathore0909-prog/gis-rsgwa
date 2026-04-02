@@ -5,22 +5,21 @@
  */
 
 // Data Fetching Hooks
-export {
-    useDistrictRainfall,
-    useWaterQuality,
-    useAquiferData,
-    usePiezometerData,
-    useGeoJSONData
-} from './useMapData';
+export { useDistrictRainfall, useLocationRainfall } from './data/useRainfallData';
+export { useWaterQuality } from './data/useWaterQualityData';
+export { useAquiferData } from './data/useAquiferData';
+export { usePiezometerData } from './data/usePiezometerData';
+export { useGeoJSONData } from './data/useGeoJSONData';
 
 // Data Processing Hooks
 export {
     useRainfallStatsByBlock,
+    useRainfallStatsByDistrict,
     useAggregatedRainfallPoints,
     useDamMarkers
-} from './useMapProcessing';
+} from './geo/useMapProcessing';
 
-export { useBoundaryHierarchy } from './useBoundaryHierarchy';
+export { useBoundaryHierarchy } from './geo/useBoundaryHierarchy';
 
 // GeoJSON Processing Hooks
 export {
@@ -29,15 +28,16 @@ export {
     useFilteredBlockData,
     useValidatedBlockData,
     useValidatedBoundaries
-} from './useGeoJSONProcessing';
+} from './geo/useGeoJSONProcessing';
 
 // Legend Hooks
 export {
     useLegendData,
     useFeatureOptions
-} from './useLegend';
+} from './ui/useLegend';
 
 // App Logic Hooks
-export { useAppLogic } from './useAppLogic';
-export { useMapView } from './useMapView';
-export { useLocations } from './useLocations';
+export { useAppLogic } from './core/useAppLogic';
+export { useDataAnalysis } from './useDataAnalysis';
+export { useMapView } from './ui/useMapView';
+export { useLocations } from './ui/useLocations';

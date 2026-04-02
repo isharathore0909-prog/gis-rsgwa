@@ -5,17 +5,26 @@ export const useGWREAnalysis = ({
     isGWRE,
     globalFilters,
     displayRegion,
-    displayBlock
+    displayBlock,
+    rajasthanId
 }) => {
     const [gwreStats, setGwreStats] = useState(null);
     const [gwreLoading, setGwreLoading] = useState(false);
+    const [apiRetryCount, setApiRetryCount] = useState(0);
 
     useEffect(() => {
         let ignore = false;
-        const isGwreType = isGWRE || globalFilters?.type === 'Ground Water Resource Estimation';
-        if (!isGwreType) return;
+        const isGwreType = isGWRE || !globalFilters?.type || globalFilters?.type === 'Ground Water Resource Estimation';
+        if (!isGwreType) {
+            setGwreLoading(false);
+            return;
+        }
 
         const fetchGWRE = async () => {
+            if (!rajasthanId) {
+                setGwreLoading(false);
+                return;
+            }
             setGwreLoading(true);
             try {
                 const params = { layer_type: 'groundwater_zone' };
@@ -24,9 +33,26 @@ export const useGWREAnalysis = ({
                 if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
 
                 const data = await api.spatialLayer.getStatistics(params);
-                if (!ignore) setGwreStats(data);
+                if (!ignore) {
+                    setGwreStats(prev => {
+                        const nextStr = JSON.stringify(data);
+                        if (JSON.stringify(prev) === nextStr) return prev;
+                        return data;
+                    });
+                }
             } catch (err) {
-                console.error('Failed to fetch GWRE stats:', err);
+                if (!ignore) {
+                    console.error('Failed to fetch GWRE stats:', err);
+                    // If backend returned connection error, retry after a delay
+                    if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK' || err.message.includes('Network Error'))) {
+                        const delay = 5000 * (apiRetryCount + 1);
+                        setTimeout(() => {
+                            if (!ignore) setApiRetryCount(prev => prev + 1);
+                        }, delay);
+                    } else {
+                        setGwreStats(null);
+                    }
+                }
             } finally {
                 if (!ignore) setGwreLoading(false);
             }
@@ -34,7 +60,7 @@ export const useGWREAnalysis = ({
 
         fetchGWRE();
         return () => { ignore = true; };
-    }, [isGWRE, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type]);
+    }, [isGWRE, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, rajasthanId, apiRetryCount]);
 
     const pieData = useMemo(() => {
         if (gwreStats?.distribution && gwreStats.distribution.length > 0) {
@@ -47,8 +73,8 @@ export const useGWREAnalysis = ({
             };
             return gwreStats.distribution.map(d => ({
                 name: d.name,
-                value: d.count,
-                area: d.area,
+                value: parseFloat(d.count) || 0,
+                area: parseFloat(d.area) || 0,
                 color: colors[d.name] || '#e2e8f0'
             }));
         }

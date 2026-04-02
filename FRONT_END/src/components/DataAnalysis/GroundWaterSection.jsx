@@ -7,6 +7,7 @@ import {
 import AnalysisCard from './Common/AnalysisCard';
 import MiniStatusCard from './Common/MiniStatusCard';
 import SmartChartContainer from './Common/SmartChartContainer';
+import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 
 const GroundWaterSection = ({
     isGWRE,
@@ -22,13 +23,11 @@ const GroundWaterSection = ({
 }) => {
     if (isLoading) {
         return (
-            <div className="groundwater-analysis-grid animated-entry">
-                <AnalysisCard style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
-                    <div className="loading-spinner" style={{ margin: '0 auto 1rem auto' }}></div>
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
-                        Loading ground water analysis...
-                    </p>
-                </AnalysisCard>
+            <div className="groundwater-analysis-grid animated-entry" style={{ position: 'relative', minHeight: '300px' }}>
+                <GlassLoadingOverlay
+                    message="Preparing Analysis..."
+                    subtext="Processing ground water data"
+                />
             </div>
         );
     }
@@ -43,7 +42,16 @@ const GroundWaterSection = ({
                 <AnalysisCard title={isGWRE ? 'Stage of Ground Water Extraction' : 'Ground Water Status'}>
                     <SmartChartContainer height={isExpanded ? '350px' : '260px'} className="pie-chart-wrapper">
                         <PieChart>
-                            <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={5} dataKey="value">
+                            <Pie
+                                data={pieData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={55}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="value"
+                                isAnimationActive={false}
+                            >
                                 {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                             </Pie>
                             <Tooltip allowEscapeViewBox={{ y: true }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
@@ -76,7 +84,7 @@ const GroundWaterSection = ({
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} reversed />
                         <Tooltip allowEscapeViewBox={{ y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                        <Bar dataKey="value" radius={[0, 0, 4, 4]}>
+                        <Bar dataKey="value" radius={[0, 0, 4, 4]} isAnimationActive={false}>
                             {waterLevelChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                         </Bar>
                     </BarChart>
@@ -105,7 +113,7 @@ const GroundWaterSection = ({
                             tick={{ fontSize: 10, fontWeight: 500 }}
                         />
                         <Tooltip allowEscapeViewBox={{ y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                        <Bar dataKey="value" fill="#8884d8" name="Area (sq km)" radius={[0, 4, 4, 0]}>
+                        <Bar dataKey="value" fill="#8884d8" name="Area (sq km)" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                             {aquiferData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.color || '#3b82f6'} />
                             ))}
@@ -161,7 +169,7 @@ const GroundWaterSection = ({
                                 return null;
                             }}
                         />
-                        <Bar dataKey="value" fill="#f4a261" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="value" fill="#f4a261" radius={[0, 4, 4, 0]} isAnimationActive={false} />
                     </BarChart>
                 </SmartChartContainer>
                 <div className="status-summary-grid" style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>

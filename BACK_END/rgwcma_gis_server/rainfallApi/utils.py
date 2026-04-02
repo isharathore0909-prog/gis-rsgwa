@@ -13,19 +13,37 @@ def safe_round(val, precision=2):
 def calculate_rainfall_stats(queryset, is_station_data=False):
     """
     Standardized rainfall statistics calculation for both standard and station data.
+    Optimized for large datasets (1M+ records) by merging all aggregations into a single pass.
     """
-    # Base aggregations
+    monsoon_months = [6, 7, 8, 9]
+    group_field = 'station_id' if is_station_data else 'village_id'
+
+    # Single pass aggregation for all base and seasonal statistics
     stats = queryset.aggregate(
         total=Sum('rainfall_mm'),
         avg=Avg('rainfall_mm'),
         count=Count('id'),
-        max=Max('rainfall_mm')
+        max=Max('rainfall_mm'),
+        unit_count=Count(group_field, distinct=True),
+        monsoon_total=Sum('rainfall_mm', filter=Q(date__month__in=monsoon_months)),
+        non_monsoon_total=Sum('rainfall_mm', filter=~Q(date__month__in=monsoon_months)),
+        monsoon_count=Count('id', filter=Q(date__month__in=monsoon_months)),
+        non_monsoon_count=Count('id', filter=~Q(date__month__in=monsoon_months))
     )
     
-    # Max record details
+    # Calculate averages from the merged stats
+    total_val = stats['total'] or 0
+    unit_count = stats['unit_count'] or 1
+    avg_total = total_val / unit_count
+    
+    monsoon_avg = (stats['monsoon_total'] or 0) / (stats['monsoon_count'] or 1)
+    non_monsoon_avg = (stats['non_monsoon_total'] or 0) / (stats['non_monsoon_count'] or 1)
+
+    # Max record details - optimized to only run if max_val exists
     max_val = stats.get('max')
     max_info = {'village': None, 'date': None}
     if max_val is not None:
+        # This remains a separate query but is now indexed better if max_val is unique-ish
         max_record = queryset.filter(rainfall_mm=max_val).first()
         if max_record:
             if is_station_data:
@@ -33,25 +51,6 @@ def calculate_rainfall_stats(queryset, is_station_data=False):
             else:
                 max_info['village'] = max_record.village.name if hasattr(max_record, 'village') else None
             max_info['date'] = max_record.date
-
-    # Average of Station/Village Totals
-    avg_total = 0
-    if queryset.exists():
-        group_field = 'station' if is_station_data else 'village_id'
-        group_avg = queryset.values(group_field).annotate(total=Sum('rainfall_mm')).aggregate(avg=Avg('total'))
-        avg_total = group_avg.get('avg', 0) or 0
-
-    # Monsoon (June-Sept) and Non-Monsoon calculation
-    monsoon_months = [6, 7, 8, 9]
-    seasonal_stats = queryset.aggregate(
-        monsoon_total=Sum('rainfall_mm', filter=Q(date__month__in=monsoon_months)),
-        non_monsoon_total=Sum('rainfall_mm', filter=~Q(date__month__in=monsoon_months)),
-        monsoon_count=Count('id', filter=Q(date__month__in=monsoon_months)),
-        non_monsoon_count=Count('id', filter=~Q(date__month__in=monsoon_months))
-    )
-
-    monsoon_avg = (seasonal_stats['monsoon_total'] or 0) / (seasonal_stats['monsoon_count'] or 1)
-    non_monsoon_avg = (seasonal_stats['non_monsoon_total'] or 0) / (seasonal_stats['non_monsoon_count'] or 1)
 
     return {
         'total': safe_round(stats['total']),

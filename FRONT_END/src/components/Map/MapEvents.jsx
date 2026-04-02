@@ -2,13 +2,12 @@ import { useEffect } from 'react';
 import { useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { getNeighbors } from '../../utils/geoUtils';
-import { groundwaterData } from '../../data/groundwaterData';
 
 export function MapEvents({ onLocationClick }) {
     useMapEvents({
         click(e) {
             const { lat, lng } = e.latlng;
-            const neighbors = getNeighbors(lat, lng, groundwaterData);
+            const neighbors = getNeighbors(lat, lng, []);
             onLocationClick({ lat, lng }, neighbors);
         },
     });

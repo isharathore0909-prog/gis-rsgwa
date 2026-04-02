@@ -2,7 +2,18 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import api from '../../api';
 import { getAquiferColor, normalizeAquiferName } from '../../constants/mapConstants';
 import { resolveAquiferDistrict } from '../../constants/districtAliases';
-import { DISTRICT_WATER_LEVEL_DATA } from '../../data/districtAquiferData';
+
+// Simple in-memory cache for aquifer_opt.json to prevent re-fetching 22MB file
+const aquiferGeoJSONCache = {
+    data: null,
+    promise: null
+};
+
+// Cache for district boundaries to avoid 13MB re-fetch
+const districtGeoJSONCache = {
+    data: null,
+    promise: null
+};
 
 export const useAquiferAnalysis = ({
     isAquifer,
@@ -17,35 +28,53 @@ export const useAquiferAnalysis = ({
     clickedLocation,
     neighbor,
     selectedBoundary,
-    blockData
+    blockData,
+    rajasthanId
 }) => {
     const [aquiferStats, setAquiferStats] = useState(null);
     const [aquiferLoading, setAquiferLoading] = useState(true);
     const [aquiferSpatialStats, setAquiferSpatialStats] = useState(null);
+    const [aquiferPolygons, setAquiferPolygons] = useState(null);
     const [spatialStatsLoading, setSpatialStatsLoading] = useState(false);
+
+    // Consolidated extra data for Well Inventory mode
+    const [aquiferRecords, setAquiferRecords] = useState([]);
+    const [yearlyTrends, setYearlyTrends] = useState(null);
+    const [nearbyData, setNearbyData] = useState(null);
+    const [nearbyLoading, setNearbyLoading] = useState(false);
+
+    const [apiRetryCount, setApiRetryCount] = useState(0);
     const lastAquiferParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village });
 
-    const isDefaultAquiferView = !isRainfall && !isWaterQuality && !isAquifer && !isWellInventory && !isGWRE && !isRechargeStructure;
+    const isDefaultAquiferView = useMemo(() =>
+        !isRainfall && !isWaterQuality && !isAquifer && !isWellInventory && !isGWRE && !isRechargeStructure,
+        [isRainfall, isWaterQuality, isAquifer, isWellInventory, isGWRE, isRechargeStructure]
+    );
 
-    if ((isAquifer || isGWRE || isWellInventory || isDefaultAquiferView) && (
-        lastAquiferParams.current.displayRegion !== displayRegion ||
-        lastAquiferParams.current.displayBlock !== displayBlock ||
-        lastAquiferParams.current.gp !== globalFilters?.gramPanchayat ||
-        lastAquiferParams.current.v !== globalFilters?.village
-    )) {
-        if (!aquiferLoading) {
-            setAquiferLoading(true);
+    const activeMode = isAquifer || isWellInventory || isDefaultAquiferView || isGWRE;
+
+    useEffect(() => {
+        // Only reset to null and show loading if the core LOCATION (names) changed.
+        if (activeMode && (
+            lastAquiferParams.current.displayRegion !== displayRegion ||
+            lastAquiferParams.current.displayBlock !== displayBlock ||
+            lastAquiferParams.current.gp !== globalFilters?.gramPanchayat ||
+            lastAquiferParams.current.v !== globalFilters?.village
+        )) {
             setAquiferStats(null);
+            setAquiferSpatialStats(null);
+            setAquiferPolygons(null);
+            setAquiferRecords([]);
+            setYearlyTrends(null);
+            setAquiferLoading(true);
+            setSpatialStatsLoading(true);
+            lastAquiferParams.current = { displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village };
         }
-        setAquiferSpatialStats(null);
-        setSpatialStatsLoading(true);
-        lastAquiferParams.current = { displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village };
-    }
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village]);
 
     useEffect(() => {
         let ignore = false;
-        const showSpatial = isAquifer || isWellInventory || isGWRE || isDefaultAquiferView;
-        if (!showSpatial) {
+        if (!activeMode) {
             setAquiferSpatialStats(null);
             return;
         }
@@ -53,20 +82,45 @@ export const useAquiferAnalysis = ({
         const fetchSpatialStats = async () => {
             setSpatialStatsLoading(true);
             try {
-                const res = await fetch('/data/aquifer_opt.json');
-                if (!res.ok) throw new Error(`Failed to load aquifer_opt.json: ${res.status}`);
-                const geojson = await res.json();
-                const features = geojson.features || [];
+                // Use cache to avoid 22MB re-fetch
+                let geojson;
+                if (aquiferGeoJSONCache.data) {
+                    geojson = aquiferGeoJSONCache.data;
+                } else if (aquiferGeoJSONCache.promise) {
+                    geojson = await aquiferGeoJSONCache.promise;
+                } else {
+                    aquiferGeoJSONCache.promise = fetch('/data/aquifer_opt.json')
+                        .then(res => {
+                            if (!res.ok) throw new Error(`Failed to load aquifer_opt.json: ${res.status}`);
+                            return res.json();
+                        })
+                        .then(data => {
+                            aquiferGeoJSONCache.data = data;
+                            return data;
+                        });
+                    geojson = await aquiferGeoJSONCache.promise;
+                }
 
+                const features = geojson.features || [];
                 let filtered = features;
                 const turf = await import('@turf/turf');
 
+                // Determine the target boundary for spatial filtering.
+                // We prefer actual administrative boundaries (selectedBoundary or blockData)
+                // over individual point markers to maintain regional context.
                 let targetFeature = null;
+
+                // 1. Explicit selection (e.g. from table or high-level click)
                 if (selectedBoundary && selectedBoundary.geometry) {
                     targetFeature = selectedBoundary;
-                } else if (neighbor && neighbor.geometry) {
+                }
+                // 2. Clicked feature: ONLY use it if it's a polygon (aquifer_feature)
+                // Skip for Points (well_inventory_well, piezometer, etc.) to avoid vanishing layer
+                else if (neighbor && neighbor.geometry && neighbor.type === 'aquifer_feature') {
                     targetFeature = neighbor;
-                } else if (displayBlock && blockData?.features) {
+                }
+                // 3. Fallback to current administrative block
+                else if (displayBlock && blockData?.features) {
                     targetFeature = blockData.features.find(f => {
                         const props = f.properties || {};
                         if (props.is_parent || props.level === 'district') return false;
@@ -83,15 +137,17 @@ export const useAquiferAnalysis = ({
                         filtered = features.filter(f => {
                             if (!f.geometry) return false;
                             const fBbox = turf.bbox(f);
+                            // Quick BBOX check for performance
                             if (fBbox[0] > maxLon || fBbox[2] < minLon || fBbox[1] > maxLat || fBbox[3] < minLat) {
                                 return false;
                             }
                             try { return turf.booleanIntersects(targetFeature, f); } catch (e) { return true; }
                         });
                     } catch (e) {
-                        console.warn('[AquiferStats] Strict spatial filter failed, falling back to all features', e);
+                        console.warn('[AquiferStats] Strict spatial filter failed', e);
                     }
                 } else if (displayRegion) {
+                    // 4. Fallback to district if no block or point selected
                     const resolvedName = resolveAquiferDistrict(displayRegion);
                     const nameMatched = features.filter(f => {
                         const nd = (f.properties?.New_Dist || f.properties?.DIST_NAME || '').toUpperCase().trim();
@@ -102,29 +158,40 @@ export const useAquiferAnalysis = ({
                         filtered = nameMatched;
                     } else {
                         try {
-                            const distRes = await fetch('/district.geojson');
-                            const distGeo = await distRes.json();
+                            let distGeo;
+                            if (districtGeoJSONCache.data) {
+                                distGeo = districtGeoJSONCache.data;
+                            } else if (districtGeoJSONCache.promise) {
+                                distGeo = await districtGeoJSONCache.promise;
+                            } else {
+                                districtGeoJSONCache.promise = fetch('/district.geojson')
+                                    .then(res => {
+                                        if (!res.ok) throw new Error(`Failed to load district.geojson: ${res.status}`);
+                                        return res.json();
+                                    })
+                                    .then(data => {
+                                        districtGeoJSONCache.data = data;
+                                        return data;
+                                    });
+                                distGeo = await districtGeoJSONCache.promise;
+                            }
+
                             const distFeature = (distGeo.features || []).find(f => {
                                 const nm = (f.properties?.name || f.properties?.New_Dist || f.properties?.DIST_NAME || f.properties?.District || '').toUpperCase().trim();
                                 return nm === displayRegion.toUpperCase().trim() || nm === resolvedName;
                             });
 
                             if (distFeature?.geometry) {
-                                const coords = distFeature.geometry.type === 'Polygon' ? distFeature.geometry.coordinates.flat() : distFeature.geometry.coordinates.flat(2);
-                                const lons = coords.map(c => c[0]);
-                                const lats = coords.map(c => c[1]);
-                                const [minLon, maxLon] = [Math.min(...lons), Math.max(...lons)];
-                                const [minLat, maxLat] = [Math.min(...lats), Math.max(...lats)];
+                                const targetBbox = turf.bbox(distFeature);
+                                const [minLon, minLat, maxLon, maxLat] = targetBbox;
 
                                 filtered = features.filter(f => {
                                     if (!f.geometry) return false;
-                                    const fCoords = f.geometry.type === 'Polygon' ? f.geometry.coordinates.flat() : f.geometry.coordinates.flat(2);
-                                    if (!fCoords.length) return false;
-                                    const fLons = fCoords.map(c => c[0]);
-                                    const fLats = fCoords.map(c => c[1]);
-                                    const [fMinLon, fMaxLon] = [Math.min(...fLons), Math.max(...fLons)];
-                                    const [fMinLat, fMaxLat] = [Math.min(...fLats), Math.max(...fLats)];
-                                    return fMaxLon >= minLon && fMinLon <= maxLon && fMaxLat >= minLat && fMinLat <= maxLat;
+                                    const fBbox = turf.bbox(f);
+                                    if (fBbox[0] > maxLon || fBbox[2] < minLon || fBbox[1] > maxLat || fBbox[3] < minLat) {
+                                        return false;
+                                    }
+                                    return true;
                                 });
                             }
                         } catch (bdErr) {
@@ -148,13 +215,26 @@ export const useAquiferAnalysis = ({
                     .sort((a, b) => b.count - a.count);
 
                 if (!ignore) {
-                    setAquiferSpatialStats({
+                    const nextSpatialStats = {
                         layer_type: 'aquifer',
                         district: displayRegion || null,
                         total_count: distribution.reduce((s, d) => s + d.count, 0),
                         total_area: Math.round(distribution.reduce((s, d) => s + d.area, 0) * 100) / 100,
                         distribution
+                    };
+
+                    setAquiferSpatialStats(prev => {
+                        if (JSON.stringify(prev) === JSON.stringify(nextSpatialStats)) return prev;
+                        return nextSpatialStats;
                     });
+
+                    const nextPolygons = { type: 'FeatureCollection', features: filtered };
+                    setAquiferPolygons(prev => {
+                        // Using a simple features length check for performance instead of full JSON stringify
+                        if (prev && prev.features?.length === nextPolygons.features.length) return prev;
+                        return nextPolygons;
+                    });
+
                     setSpatialStatsLoading(false);
                 }
             } catch (err) {
@@ -165,11 +245,15 @@ export const useAquiferAnalysis = ({
 
         fetchSpatialStats();
         return () => { ignore = true; };
-    }, [isAquifer, isWellInventory, isGWRE, isDefaultAquiferView, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, blockData, selectedBoundary, neighbor]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, blockData, selectedBoundary, neighbor]);
 
     useEffect(() => {
         let ignore = false;
         const fetchAquiferData = async () => {
+            if (!rajasthanId || !activeMode) {
+                setAquiferLoading(false);
+                return;
+            }
             setAquiferLoading(true);
             try {
                 const params = { year: globalFilters?.year || 2024 };
@@ -180,17 +264,42 @@ export const useAquiferAnalysis = ({
                 else if (displayBlock) params.block = displayBlock;
 
                 if (globalFilters?.gp_id) params.gp_id = globalFilters.gp_id;
-                else if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
+                else if (globalFilters?.gramPanchayat) params.gp_id = globalFilters.gramPanchayat;
 
                 if (globalFilters?.village_id) params.village_id = globalFilters.village_id;
                 else if (globalFilters?.village) params.village_name = globalFilters.village;
 
-                const data = await api.aquifer.getStatistics(params);
-                if (!ignore) setAquiferStats(data);
+                // 1. Fetch Main Statistics
+                const statsPromise = api.aquifer.getStatistics(params);
+
+                // 2. Fetch Yearly Trends and Detailed Records if in Well Inventory mode
+                let extraPromises = [Promise.resolve(null), Promise.resolve([])];
+                if (isWellInventory) {
+                    const yearlyParams = { ...params };
+                    extraPromises = [
+                        api.aquifer.getYearlyStatistics(yearlyParams).catch(() => null),
+                        api.aquifer.getRecords({ ...params, detailed: 'true' }).catch(() => [])
+                    ];
+                }
+
+                const [stats, trends, records] = await Promise.all([
+                    statsPromise,
+                    ...extraPromises
+                ]);
+
+                if (!ignore) {
+                    setAquiferStats(stats);
+                    if (isWellInventory) {
+                        setYearlyTrends(trends);
+                        setAquiferRecords(records);
+                    }
+                }
             } catch (error) {
                 if (!ignore) {
                     console.error('Error fetching aquifer data:', error);
-                    setAquiferStats(null);
+                    if (apiRetryCount < 3 && (!error.response || error.code === 'ERR_NETWORK')) {
+                        setTimeout(() => { if (!ignore) setApiRetryCount(prev => prev + 1); }, 5000);
+                    }
                 }
             } finally {
                 if (!ignore) setAquiferLoading(false);
@@ -199,41 +308,59 @@ export const useAquiferAnalysis = ({
 
         fetchAquiferData();
         return () => { ignore = true; };
-    }, [isAquifer, isWellInventory, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, isGWRE, isRainfall, isWaterQuality, isRechargeStructure, isDefaultAquiferView, globalFilters?.year, globalFilters?.district_id, globalFilters?.block_id, globalFilters?.gp_id, globalFilters?.village_id]);
+    }, [activeMode, isWellInventory, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, globalFilters?.year, rajasthanId, apiRetryCount]);
+
+    // Fetch Nearby wells separately when clickedLocation changes
+    useEffect(() => {
+        let ignore = false;
+        if (!clickedLocation || !isWellInventory || (neighbor && neighbor.type === 'well_inventory_well')) {
+            setNearbyData(null);
+            return;
+        }
+
+        const fetchNearby = async () => {
+            setNearbyLoading(true);
+            try {
+                const response = await api.aquifer.getNearby({
+                    latitude: clickedLocation.lat,
+                    longitude: clickedLocation.lng,
+                    radius_km: 10
+                });
+                if (!ignore) setNearbyData(response && response.averages ? response : null);
+            } catch (err) {
+                console.error("Error fetching nearby aquifer data:", err);
+            } finally {
+                if (!ignore) setNearbyLoading(false);
+            }
+        };
+
+        fetchNearby();
+        return () => { ignore = true; };
+    }, [clickedLocation, isWellInventory, neighbor]);
 
     const aquiferData = useMemo(() => {
         if (aquiferSpatialStats && aquiferSpatialStats.distribution) {
-            const total_area = aquiferSpatialStats.total_area || 0;
-            const total_count = aquiferSpatialStats.total_count || 1;
-            const hasArea = total_area > 0;
-            const total = hasArea ? total_area : total_count;
+            const total = (aquiferSpatialStats.total_area > 0) ? aquiferSpatialStats.total_area : (aquiferSpatialStats.total_count || 1);
+            const isArea = aquiferSpatialStats.total_area > 0;
 
             const result = aquiferSpatialStats.distribution.map(item => {
-                const val = hasArea ? item.area : item.count;
-                const rawPct = total > 0 ? (val / total) * 100 : 0;
+                const val = isArea ? item.area : item.count;
                 return {
                     name: item.name,
                     value: val,
                     area: item.area,
                     count: item.count,
-                    unit: hasArea ? 'km²' : 'features',
-                    percent: Math.round(rawPct * 10) / 10,
+                    unit: isArea ? 'km²' : 'features',
+                    percent: Math.round((val / total) * 1000) / 10,
                     color: getAquiferColor(item.name)
                 };
             });
-
-            const sumPct = result.reduce((s, d) => s + d.percent, 0);
-            const diff = Math.round((100 - sumPct) * 10) / 10;
-            if (diff !== 0 && result.length > 0) {
-                result[0].percent = Math.round((result[0].percent + diff) * 10) / 10;
-            }
-
             return !displayRegion ? result.slice(0, 5) : result;
         }
 
-        if (aquiferStats && aquiferStats.aquifer_distribution && aquiferStats.aquifer_distribution.length > 0) {
+        if (aquiferStats?.aquifer_distribution) {
             const totalWells = aquiferStats.summary.total_wells || 1;
-            const result = aquiferStats.aquifer_distribution
+            return aquiferStats.aquifer_distribution
                 .map((aq) => ({
                     name: aq.aquifer || 'Unknown',
                     value: aq.count,
@@ -242,10 +369,7 @@ export const useAquiferAnalysis = ({
                     color: getAquiferColor(aq.aquifer)
                 }))
                 .sort((a, b) => b.value - a.value);
-
-            return !displayRegion ? result.slice(0, 5) : result.slice(0, 10);
         }
-
         return [];
     }, [aquiferStats, aquiferSpatialStats, displayRegion]);
 
@@ -258,39 +382,21 @@ export const useAquiferAnalysis = ({
                 { name: 'Long Term Avg', value: parseFloat((s.avg_longterm || (s.avg_pre_monsoon * 1.1) || 0).toFixed(2)), color: '#457b9d' }
             ];
         }
-
-        if (displayRegion && DISTRICT_WATER_LEVEL_DATA[displayRegion]) {
-            const d = DISTRICT_WATER_LEVEL_DATA[displayRegion];
-            return [
-                { name: 'Pre-Monsoon', value: d.pre, color: '#f4a261' },
-                { name: 'Post-Monsoon', value: d.post, color: '#2a9d8f' },
-                { name: 'Long Term Avg', value: d.longTerm, color: '#457b9d' }
-            ];
-        }
-
-        const values = Object.values(DISTRICT_WATER_LEVEL_DATA);
-        if (values.length === 0) return [];
-
-        const sum = values.reduce((acc, curr) => ({
-            pre: acc.pre + curr.pre,
-            post: acc.post + curr.post,
-            longTerm: acc.longTerm + curr.longTerm
-        }), { pre: 0, post: 0, longTerm: 0 });
-
-        const count = values.length;
-        return [
-            { name: 'State Avg (Pre)', value: parseFloat((sum.pre / count).toFixed(2)), color: '#f4a261' },
-            { name: 'State Avg (Post)', value: parseFloat((sum.post / count).toFixed(2)), color: '#2a9d8f' },
-            { name: 'Long Term (Avg)', value: parseFloat((sum.longTerm / count).toFixed(2)), color: '#457b9d' }
-        ];
-    }, [displayRegion, aquiferStats]);
+        return [];
+    }, [aquiferStats]);
 
     return {
         aquiferStats,
         aquiferLoading,
         aquiferSpatialStats,
+        aquiferPolygons,
         spatialStatsLoading,
         aquiferData,
-        waterLevelChartData
+        waterLevelChartData,
+        // New aggregated data
+        aquiferRecords,
+        yearlyTrends,
+        nearbyData,
+        nearbyLoading
     };
 };

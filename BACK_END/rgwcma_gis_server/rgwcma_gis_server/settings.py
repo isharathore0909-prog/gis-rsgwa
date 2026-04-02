@@ -9,57 +9,91 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-print("LOADED SETTINGS FROM:", __file__)
+
 
 
 
 
 import os
+import glob
 from pathlib import Path
+
+# ==============================================================================
+# SPATIAL LIBRARIES CONFIGURATION (WINDOWS)
+# ==============================================================================
+if os.name == 'nt':
+    # 1. Broad Detection of GIS Environments
+    possible_gis_paths = [
+        r"C:\Program Files\QGIS 3.40.14",
+        r"C:\OSGeo4W",
+    ]
+    
+    found_bin = None
+    found_proj = None
+    
+    for p in possible_gis_paths:
+        bin_dir = os.path.join(p, "bin")
+        proj_dir = os.path.join(p, "share", "proj")
+        if os.path.exists(bin_dir) and os.path.exists(os.path.join(proj_dir, "proj.db")):
+            found_bin = bin_dir
+            found_proj = proj_dir
+            # print(f"Detected GIS Environment: {p}")
+            break
+
+    if found_bin:
+        # Add to DLL search path (Python 3.8+)
+        if hasattr(os, 'add_dll_directory'):
+            os.add_dll_directory(found_bin)
+        
+        # Add to PATH for older lookup mechanisms and subprocesses
+        if found_bin not in os.environ['PATH']:
+            os.environ['PATH'] = found_bin + os.pathsep + os.environ['PATH']
+        
+        # 2. Pre-load dependencies to prevent WinError 127 (Procedure not found)
+        # We explicitly load from the detected bin directory.
+        import ctypes
+        try:
+            # GEOS C API is the most common source of WinError 127
+            geos_c_path = os.path.join(found_bin, 'geos_c.dll')
+            if os.path.exists(geos_c_path):
+                ctypes.CDLL(geos_c_path)
+            
+            # PROJ DLL (pick latest available in that bin)
+            proj_dlls = sorted(glob.glob(os.path.join(found_bin, 'proj_*.dll')), reverse=True)
+            if proj_dlls:
+                ctypes.CDLL(proj_dlls[0])
+        except Exception as e:
+            # print(f"Warning: Pre-loading GIS dependencies failed: {e}")
+            pass
+
+        # 3. Set Explicit Library Paths for Django
+        gdal_libs = glob.glob(os.path.join(found_bin, "gdal*.dll"))
+        if gdal_libs:
+            # Prefer gdal310 or lower for best compatibility with current Django
+            supported_libs = [lib for lib in gdal_libs if not any(x in lib for x in ['311', '312', '313', '314'])]
+            GDAL_LIBRARY_PATH = sorted(supported_libs or gdal_libs, reverse=True)[0]
+        
+        geos_libs = glob.glob(os.path.join(found_bin, "geos*.dll"))
+        if geos_libs:
+            geos_c_libs = [lib for lib in geos_libs if 'geos_c' in lib]
+            GEOS_LIBRARY_PATH = sorted(geos_c_libs or geos_libs, reverse=True)[0]
+
+        # 4. Handle PROJ_LIB Consistency
+        os.environ["PROJ_LIB"] = found_proj
+    else:
+        # Fallback to pyproj if no system GIS installation is found
+        try:
+            import pyproj
+            os.environ["PROJ_LIB"] = pyproj.datadir.get_data_dir()
+        except (ImportError, AttributeError):
+            pass
+
 from datetime import timedelta
 from dotenv import load_dotenv
 from corsheaders.defaults import default_headers
 
 # Load environment variables
 load_dotenv()
-
-# Windows PROJ_LIB conflict fix (PostGIS vs GDAL)
-# PROJ/GDAL Configuration
-try:
-    import pyproj
-    import os
-    # Set PROJ_LIB to pyproj's data directory to ensure compatibility
-    proj_lib = pyproj.datadir.get_data_dir()
-    os.environ["PROJ_LIB"] = proj_lib
-    # print(f"Settings: Force-setting PROJ_LIB to pyproj data dir: {proj_lib}")
-except ImportError:
-    pass
-    # If pyproj is not installed, fallback logic or do nothing
-
-
-# ==============================================================================
-# SPATIAL LIBRARIES CONFIGURATION (WINDOWS)
-# ==============================================================================
-if os.name == 'nt':
-    import os
-    found_bin = r"C:\OSGeo4W\bin"
-    if os.path.exists(found_bin):
-        # Modern Python (3.8+) way to add DLL search paths
-        if hasattr(os, 'add_dll_directory'):
-            os.add_dll_directory(found_bin)
-        
-        if found_bin not in os.environ['PATH']:
-            os.environ['PATH'] = found_bin + os.pathsep + os.environ['PATH']
-        
-        import glob
-        # Try to find exactly what Django wants
-        gdal_libs = glob.glob(os.path.join(found_bin, "gdal*.dll"))
-        if gdal_libs:
-            GDAL_LIBRARY_PATH = sorted(gdal_libs, reverse=True)[0]
-        
-        geos_libs = glob.glob(os.path.join(found_bin, "geos*.dll"))
-        if geos_libs:
-            GEOS_LIBRARY_PATH = sorted(geos_libs, reverse=True)[0]
 
 # ==============================================================================
 # PATH CONFIGURATION
