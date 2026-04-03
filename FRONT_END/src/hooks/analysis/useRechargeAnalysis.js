@@ -26,6 +26,10 @@ export const useRechargeAnalysis = ({
             return;
         }
 
+        // Set loading synchronously when the section becomes active or params change
+        // to prevent one-frame "Nothing to show" flashes.
+        setRechargeLoading(true);
+
         const fetchRechargeStats = async () => {
             const params = {};
             if (rajasthanId) params.state_id = rajasthanId;
@@ -41,10 +45,12 @@ export const useRechargeAnalysis = ({
 
             // Stable key to prevent redundant calls
             const currentParamsKey = JSON.stringify(params);
-            if (lastParams.current === currentParamsKey) return;
+            if (lastParams.current === currentParamsKey) {
+                setRechargeLoading(false);
+                return;
+            }
             lastParams.current = currentParamsKey;
 
-            setRechargeLoading(true);
             try {
                 const data = await api.rechargeStructure.getStatistics(params);
                 if (!ignore) {
