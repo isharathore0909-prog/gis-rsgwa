@@ -45,6 +45,8 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet):
         # 2. Administrative Filtering (Spatially resolved fallback)
         # ONLY apply this if no explicit station IDs are provided, 
         # allowing the frontend to fall back to nearest stations if it chooses.
+        district = params.get('district')
+        district_id = params.get('district_id')
         block = params.get('block')
         block_id = params.get('block_id')
         gp = params.get('gram_panchayat') or params.get('grampanchayat')
@@ -57,9 +59,19 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet):
             target_geom = None
             try:
                 if gp_id: target_geom = Grampanchayat.objects.filter(id=gp_id).first()
-                elif gp: target_geom = Grampanchayat.objects.filter(name__iexact=gp).first()
+                elif gp: 
+                    gp_filter = {'name__iexact': gp}
+                    if block_id: gp_filter['block_id'] = block_id
+                    elif block: gp_filter['block__name__iexact'] = block
+                    if district_id: gp_filter['block__district_id'] = district_id
+                    elif district: gp_filter['block__district__name__iexact'] = district
+                    target_geom = Grampanchayat.objects.filter(**gp_filter).first()
                 elif block_id: target_geom = Block.objects.filter(id=block_id).first()
-                elif block: target_geom = Block.objects.filter(name__iexact=block).first()
+                elif block: 
+                    block_filter = {'name__iexact': block}
+                    if district_id: block_filter['district_id'] = district_id
+                    elif district: block_filter['district__name__iexact'] = district
+                    target_geom = Block.objects.filter(**block_filter).first()
                 
                 if target_geom and target_geom.geometry:
                     extent = target_geom.geometry.extent

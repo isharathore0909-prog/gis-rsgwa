@@ -34,7 +34,23 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
 
                 let response = [];
                 try {
+                    // Attempt 1: Specific Village/Block/District fetch
                     response = await api.rainfall.getStationSummary(params);
+
+                    // Fallback Attempt: If no data for specific village/station context, 
+                    // try a broader Block/District fetch to get regional average.
+                    if (selectedWell && (!response || !Array.isArray(response) || response.length === 0)) {
+                        const fallbackParams = {
+                            timestep: params.timestep,
+                            start_date: params.start_date,
+                            end_date: params.end_date,
+                            block: params.block,
+                            district: params.district
+                        };
+                        response = await api.rainfall.getStationSummary(fallbackParams);
+                    }
+
+                    // Secondary fallback to standard rainfall records if stations are empty
                     if (!response || !Array.isArray(response) || response.length === 0) {
                         const genParams = { ...params };
                         if (globalFilters?.gramPanchayat) genParams.gram_panchayat = globalFilters.gramPanchayat;
