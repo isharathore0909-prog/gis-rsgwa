@@ -14,6 +14,15 @@ from core.services.cache_utils import build_cache_key
 
 logger = logging.getLogger(__name__)
 
+def _normalize_category(name):
+    cat_lower = str(name).lower().strip()
+    if 'over' in cat_lower and 'exploited' in cat_lower: return 'Over Exploited'
+    if 'semi' in cat_lower: return 'Semi Critical'
+    if 'critical' in cat_lower: return 'Critical'
+    if 'safe' in cat_lower: return 'Safe'
+    if 'saline' in cat_lower: return 'Saline'
+    return name
+
 def _get_boundary_geometry(district=None, block=None, grampanchayat=None):
     try:
         from locationApi.models import District as DistrictModel, Block as BlockModel, Grampanchayat as GrampanchayatModel
@@ -46,7 +55,12 @@ class SpatialLayerViewSet(viewsets.ReadOnlyModelViewSet):
         features = []
         for obj in queryset:
             geom_data = json.loads(obj.geometry.geojson) if obj.geometry else None
-            features.append({"type": "Feature", "id": obj.id, "properties": {"name": obj.name, "layer_type": obj.layer_type, **obj.properties}, "geometry": geom_data})
+            props = {**obj.properties}
+            status_val = props.get('Category') or props.get('block_status') or props.get('BLOCK_STAT') or props.get('GWDL') or props.get('BLOCK_STATUS')
+            if status_val:
+                props['Category'] = _normalize_category(status_val)
+
+            features.append({"type": "Feature", "id": obj.id, "properties": {"name": obj.name or props.get('BLOCK_NAME'), "layer_type": obj.layer_type, **props}, "geometry": geom_data})
         result = {"type": "FeatureCollection", "features": features}
         cache.set(cache_key, result, 1800)
         return Response(result)
@@ -55,26 +69,45 @@ class SpatialLayerViewSet(viewsets.ReadOnlyModelViewSet):
     def statistics(self, request):
         layer_type, district, block, gp = request.query_params.get('layer_type', 'aquifer'), request.query_params.get('district', '').strip(), request.query_params.get('block', '').strip(), (request.query_params.get('grampanchayat', '').strip() or request.query_params.get('gp', '').strip())
         queryset = SpatialLayer.objects.filter(layer_type=layer_type)
+        
+        property_q = Q()
+        if district:
+            dist_q = Q(properties__District__iexact=district) | Q(properties__DISTRICT__iexact=district) | \
+                     Q(properties__New_Dist__iexact=district) | Q(properties__DIST_NAME__iexact=district) | \
+                     Q(properties__dist_name__iexact=district) | Q(properties__DISTRICT_N__iexact=district)
+            property_q &= dist_q
+        if block:
+            block_q = Q(properties__Block__iexact=block) | Q(properties__BLOCK__iexact=block) | \
+                      Q(properties__block_name__iexact=block) | Q(properties__BLOCK_NAME__iexact=block) | \
+                      Q(properties__Block_Name__iexact=block)
+            property_q &= block_q
+
         spatial_filter_applied, boundary_geom = False, _get_boundary_geometry(district=district or None, block=block or None, grampanchayat=gp or None)
         if boundary_geom:
             try:
-                if queryset.filter(geometry__intersects=boundary_geom).exists():
-                    queryset = queryset.filter(geometry__intersects=boundary_geom)
+                spatial_q = Q(geometry__intersects=boundary_geom)
+                if property_q:
+                    if gp:
+                        queryset = queryset.filter(spatial_q & property_q)
+                        spatial_filter_applied = True
+                    else:
+                        queryset = queryset.filter(property_q)
+                else:
+                    queryset = queryset.filter(spatial_q)
                     spatial_filter_applied = True
-            except Exception as e: logger.warning(f"Spatial filter failed: {e}")
-        if not spatial_filter_applied and district: queryset = queryset.filter(Q(properties__District__iexact=district) | Q(properties__DISTRICT__iexact=district) | Q(properties__New_Dist__iexact=district) | Q(properties__DIST_NAME__iexact=district) | Q(properties__dist_name__iexact=district))
+            except Exception as e:
+                logger.warning(f"Spatial filter failed: {e}")
+                if property_q: queryset = queryset.filter(property_q)
+        elif property_q:
+            queryset = queryset.filter(property_q)
+            
         items, data = queryset.values('id', 'name', 'properties', 'geometry'), {}
         for obj in items:
             props = obj.get('properties', {})
             if layer_type == 'aquifer': cat_name = props.get('Aquifer') or props.get('aquifer') or props.get('AQUIFER') or props.get('Aquifer_Type') or obj.get('name') or 'Unknown'
             elif layer_type == 'groundwater_zone':
-                cat_name = props.get('Category') or props.get('CATEGORY') or props.get('GWDL') or props.get('category') or 'Unknown'
-                cat_lower = str(cat_name).lower().strip()
-                if 'over' in cat_lower and 'exploited' in cat_lower: cat_name = 'Over Exploited'
-                elif 'semi' in cat_lower: cat_name = 'Semi Critical'
-                elif 'critical' in cat_lower: cat_name = 'Critical'
-                elif 'safe' in cat_lower: cat_name = 'Safe'
-                elif 'saline' in cat_lower: cat_name = 'Saline'
+                cat_name = props.get('Category') or props.get('block_status') or props.get('BLOCK_STAT') or props.get('GWDL') or props.get('BLOCK_STATUS') or props.get('category') or 'Unknown'
+                cat_name = _normalize_category(cat_name)
             else: cat_name = obj.get('name') or 'Other'
             area_val, geom = 0, obj.get('geometry')
             if geom and hasattr(geom, 'transform') and geom.srid:
@@ -97,20 +130,70 @@ class SpatialLayerViewSet(viewsets.ReadOnlyModelViewSet):
         layer_type, district, block, gp = request.query_params.get('layer_type', 'aquifer'), request.query_params.get('district', '').strip(), request.query_params.get('block', '').strip(), (request.query_params.get('grampanchayat', '').strip() or request.query_params.get('gp', '').strip())
         queryset = SpatialLayer.objects.filter(layer_type=layer_type)
         boundary_geom = _get_boundary_geometry(district=district or None, block=block or None, grampanchayat=gp or None)
-        has_boundary = False
+        
+        # We want to match features that are EITHER spatially inside OR match the admin properties
+        # This ensures consistency even if GIS shapes are slightly misaligned.
+        property_q = Q()
+        if district:
+            dist_q = Q(properties__District__iexact=district) | Q(properties__DISTRICT__iexact=district) | \
+                     Q(properties__New_Dist__iexact=district) | Q(properties__DIST_NAME__iexact=district) | \
+                     Q(properties__dist_name__iexact=district) | Q(properties__DISTRICT_N__iexact=district)
+            property_q &= dist_q
+        if block:
+            block_q = Q(properties__Block__iexact=block) | Q(properties__BLOCK__iexact=block) | \
+                      Q(properties__block_name__iexact=block) | Q(properties__BLOCK_NAME__iexact=block) | \
+                      Q(properties__Block_Name__iexact=block)
+            property_q &= block_q
+
+        has_spatial_results = False
         if boundary_geom:
             try:
-                if queryset.filter(geometry__intersects=boundary_geom).exists():
-                    queryset = queryset.filter(geometry__intersects=boundary_geom).annotate(clipped_geometry=Intersection('geometry', boundary_geom))
-                    has_boundary = True
-            except: pass
-        if not has_boundary and district: queryset = queryset.filter(Q(properties__District__iexact=district) | Q(properties__DISTRICT__iexact=district) | Q(properties__New_Dist__iexact=district) | Q(properties__DIST_NAME__iexact=district) | Q(properties__dist_name__iexact=district))
+                spatial_q = Q(geometry__intersects=boundary_geom)
+                if property_q:
+                    if gp:
+                        queryset = queryset.filter(spatial_q & property_q)
+                        queryset = queryset.annotate(clipped_geometry=Intersection('geometry', boundary_geom))
+                        has_spatial_results = True
+                    else:
+                        queryset = queryset.filter(property_q)
+                        # We do not clip for district/block because they align with polygons perfectly
+                else:
+                    queryset = queryset.filter(spatial_q)
+                    queryset = queryset.annotate(clipped_geometry=Intersection('geometry', boundary_geom))
+                    has_spatial_results = True
+            except Exception as e:
+                logger.warning(f"Spatial intersection failed for {layer_type}: {e}")
+                if property_q: queryset = queryset.filter(property_q)
+        elif property_q:
+            queryset = queryset.filter(property_q)
+
         features = []
         for obj in queryset:
             geometry = getattr(obj, 'clipped_geometry', obj.geometry)
             if geometry:
                 try:
                     if geometry.empty: continue
-                    features.append({"type": "Feature", "id": obj.id, "properties": {"name": obj.name, "layer_type": obj.layer_type, **obj.properties}, "geometry": json.loads(geometry.geojson)})
+                    props = {**obj.properties}
+                    
+                    # Ensure Category is always injected and normalized
+                    status_val = props.get('Category') or props.get('block_status') or props.get('BLOCK_STAT') or props.get('GWDL') or props.get('BLOCK_STATUS') or props.get('category')
+                    props['Category'] = _normalize_category(status_val or 'Unknown')
+                        
+                    features.append({
+                        "type": "Feature", 
+                        "id": obj.id, 
+                        "properties": {"name": obj.name, "layer_type": obj.layer_type, **props}, 
+                        "geometry": json.loads(geometry.geojson)
+                    })
                 except: pass
-        return Response({"type": "FeatureCollection", "boundary_filter": {"district": district or None, "block": block or None, "grampanchayat": gp or None, "spatial_intersection": boundary_geom is not None}, "feature_count": len(features), "features": features})
+        
+        return Response({
+            "type": "FeatureCollection", 
+            "boundary_filter": {
+                "district": district or None, 
+                "block": block or None, 
+                "spatial_intersection": has_spatial_results
+            }, 
+            "feature_count": len(features), 
+            "features": features
+        })

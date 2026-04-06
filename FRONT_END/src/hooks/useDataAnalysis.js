@@ -131,6 +131,7 @@ export const useDataAnalysis = ({
     // GWRE
     const {
         gwreStats,
+        gwreFeatures,
         gwreLoading,
         pieData,
         totalBlocks
@@ -174,6 +175,7 @@ export const useDataAnalysis = ({
 
         // GWRE
         gwreStats,
+        gwreFeatures,
         gwreLoading,
         pieData,
         totalBlocks,
@@ -214,7 +216,7 @@ export const useDataAnalysis = ({
     }), [
         analysisLevel, analysisName, displayRegion, displayBlock, neighbor,
         isGWRE, isRainfall, isWaterQuality, isAquifer, isWellInventory, isRechargeStructure,
-        gwreStats, gwreLoading, pieData, totalBlocks,
+        gwreStats, gwreFeatures, gwreLoading, pieData, totalBlocks,
         waterQualityStats, waterQualityAvailability, waterQualityLoading, waterQualityError, qualityData, blockWaterQualityData,
         aquiferStats, aquiferLoading, spatialStatsLoading, aquiferSpatialStats, aquiferData, aquiferPolygons, waterLevelChartData,
         aquiferSpatialFilterApplied, aquiferTotalArea, aquiferTotalCount,

@@ -11,9 +11,34 @@ export const useRechargeAnalysis = ({
     rajasthanId
 }) => {
     const [rechargeStats, setRechargeStats] = useState(null);
-    const [rechargeLoading, setRechargeLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(false);
     const [apiRetryCount, setApiRetryCount] = useState(0);
-    const lastParams = useRef('');
+
+    const currentParamsKey = JSON.stringify({
+        state: rajasthanId,
+        dist_id: globalFilters?.district_id,
+        dist: displayRegion,
+        blk_id: globalFilters?.block_id,
+        blk: displayBlock,
+        gp_id: globalFilters?.gp_id,
+        gp: globalFilters?.gramPanchayat
+    });
+
+    const lastParams = useRef(currentParamsKey);
+    const hasAttemptedFetch = useRef(false);
+
+    const paramsChanged = isRechargeStructure && lastParams.current !== currentParamsKey;
+    const isPendingInitialFetch = isRechargeStructure && !hasAttemptedFetch.current;
+
+    const rechargeLoading = isFetching || paramsChanged || isPendingInitialFetch;
+
+    useEffect(() => {
+        if (isRechargeStructure && paramsChanged) {
+            setRechargeStats(null);
+            hasAttemptedFetch.current = false;
+            lastParams.current = currentParamsKey;
+        }
+    }, [isRechargeStructure, paramsChanged, currentParamsKey]);
 
     useEffect(() => {
         let ignore = false;
@@ -21,14 +46,10 @@ export const useRechargeAnalysis = ({
         // If not the active section, clear stats and stop loading
         if (!isRechargeStructure) {
             setRechargeStats(null);
-            setRechargeLoading(false);
-            lastParams.current = '';
+            hasAttemptedFetch.current = false;
+            setIsFetching(false);
             return;
         }
-
-        // Set loading synchronously when the section becomes active or params change
-        // to prevent one-frame "Nothing to show" flashes.
-        setRechargeLoading(true);
 
         const fetchRechargeStats = async () => {
             const params = {};
@@ -43,13 +64,11 @@ export const useRechargeAnalysis = ({
             if (globalFilters?.gp_id) params.gp_id = globalFilters.gp_id;
             else if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
 
-            // Stable key to prevent redundant calls
-            const currentParamsKey = JSON.stringify(params);
-            if (lastParams.current === currentParamsKey) {
-                setRechargeLoading(false);
-                return;
-            }
-            lastParams.current = currentParamsKey;
+            // Wait for rajasthanId before we consider this a valid fetch attempt for the whole state 
+            if (!rajasthanId && Object.keys(params).length === 0) return;
+
+            hasAttemptedFetch.current = true;
+            setIsFetching(true);
 
             try {
                 const data = await api.rechargeStructure.getStatistics(params);
@@ -72,7 +91,7 @@ export const useRechargeAnalysis = ({
                     }
                 }
             } finally {
-                if (!ignore) setRechargeLoading(false);
+                if (!ignore) setIsFetching(false);
             }
         };
 

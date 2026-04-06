@@ -42,7 +42,7 @@ const MapView = ({
 
     // --- Core UI State ---
     const [showLegend, setShowLegend] = useState(false);
-    const [legendFeature, setLegendFeature] = useState('GWDL');
+    const [legendFeature, setLegendFeature] = useState('Category');
     const [numClasses, setNumClasses] = useState(5);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [vectorLoading, setVectorLoading] = useState(false);
@@ -57,10 +57,16 @@ const MapView = ({
     useEffect(() => { if (initialShowLegend) setShowLegend(true); }, [initialShowLegend]);
     useEffect(() => {
         const type = filters?.type;
-        if (type === 'Rainfall') setLegendFeature('avg_rainfall');
-        else if (type === 'Ground Water Resource Estimation') setLegendFeature('GWDL');
-        else if (type === 'Water Quality') setLegendFeature('status');
-        else setLegendFeature('GWDL');
+        if (type === 'Rainfall') {
+            setLegendFeature('avg_rainfall');
+        } else if (type === 'Ground Water Resource Estimation') {
+            setLegendFeature('Category');
+        } else if (type === 'Water Quality') {
+            setLegendFeature('status');
+        } else {
+            // Default to Category for other layers that might use it
+            setLegendFeature('Category');
+        }
     }, [filters?.type]);
     const toggleLegend = useCallback(() => setShowLegend(prev => !prev), []);
 

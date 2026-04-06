@@ -15,25 +15,33 @@ export const useWaterQualityAnalysis = ({
 }) => {
     const [waterQualityStats, setWaterQualityStats] = useState(null);
     const [waterQualityAvailability, setWaterQualityAvailability] = useState(null);
-    const [waterQualityLoading, setWaterQualityLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(false);
     const [waterQualityError, setWaterQualityError] = useState(null);
     const [apiRetryCount, setApiRetryCount] = useState(0);
-    const lastWQParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village });
 
-    // Sync loading state to filter changes via effect to avoid double-loading
+    const lastWQParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village });
+    const hasAttemptedFetch = useRef(false);
+
+    const paramsChanged = isWaterQuality && (
+        lastWQParams.current.displayRegion !== displayRegion ||
+        lastWQParams.current.displayBlock !== displayBlock ||
+        lastWQParams.current.gp !== globalFilters?.gramPanchayat ||
+        lastWQParams.current.v !== globalFilters?.village
+    );
+
+    const isPendingInitialFetch = isWaterQuality && !hasAttemptedFetch.current;
+    const waterQualityLoading = isFetching || paramsChanged || isPendingInitialFetch;
+
+    // Sync params and clear data on change, loading state is handled deriving
     useEffect(() => {
-        if (isWaterQuality && (
-            lastWQParams.current.displayRegion !== displayRegion ||
-            lastWQParams.current.displayBlock !== displayBlock ||
-            lastWQParams.current.gp !== globalFilters?.gramPanchayat ||
-            lastWQParams.current.v !== globalFilters?.village
-        )) {
+        if (isWaterQuality && paramsChanged) {
             setWaterQualityStats(null);
             setWaterQualityAvailability(null);
-            setWaterQualityLoading(true);
+
             lastWQParams.current = { displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village };
+            hasAttemptedFetch.current = false;
         }
-    }, [isWaterQuality, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village]);
+    }, [isWaterQuality, paramsChanged, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village]);
 
     const qualityData = useMemo(() => {
         if (waterQualityStats?.summary) {
@@ -59,12 +67,18 @@ export const useWaterQualityAnalysis = ({
     useEffect(() => {
         let ignore = false;
 
+        if (!isWaterQuality) {
+            hasAttemptedFetch.current = false;
+            setIsFetching(false);
+            return;
+        }
+
         const fetchWaterQuality = async () => {
             if (!rajasthanId) {
-                setWaterQualityLoading(false);
                 return;
             }
-            setWaterQualityLoading(true);
+            hasAttemptedFetch.current = true;
+            setIsFetching(true);
             setWaterQualityError(null);
             try {
                 const params = {};
@@ -115,7 +129,7 @@ export const useWaterQualityAnalysis = ({
                 }
             } finally {
                 if (!ignore) {
-                    setWaterQualityLoading(false);
+                    setIsFetching(false);
                 }
             }
         };

@@ -9,6 +9,7 @@ export { useDistrictRainfall, useLocationRainfall } from './data/useRainfallData
 export { useWaterQuality } from './data/useWaterQualityData';
 export { useAquiferData } from './data/useAquiferData';
 export { usePiezometerData } from './data/usePiezometerData';
+export { useSpatialLayerData } from './data/useSpatialLayerData';
 export { useGeoJSONData } from './data/useGeoJSONData';
 
 // Data Processing Hooks

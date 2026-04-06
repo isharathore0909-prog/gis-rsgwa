@@ -44,7 +44,7 @@ export const LegendWidget = ({
 
     // Only show the thematic controls (feature selector + steps) for layers
     // that actually support continuous/discretised classification.
-    const showThematicControls = isActive === 'Rainfall';
+    const showThematicControls = isActive === 'Rainfall' || isActive === 'Ground Water Resource Estimation';
 
     return (
         <div className="legend-widget animated-fade-in">

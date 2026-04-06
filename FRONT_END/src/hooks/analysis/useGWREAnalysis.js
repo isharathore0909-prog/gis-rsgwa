@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import api from '../../api';
 
 export const useGWREAnalysis = ({
@@ -9,23 +9,52 @@ export const useGWREAnalysis = ({
     rajasthanId
 }) => {
     const [gwreStats, setGwreStats] = useState(null);
-    const [gwreLoading, setGwreLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
     const [apiRetryCount, setApiRetryCount] = useState(0);
+
+    const activeMode = isGWRE || !globalFilters?.type || globalFilters?.type === 'Ground Water Resource Estimation';
+
+    // Keep track of previous parameters to conditionally display loading state synchronously
+    const lastParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, type: globalFilters?.type });
+    const hasAttemptedFetch = useRef(false);
+
+    const paramsChanged = activeMode && (
+        lastParams.current.displayRegion !== displayRegion ||
+        lastParams.current.displayBlock !== displayBlock ||
+        lastParams.current.gp !== globalFilters?.gramPanchayat ||
+        lastParams.current.type !== globalFilters?.type
+    );
+
+    // Initial load block, or actual fetch progress, or synchronous transition catching.
+    // If active but we haven't even attempted to fetch yet (e.g. waiting for rajasthanId), we are loading.
+    const isPendingInitialFetch = activeMode && !hasAttemptedFetch.current;
+    const gwreLoading = isFetching || paramsChanged || isPendingInitialFetch;
+
+    console.log('[DEBUG useGWRE] activeMode:', activeMode, 'isFetching:', isFetching, 'paramsChanged:', paramsChanged, 'pendingInit:', isPendingInitialFetch, 'gwreLoading:', gwreLoading);
 
     useEffect(() => {
         let ignore = false;
-        const isGwreType = isGWRE || !globalFilters?.type || globalFilters?.type === 'Ground Water Resource Estimation';
-        if (!isGwreType) {
-            setGwreLoading(false);
+
+        lastParams.current = {
+            displayRegion,
+            displayBlock,
+            gp: globalFilters?.gramPanchayat,
+            type: globalFilters?.type
+        };
+
+        if (!activeMode) {
+            setIsFetching(false);
+            hasAttemptedFetch.current = false;
             return;
         }
 
         const fetchGWRE = async () => {
             if (!rajasthanId) {
-                setGwreLoading(false);
+                // Keep showing loading until we have rajasthanId and start fetching
                 return;
             }
-            setGwreLoading(true);
+            hasAttemptedFetch.current = true;
+            setIsFetching(true);
             try {
                 const params = { layer_type: 'groundwater_zone' };
                 if (displayRegion) params.district = displayRegion;
@@ -43,7 +72,6 @@ export const useGWREAnalysis = ({
             } catch (err) {
                 if (!ignore) {
                     console.error('Failed to fetch GWRE stats:', err);
-                    // If backend returned connection error, retry after a delay
                     if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK' || err.message.includes('Network Error'))) {
                         const delay = 5000 * (apiRetryCount + 1);
                         setTimeout(() => {
@@ -54,13 +82,13 @@ export const useGWREAnalysis = ({
                     }
                 }
             } finally {
-                if (!ignore) setGwreLoading(false);
+                if (!ignore) setIsFetching(false);
             }
         };
 
         fetchGWRE();
         return () => { ignore = true; };
-    }, [isGWRE, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, rajasthanId, apiRetryCount]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, rajasthanId, apiRetryCount]);
 
     const pieData = useMemo(() => {
         if (gwreStats?.distribution && gwreStats.distribution.length > 0) {
@@ -85,8 +113,45 @@ export const useGWREAnalysis = ({
         return gwreStats?.total_count || pieData.reduce((sum, item) => sum + (item.value || 0), 0);
     }, [gwreStats, pieData]);
 
+    const [gwreFeatures, setGwreFeatures] = useState(null);
+
+    // Fetch GWRE Features for Attribute Table
+    useEffect(() => {
+        let ignore = false;
+        if (!activeMode) {
+            setGwreFeatures(null);
+            return;
+        }
+
+        const fetchFeatures = async () => {
+            try {
+                const params = { layer_type: 'groundwater_zone' };
+                if (displayRegion) params.district = displayRegion;
+                if (displayBlock) params.block = displayBlock;
+                if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
+
+                const hasLocationFilter = params.district || params.block || params.grampanchayat;
+                const data = hasLocationFilter
+                    ? await api.spatialLayer.getIntersect(params)
+                    : await api.spatialLayer.getLayers(params);
+
+                if (!ignore) {
+                    setGwreFeatures(data);
+                }
+            } catch (err) {
+                if (!ignore) {
+                    console.error('Failed to fetch GWRE features:', err);
+                }
+            }
+        };
+
+        fetchFeatures();
+        return () => { ignore = true; };
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat]);
+
     return {
         gwreStats,
+        gwreFeatures,
         gwreLoading,
         pieData,
         totalBlocks

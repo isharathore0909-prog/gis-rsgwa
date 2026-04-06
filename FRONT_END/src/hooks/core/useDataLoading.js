@@ -78,29 +78,14 @@ export const useDataLoading = (filters, neighbors) => {
 
         initializeMapBase();
 
-        fetchCached('/groundwater_zone.json')
-            .then(data => {
-                if (!ignore) {
-                    const reprojected = data._reprojected || reprojectGeoJSON(data);
-                    if (reprojected) {
-                        data._reprojected = reprojected;
-                        originalStaticBlockDataRef.current = reprojected;
-                        setProcessedBlockData(reprojected);
-                    } else {
-                        originalStaticBlockDataRef.current = data;
-                        setProcessedBlockData(data);
-                    }
-                }
-            })
-            .catch(() => {
-                fetchCached('/block_boundary_updated.json').then(data => {
-                    if (!ignore) {
-                        const reprojected = data._reprojected || reprojectGeoJSON(data);
-                        originalStaticBlockDataRef.current = reprojected || data;
-                        setProcessedBlockData(reprojected || data);
-                    }
-                });
-            });
+        // Initial fetch for micro-data (if needed) or other small static assets
+        fetchCached('/block_boundary_updated.json').then(data => {
+            if (!ignore) {
+                const reprojected = data._reprojected || reprojectGeoJSON(data);
+                originalStaticBlockDataRef.current = reprojected || data;
+                setProcessedBlockData(reprojected || data);
+            }
+        }).catch(err => console.warn("Failed to load initial block boundaries:", err));
 
         return () => { ignore = true; };
     }, [initRetry]);

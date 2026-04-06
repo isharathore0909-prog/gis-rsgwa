@@ -102,6 +102,17 @@ export const useFilteredBlockData = (blockBoundaryData, gwreData, filters, rajas
 
         if (!sourceData || !filters?.district) return sourceData;
 
+        // CRITICAL FIX: For Groundwater Resource Estimation, the backend ALREADY handles
+        // spatial filtering by district. Re-filtering here by properties (like DISTRICT_N)
+        // often FAILS for new districts (e.g., Balotra vs Barmer) or border features.
+        if (filters?.type === 'Ground Water Resource Estimation') {
+            // We still filter out parents/districts level markers to avoid duplication
+            const blocksOnly = sourceData.features.filter(f =>
+                f.properties.level !== 'district' && f.properties.is_parent !== true
+            );
+            return { ...sourceData, features: blocksOnly };
+        }
+
         const searchDist = normalizeDistrictName(filters.district);
 
         // Filter features that belong to the district
@@ -112,7 +123,7 @@ export const useFilteredBlockData = (blockBoundaryData, gwreData, filters, rajas
             // Skip parent features (district boundary) - these are for the highlight layer
             if (p.is_parent === true || p.level === 'district') return false;
 
-            const dName = (p.DIST_NAME || p.District || p.district_name || p.district || p.dist_name || '').toString();
+            const dName = (p.DIST_NAME || p.District || p.district_name || p.district || p.dist_name || p.DISTRICT_N || '').toString();
             return normalizeDistrictName(dName) === searchDist;
         });
 
@@ -158,10 +169,10 @@ export const useValidatedBlockData = (filteredBlockData, filters, rainfallStatsB
         // Inject rainfall data if applicable
         if (filters?.type === 'Rainfall') {
             const featuresWithRainfall = valid.map(f => {
-                const bName = (f.properties.BLOCK_NAME || f.properties.Block || '')
+                const bName = (f.properties.BLOCK_NAME || f.properties.Block || f.properties.BLOCK_NAME || '')
                     .toString().trim().toUpperCase();
                 const dName = normalizeDistrictName(f.properties.New_Dist || f.properties.name || f.properties.DIST_NAME || f.properties.District ||
-                    f.properties.district_name || '');
+                    f.properties.district_name || f.properties.DISTRICT_N || '');
                 const key = `${dName}|${bName}`;
                 const distKey = dName.replace(/[^A-Z0-9]/g, '');
 

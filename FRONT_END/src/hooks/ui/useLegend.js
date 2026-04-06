@@ -293,6 +293,7 @@ export const useFeatureOptions = (layerType) => {
         } else if (layerType === 'Ground Water Resource Estimation') {
             return [
                 { value: 'Category', label: 'Ground Water Category' },
+                { value: 'block_status', label: 'Block Status' },
                 { value: 'safe', label: 'Safe' },
                 { value: 'critical', label: 'Critical' },
                 { value: 'semi critical', label: 'Semi Critical' },

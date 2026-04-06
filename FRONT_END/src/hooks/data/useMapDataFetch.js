@@ -14,7 +14,8 @@ import {
     useFilteredBlockData,
     useValidatedBlockData,
     useValidatedBoundaries,
-    useLocationRainfall
+    useLocationRainfall,
+    useSpatialLayerData
 } from '../index';
 import { RAJASTHAN_DAMS_DATA } from '../../data/damsData';
 import { reprojectGeoJSON } from '../../utils/reproject';
@@ -60,7 +61,7 @@ export const useMapDataFetch = ({
 
     const activeBlockStats = (drillLevel === 'block') ? dynamicRainfallStats : (blockRainfallStats || {});
 
-    const { data: gwreData, loading: gwreLoading } = useGeoJSONData('/groundwater_zone.json', filters?.type === 'Ground Water Resource Estimation');
+    const { data: gwreData, loading: gwreLoading } = useSpatialLayerData('groundwater_zone', filters?.type === 'Ground Water Resource Estimation', filters);
     const { data: raingaugeStations, loading: raingaugeLoading } = useGeoJSONData('/Raingauge Stations.geojson', filters?.type === 'Rainfall');
     const reprojectedGwreData = useMemo(() => gwreData ? reprojectGeoJSON(gwreData) : null, [gwreData]);
 

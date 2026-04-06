@@ -57,12 +57,18 @@ export const getFeatureColor = (value, legendData) => {
         }
     }
 
-    // 1c. Substring match (handles GWDL variants like "Over Exploited" ↔ "over exploited")
+    // 1c. Substring match (handles GWDL variants like "Over Exploited" ↔ "over exploited" ↔ "over-exploited")
+    const normValue = strVal.replace(/[^a-z0-9]/g, '');
     for (const item of legendData) {
         if (!item.isCategorical) continue;
         const lbl = String(item.label || item.value || '').trim().toLowerCase();
         if (!lbl || lbl === 'no data') continue;
-        if (strVal.includes(lbl) || lbl.includes(strVal)) return item.color;
+        const normLabel = lbl.replace(/[^a-z0-9]/g, '');
+
+        if (normValue.includes(normLabel) || normLabel.includes(normValue) ||
+            strVal.includes(lbl) || lbl.includes(strVal)) {
+            return item.color;
+        }
     }
 
     // 2. Numeric Range Check

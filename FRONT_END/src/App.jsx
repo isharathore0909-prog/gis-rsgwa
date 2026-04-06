@@ -77,9 +77,19 @@ function AppContent() {
             rainfallStations, rainfallStationRecords,
             analysisResults?.intersectingStationIds,
             analysisResults?.rainfallStats,
-            selectedBoundary
+            selectedBoundary,
+            analysisResults?.gwreFeatures
         ),
-        [filters, processedBlockData, neighbors, rainfallPoints, waterQualityRecords, aquiferRecords, selectedDams, canalData, waterbodyData, microData, rainfallStations, rainfallStationRecords, analysisResults?.intersectingStationIds, analysisResults?.rainfallStats, selectedBoundary]
+        [
+            filters, processedBlockData, neighbors, rainfallPoints,
+            waterQualityRecords, aquiferRecords, selectedDams,
+            canalData, waterbodyData, microData,
+            rainfallStations, rainfallStationRecords,
+            analysisResults?.intersectingStationIds,
+            analysisResults?.rainfallStats,
+            selectedBoundary,
+            analysisResults?.gwreFeatures
+        ]
     );
 
     const onExportData = useCallback(async () => {

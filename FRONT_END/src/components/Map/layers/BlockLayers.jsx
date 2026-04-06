@@ -1,5 +1,5 @@
 import React from 'react';
-import { GeoJSON } from 'react-leaflet';
+import { GeoJSON, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import { getFeatureProperty } from '../../../utils/geoUtils';
 import { getFeatureColor } from '../../../utils/mapUtils';
@@ -30,75 +30,90 @@ export const BlockBoundaryLayer = React.memo(({
     if (!data) return null;
 
     return (
-        <GeoJSON
-            key={`geojson-${filters?.type}-${legendFeature}-${filters?.district || 'all'}-${filters?.block || 'all'}`}
-            ref={geoJsonRef}
-            data={filteredData}
-            style={(feature) => {
-                const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
+        <Pane name="blockBoundaryPane" style={{ zIndex: 1000 }}>
+            <GeoJSON
+                key={`geojson-${filters?.type}-${legendFeature}-${filters?.district || 'all'}-${filters?.block || 'all'}`}
+                ref={geoJsonRef}
+                data={filteredData}
+                style={(feature) => {
+                    const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
 
-                // Check if this block is selected
-                const blockName = feature.properties.BLOCK_NAME || feature.properties.Block;
-                const isSelected = filters?.block && blockName &&
-                    filters?.type !== 'Ground Water Resource Estimation' &&
-                    blockName.toString().trim().toUpperCase() === filters.block.toString().trim().toUpperCase();
+                    // Check if this block is selected
+                    const blockName = feature.properties.BLOCK_NAME || feature.properties.Block;
+                    const isSelected = filters?.block && blockName &&
+                        filters?.type !== 'Ground Water Resource Estimation' &&
+                        blockName.toString().trim().toUpperCase() === filters.block.toString().trim().toUpperCase();
 
-                let val;
-                if (isThematic) {
-                    const propKey = filters?.type === 'Ground Water Resource Estimation' ? 'GWDL' : legendFeature;
-                    val = getFeatureProperty(feature, propKey);
-                }
+                    let val;
+                    if (isThematic) {
+                        const propKey = filters?.type === 'Ground Water Resource Estimation' ? (legendFeature || 'Category') : legendFeature;
+                        val = getFeatureProperty(feature, propKey);
 
-                const hasData = val !== null && val !== undefined && val !== "No Data";
-
-                if (isSelected) {
-                    return {
-                        fillColor: isThematic ? getFeatureColor(val, legendData) : 'transparent',
-                        weight: 3.5,
-                        color: '#059669', // Emerald highlight to match SelectionHighlightLayer
-                        fillOpacity: isThematic ? (hasData ? 0.9 : 0) : 0, // No fill for selection unless thematic
-                        dashArray: ''
-                    };
-                }
-
-                return {
-                    fillColor: isThematic ? (hasData ? getFeatureColor(val, legendData) : 'transparent') : 'transparent',
-                    weight: 1,
-                    color: isThematic ? '#64748b' : '#cbd5e1',
-                    fillOpacity: isThematic ? (hasData ? 0.75 : 0) : 0
-                };
-            }}
-            onEachFeature={(feature, layer) => {
-                const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
-                let val;
-                if (isThematic) {
-                    const propKey = filters?.type === 'Ground Water Resource Estimation' ? 'GWDL' : legendFeature;
-                    val = getFeatureProperty(feature, propKey);
-                }
-                const displayVal = (val !== null && val !== undefined)
-                    ? (filters?.type === 'Rainfall' ? `${Number(val).toFixed(1)} mm` : val)
-                    : null;
-
-                // Bind tooltip once
-                /*
-                layer.bindTooltip(`
-                    <div style="font-weight:bold">${feature.properties.BLOCK_NAME || feature.properties.Block}</div>
-                    ${displayVal ? `<div>${displayVal}</div>` : ''}
-                `, { sticky: true, className: 'custom-map-tooltip' });
-                */
-
-                layer.on({
-                    click: e => {
-                        const props = e.target.feature.properties;
-                        onLocationClick({ lat: e.latlng.lat, lng: e.latlng.lng }, [{
-                            id: props.BLOCK_NAME || props.Block,
-                            location: props.BLOCK_NAME || props.Block,
-                            district: props.DIST_NAME || props.District
-                        }]);
+                        // Robust fallback for GWRE - handles various potential property names and case differences
+                        if (filters?.type === 'Ground Water Resource Estimation' && (val === undefined || val === null)) {
+                            val = getFeatureProperty(feature, 'Category') ||
+                                getFeatureProperty(feature, 'category') ||
+                                getFeatureProperty(feature, 'block_status') ||
+                                getFeatureProperty(feature, 'block_stat') ||
+                                getFeatureProperty(feature, 'BLOCK_STATUS') ||
+                                getFeatureProperty(feature, 'BLOCK_STAT') ||
+                                getFeatureProperty(feature, 'GWDL') ||
+                                getFeatureProperty(feature, 'status');
+                        }
                     }
-                });
-            }}
-        />
+
+                    const hasData = val !== null && val !== undefined && val !== "" && val !== "No Data" && val !== "Unknown";
+
+                    if (isSelected) {
+                        return {
+                            fillColor: isThematic ? getFeatureColor(val, legendData) : 'transparent',
+                            weight: 3.5,
+                            color: '#059669', // Emerald highlight to match SelectionHighlightLayer
+                            fillOpacity: isThematic ? (hasData ? 0.9 : 0) : 0, // No fill for selection unless thematic
+                            dashArray: ''
+                        };
+                    }
+
+                    return {
+                        fillColor: isThematic && hasData ? getFeatureColor(val, legendData) : 'transparent',
+                        weight: 1,
+                        color: isThematic ? '#64748b' : '#cbd5e1',
+                        fillOpacity: isThematic ? (hasData ? 0.75 : 0) : 0,
+                        fill: true
+                    };
+                }}
+                onEachFeature={(feature, layer) => {
+                    const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
+                    let val;
+                    if (isThematic) {
+                        const propKey = filters?.type === 'Ground Water Resource Estimation' ? (legendFeature || 'Category') : legendFeature;
+                        val = getFeatureProperty(feature, propKey);
+
+                        // Robust fallback for GWRE - same logic as above for consistency
+                        if (filters?.type === 'Ground Water Resource Estimation' && (val === undefined || val === null)) {
+                            val = getFeatureProperty(feature, 'Category') ||
+                                getFeatureProperty(feature, 'category') ||
+                                getFeatureProperty(feature, 'block_status') ||
+                                getFeatureProperty(feature, 'block_stat') ||
+                                getFeatureProperty(feature, 'BLOCK_STATUS') ||
+                                getFeatureProperty(feature, 'BLOCK_STAT') ||
+                                getFeatureProperty(feature, 'GWDL') ||
+                                getFeatureProperty(feature, 'status');
+                        }
+                    }
+                    layer.on({
+                        click: e => {
+                            const props = e.target.feature.properties;
+                            onLocationClick({ lat: e.latlng.lat, lng: e.latlng.lng }, [{
+                                id: props.BLOCK_NAME || props.Block,
+                                location: props.BLOCK_NAME || props.Block,
+                                district: props.DIST_NAME || props.District
+                            }]);
+                        }
+                    });
+                }}
+            />
+        </Pane>
     );
 });
 
@@ -196,20 +211,6 @@ export const DrillDownBoundariesLayer = ({
                 if (!isRelevantLevel) return;
 
                 // Bind tooltip with level info
-
-                const isThematic = filters?.type === 'Rainfall';
-                let val;
-                if (isThematic && legendFeature) {
-                    val = feature.properties[legendFeature] ?? feature.properties.avg_rainfall;
-                }
-                const displayVal = (isThematic && val !== null && val !== undefined) ? `${Number(val).toFixed(1)} mm` : null;
-
-                const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
-                layer.bindTooltip(`
-                    <div style="font-size: 10px; color: #64748b; margin-bottom: 2px;">${levelLabel}</div>
-                    <div style="font-weight: bold;">${name}</div>
-                    ${displayVal ? `<div>${displayVal}</div>` : ''}
-                `, { sticky: true, className: isThematic ? 'custom-map-tooltip' : '' });
 
                 layer.on({
                     click: e => {
