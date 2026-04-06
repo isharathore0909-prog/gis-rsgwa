@@ -18,7 +18,8 @@ export const useAquiferAnalysis = ({
     neighbor,
     selectedBoundary,
     blockData,
-    rajasthanId
+    rajasthanId,
+    analysisLevel
 }) => {
     const isDefaultAquiferView = useMemo(() =>
         !isRainfall && !isWaterQuality && !isAquifer && !isWellInventory && !isGWRE && !isRechargeStructure,
@@ -59,7 +60,8 @@ export const useAquiferAnalysis = ({
         neighbor,
         paramsChanged,
         hasAttemptedSpatialFetch,
-        globalFilters
+        globalFilters,
+        analysisLevel
     });
 
     const {
@@ -75,7 +77,8 @@ export const useAquiferAnalysis = ({
         displayBlock,
         rajasthanId,
         paramsChanged,
-        hasAttemptedStatsFetch
+        hasAttemptedStatsFetch,
+        analysisLevel
     });
 
     const {

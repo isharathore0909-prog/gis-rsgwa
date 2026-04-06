@@ -6,7 +6,8 @@ export const useGWREAnalysis = ({
     globalFilters,
     displayRegion,
     displayBlock,
-    rajasthanId
+    rajasthanId,
+    analysisLevel
 }) => {
     const [gwreStats, setGwreStats] = useState(null);
     const [isFetching, setIsFetching] = useState(false);
@@ -57,7 +58,7 @@ export const useGWREAnalysis = ({
             setIsFetching(true);
             try {
                 const params = { layer_type: 'groundwater_zone' };
-                if (displayRegion) params.district = displayRegion;
+                if (analysisLevel !== 'State' && displayRegion) params.district = displayRegion;
                 if (displayBlock) params.block = displayBlock;
                 if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
 
@@ -88,7 +89,7 @@ export const useGWREAnalysis = ({
 
         fetchGWRE();
         return () => { ignore = true; };
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, rajasthanId, apiRetryCount]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, rajasthanId, apiRetryCount, analysisLevel]);
 
     const pieData = useMemo(() => {
         if (gwreStats?.distribution && gwreStats.distribution.length > 0) {
@@ -126,7 +127,7 @@ export const useGWREAnalysis = ({
         const fetchFeatures = async () => {
             try {
                 const params = { layer_type: 'groundwater_zone' };
-                if (displayRegion) params.district = displayRegion;
+                if (analysisLevel !== 'State' && displayRegion) params.district = displayRegion;
                 if (displayBlock) params.block = displayBlock;
                 if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
 
@@ -147,7 +148,7 @@ export const useGWREAnalysis = ({
 
         fetchFeatures();
         return () => { ignore = true; };
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, analysisLevel]);
 
     return {
         gwreStats,

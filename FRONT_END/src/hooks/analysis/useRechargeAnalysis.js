@@ -56,7 +56,7 @@ export const useRechargeAnalysis = ({
             if (rajasthanId) params.state_id = rajasthanId;
 
             if (globalFilters?.district_id) params.district_id = globalFilters.district_id;
-            else if (displayRegion && displayRegion !== 'Rajasthan') params.district = displayRegion;
+            else if (analysisLevel !== 'State' && displayRegion) params.district = displayRegion;
 
             if (globalFilters?.block_id) params.block_id = globalFilters.block_id;
             else if (displayBlock) params.block = displayBlock;

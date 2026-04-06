@@ -77,7 +77,8 @@ export const useDataAnalysis = ({
         displayRegion,
         displayBlock,
         neighbor,
-        rajasthanId
+        rajasthanId,
+        analysisLevel
     });
 
     // Rainfall
@@ -100,7 +101,8 @@ export const useDataAnalysis = ({
         dynamicBoundaries,
         rainfallDataSource,
         parentRainfallLoading,
-        rajasthanId
+        rajasthanId,
+        analysisLevel
     });
 
     // Aquifer
@@ -119,7 +121,8 @@ export const useDataAnalysis = ({
     } = useAquiferAnalysis({
         isAquifer, isGWRE, isWellInventory, isRainfall, isWaterQuality, isRechargeStructure,
         globalFilters, displayRegion, displayBlock, clickedLocation, neighbor,
-        selectedBoundary, blockData, rajasthanId
+        selectedBoundary, blockData, rajasthanId,
+        analysisLevel
     });
 
     // Derive fields previously returned by useAquiferAnalysis
@@ -140,7 +143,8 @@ export const useDataAnalysis = ({
         globalFilters,
         displayRegion,
         displayBlock,
-        rajasthanId
+        rajasthanId,
+        analysisLevel
     });
 
     // Recharge Structure

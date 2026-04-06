@@ -23,7 +23,8 @@ export const useAquiferSpatialStats = ({
     neighbor,
     paramsChanged,
     hasAttemptedSpatialFetch,
-    globalFilters
+    globalFilters,
+    analysisLevel
 }) => {
     const [aquiferSpatialStats, setAquiferSpatialStats] = useState(null);
     const [aquiferPolygons, setAquiferPolygons] = useState(null);
@@ -112,7 +113,7 @@ export const useAquiferSpatialStats = ({
                     } catch (e) {
                         console.warn('[AquiferStats] Strict spatial filter failed', e);
                     }
-                } else if (displayRegion) {
+                } else if (analysisLevel !== 'State' && displayRegion) {
                     // 4. Fallback to district if no block or point selected
                     const resolvedName = resolveAquiferDistrict(displayRegion);
                     const nameMatched = features.filter(f => {
@@ -210,7 +211,7 @@ export const useAquiferSpatialStats = ({
 
         fetchSpatialStats();
         return () => { ignore = true; };
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, blockData, selectedBoundary, neighbor, hasAttemptedSpatialFetch]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters, blockData, selectedBoundary, neighbor, hasAttemptedSpatialFetch, analysisLevel]);
 
     return {
         aquiferSpatialStats,

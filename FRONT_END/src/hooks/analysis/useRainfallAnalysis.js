@@ -14,7 +14,8 @@ export const useRainfallAnalysis = ({
     dynamicBoundaries = [],
     rainfallDataSource = 'station',
     parentRainfallLoading,
-    rajasthanId
+    rajasthanId,
+    analysisLevel
 }) => {
     const [rainfallStatsData, setRainfallStatsData] = useState(null);
     const [rainfallSummaryData, setRainfallSummaryData] = useState([]);
@@ -30,7 +31,7 @@ export const useRainfallAnalysis = ({
     };
 
     const baseParams = {};
-    const isStateOverview = !displayRegion || displayRegion === 'Rajasthan';
+    const isStateOverview = analysisLevel === 'State';
 
     if (!isStateOverview) {
         if (displayRegion) baseParams.district = toTitleCase(displayRegion);
@@ -188,7 +189,7 @@ export const useRainfallAnalysis = ({
         isRainfall, displayRegion, displayBlock,
         globalFilters?.gramPanchayat, globalFilters?.village,
         globalFilters?.dataRangeStart, globalFilters?.dataRangeEnd, globalFilters?.timestep,
-        rainfallStations?.length, rainfallDataSource, selectedBoundary, neighbor, blockData, dynamicBoundaries?.length, rajasthanId, apiRetryCount
+        rainfallStations?.length, rainfallDataSource, selectedBoundary, neighbor, blockData, dynamicBoundaries?.length, rajasthanId, apiRetryCount, analysisLevel
     ]);
 
     return {
