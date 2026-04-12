@@ -10,7 +10,7 @@ def safe_round(val, precision=2):
         return round(f, precision)
     except: return 0.0
 
-def calculate_rainfall_stats(queryset, is_station_data=False):
+def calculate_rainfall_stats(queryset, is_station_data=False, unit_count=None):
     """
     Standardized rainfall statistics calculation for both standard and station data.
     Optimized for large datasets (1M+ records) by merging all aggregations into a single pass.
@@ -24,7 +24,6 @@ def calculate_rainfall_stats(queryset, is_station_data=False):
         avg=Avg('rainfall_mm'),
         count=Count('id'),
         max=Max('rainfall_mm'),
-        unit_count=Count(group_field, distinct=True),
         monsoon_total=Sum('rainfall_mm', filter=Q(date__month__in=monsoon_months)),
         non_monsoon_total=Sum('rainfall_mm', filter=~Q(date__month__in=monsoon_months)),
         monsoon_count=Count('id', filter=Q(date__month__in=monsoon_months)),
@@ -33,7 +32,9 @@ def calculate_rainfall_stats(queryset, is_station_data=False):
     
     # Calculate averages from the merged stats
     total_val = stats['total'] or 0
-    unit_count = stats['unit_count'] or 1
+    if unit_count is None:
+        unit_count = queryset.values(group_field).distinct().count() or 1
+    
     avg_total = total_val / unit_count
     
     monsoon_avg = (stats['monsoon_total'] or 0) / (stats['monsoon_count'] or 1)

@@ -44,7 +44,6 @@ const VectorTileLayer = ({ url, style, active, layerName }) => {
         // Event listeners can be added here if needed
         vectorGridLayer.on('click', (e) => {
             // e.layer is the feature that was clicked
-            console.log('Vector tile feature clicked:', e.layer.properties);
             L.popup()
                 .setLatLng(e.latlng)
                 .setContent(`<pre>${JSON.stringify(e.layer.properties, null, 2)}</pre>`)

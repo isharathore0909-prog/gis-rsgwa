@@ -6,7 +6,6 @@ import {
 import AnalysisCard from './Common/AnalysisCard';
 import MiniStatusCard from './Common/MiniStatusCard';
 import SmartChartContainer from './Common/SmartChartContainer';
-import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 import { calculateLinearTrendLine } from '../../utils/statsUtils';
 import './RainfallSection.css';
 
@@ -140,18 +139,9 @@ const RainfallSection = ({
         return `Rainfall Overview: ${label}`;
     }, [rainfallStats, analysisLevel, displayRegion]);
 
-    if (isLoading) {
-        return (
-            <div className="rainfall-grid animated-entry" style={{ position: 'relative', minHeight: '300px' }}>
-                <GlassLoadingOverlay
-                    message="Analyzing Rainfall Patterns"
-                    subtext={`Fetching records for ${displayRegion || 'Rajasthan'}`}
-                />
-            </div>
-        );
-    }
 
-    const hasNoData = !rainfallStats || rainfallStats?.isEmpty || (rainfallStats && !rainfallStats.count && !rainfallStats.average && !rainfallStats.total);
+
+    const hasNoData = !rainfallStats || rainfallStats?.isEmpty || (rainfallStats && !rainfallStats.count && !rainfallStats.avg && !rainfallStats.total);
     if (hasNoData) {
         return (
             <div className="rainfall-grid animated-entry">

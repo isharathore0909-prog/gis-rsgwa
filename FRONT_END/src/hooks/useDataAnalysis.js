@@ -39,15 +39,23 @@ export const useDataAnalysis = ({
     const isAquifer = globalFilters?.type === 'Aquifer';
     const isWellInventory = globalFilters?.type === 'Well Inventory';
     const isRechargeStructure = globalFilters?.type === 'Recharge Structure';
+    const isWaterResources = globalFilters?.type === 'Water Resources';
 
     const filterDistrict = globalFilters?.district;
     const filterBlock = globalFilters?.block || globalFilters?.taluka;
     const neighbor = neighbors && neighbors.length > 0 ? neighbors[0] : null;
-    const clickedDistrict = neighbor?.district;
-    const clickedBlock = neighbor?.id || neighbor?.location;
 
-    const displayRegion = clickedDistrict || filterDistrict || neighbor?.location || null;
-    const displayBlock = clickedBlock || filterBlock;
+    // Neighbors can be either administrative units (polygons) or point features (wells). 
+    // We must distinguish between them to prevent well IDs from overriding regional filters.
+    const isPointFeature = neighbor?.type === 'well_inventory_well' || neighbor?.type === 'water_quality_well' || neighbor?.type === 'piezometer';
+
+    // Only derive region/block from neighbor if it's NOT a point feature 
+    // (i.e. if it's a district/block polygon clicked on the map)
+    const neighborDistrict = !isPointFeature ? (neighbor?.district || neighbor?.DISTRICT) : null;
+    const neighborBlock = !isPointFeature ? (neighbor?.block || neighbor?.BLOCK_NAME || neighbor?.id) : null;
+
+    const displayRegion = neighborDistrict || filterDistrict || null;
+    const displayBlock = neighborBlock || filterBlock;
 
     const getAnalysisContext = () => {
         if (globalFilters?.village) return { level: 'Village', name: globalFilters.village };
@@ -72,7 +80,7 @@ export const useDataAnalysis = ({
         qualityData,
         blockWaterQualityData
     } = useWaterQualityAnalysis({
-        isWaterQuality: isWaterQuality || isGWRE || (!isRainfall && !isAquifer && !isWellInventory && !isRechargeStructure),
+        isWaterQuality: isWaterQuality || isGWRE || (!isRainfall && !isAquifer && !isWellInventory && !isRechargeStructure && !isWaterResources),
         globalFilters,
         displayRegion,
         displayBlock,
@@ -219,7 +227,7 @@ export const useDataAnalysis = ({
         rechargeLoading
     }), [
         analysisLevel, analysisName, displayRegion, displayBlock, neighbor,
-        isGWRE, isRainfall, isWaterQuality, isAquifer, isWellInventory, isRechargeStructure,
+        isGWRE, isRainfall, isWaterQuality, isAquifer, isWellInventory, isRechargeStructure, isWaterResources,
         gwreStats, gwreFeatures, gwreLoading, pieData, totalBlocks,
         waterQualityStats, waterQualityAvailability, waterQualityLoading, waterQualityError, qualityData, blockWaterQualityData,
         aquiferStats, aquiferLoading, spatialStatsLoading, aquiferSpatialStats, aquiferData, aquiferPolygons, waterLevelChartData,

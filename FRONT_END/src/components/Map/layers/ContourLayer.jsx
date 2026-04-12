@@ -29,7 +29,6 @@ const WaterQualityContourLayer = ({
 
     useEffect(() => {
         if (!isActive || !parameter || !filters?.district) {
-            console.log(`📡 ContourLayer (${parameter}): Inactive or missing District selection`, { isActive, parameter, district: filters?.district });
             setContourImage(null);
             setBounds(null);
             setLoading(false);
@@ -51,7 +50,6 @@ const WaterQualityContourLayer = ({
             const blockId = filters.block_id;
             const distId = filters.district_id;
 
-            console.log(`📡 ContourLayer (${parameter}): Fetching for locs:`, { gpId, blockId, distId });
 
             try {
                 if (!gpId && !blockId && !distId) {
@@ -71,17 +69,11 @@ const WaterQualityContourLayer = ({
                     parameter: parameter
                 });
 
-                console.log(`✅ ContourLayer (${parameter}): Received response`, response);
 
                 if (response && response.heatmap_url && response.bbox) {
                     const [minX, minY, maxX, maxY] = response.bbox;
                     const newBounds = [[minY, minX], [maxY, maxX]];
 
-                    console.log(`✅ ContourLayer (${parameter}): Setting image and bounds`, {
-                        bounds: newBounds,
-                        wellCount: response.well_count,
-                        imageLength: response.heatmap_url.length
-                    });
 
                     setContourImage(response.heatmap_url);
                     setBounds(newBounds);

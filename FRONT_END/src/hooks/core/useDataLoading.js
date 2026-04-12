@@ -171,6 +171,10 @@ export const useDataLoading = (filters, neighbors) => {
                     village_id: filters.village_id,
                     village_name: filters.village || neighbor?.village || neighbor?.properties?.village
                 };
+
+                // Add detailed flag to ensure we get all parameters for the table
+                params.detailed = 'true';
+
                 const response = await api.waterQuality.getRecords(params);
                 if (!ignore) {
                     setWaterQualityRecords(response.results || response || []);
@@ -229,16 +233,12 @@ export const useDataLoading = (filters, neighbors) => {
     useEffect(() => {
         if (filters?.type === 'Water Resources') {
             const fetches = [];
-            if (filters.showCanals && !canalData) {
-                fetches.push(fetch('/data/canals_opt.json').then(res => res.json()).then(data => setCanalData(data || { features: [] })).catch(() => setCanalData({ features: [] })));
-            }
-            if (filters.showWaterbodies && !waterbodyData) {
-                fetches.push(fetch('/data/waterbodies_opt.json').then(res => res.json()).then(data => setWaterbodyData(data || { features: [] })).catch(() => setWaterbodyData({ features: [] })));
-            }
+            // fetching for canals and waterbodies is now handled by useMapDataFetch via backend API
             if (filters.showMicro && !microData) {
                 fetches.push(fetch('/micro.json').then(res => res.json()).then(data => setMicroData(data || { features: [] })).catch(() => setMicroData({ features: [] })));
             }
             if (fetches.length > 0) {
+
                 setWaterResourcesLoading(true);
                 Promise.all(fetches).finally(() => setWaterResourcesLoading(false));
             } else {

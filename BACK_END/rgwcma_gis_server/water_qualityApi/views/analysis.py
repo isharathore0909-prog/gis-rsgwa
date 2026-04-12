@@ -10,6 +10,8 @@ from django.db.models import Q, F
 from ..models import WaterQuality
 from aquiferApi.models import AquiferData
 from core.services.mapping import generate_contour_map, get_parameter_analysis, utm_to_latlon
+from core.services.cache_utils import build_cache_key
+from django.core.cache import cache
 from core.spatial_utils import get_map_scope
 
 class ContourMapView(APIView):
@@ -20,6 +22,13 @@ class ContourMapView(APIView):
         try:
             gp_id, block_id, dist_id = request.query_params.get('gp_id'), request.query_params.get('block_id'), request.query_params.get('district_id')
             parameter = request.query_params.get('parameter', 'pre_2024')
+            
+            # 1. Check Cache First
+            cache_key = build_cache_key("wq_contour", request)
+            cached_res = cache.get(cache_key)
+            if cached_res:
+                return Response(cached_res)
+
             if not any([gp_id, block_id, dist_id]):
                 return Response({'error': 'A location ID (gp_id, block_id, or district_id) is required'}, status=status.HTTP_400_BAD_REQUEST)
             boundary_data, coords, bbox_str, bbox_vals = get_map_scope(request, gp_id, block_id, dist_id)
@@ -80,7 +89,13 @@ class ContourMapView(APIView):
             analysis = get_parameter_analysis(parameter, [p['val'] for p in pts])
             proj_pts = [{'x': ((p['lon'] - proj_bounds['minX']) / (proj_bounds['maxX'] - proj_bounds['minX'])) * width, 'y': height - ((p['lat'] - proj_bounds['minY']) / (proj_bounds['maxY'] - proj_bounds['minY'])) * height, 'v': p['val']} for p in pts]
             heatmap_url = generate_contour_map(proj_pts, proj_bounds, width, height, p=2.5, buckets=analysis['buckets'], show_labels=True, boundary_geojson=boundary_data)
-            return Response({'heatmap_url': heatmap_url, 'analysis': analysis, 'well_count': len(pts), 'boundary': boundary_data, 'bbox': [proj_bounds['minX'], proj_bounds['minY'], proj_bounds['maxX'], proj_bounds['maxY']], 'contour_geojson': {'type': 'FeatureCollection', 'features': []}})
+            
+            res = {'heatmap_url': heatmap_url, 'analysis': analysis, 'well_count': len(pts), 'boundary': boundary_data, 'bbox': [proj_bounds['minX'], proj_bounds['minY'], proj_bounds['maxX'], proj_bounds['maxY']], 'contour_geojson': {'type': 'FeatureCollection', 'features': []}}
+            
+            # 2. Store in Cache (1 hour)
+            cache.set(cache_key, res, 3600)
+            
+            return Response(res)
         except Exception as e:
             print(f"ERROR: {str(e)}"); traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

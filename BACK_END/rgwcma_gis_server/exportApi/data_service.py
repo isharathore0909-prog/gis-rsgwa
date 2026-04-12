@@ -57,26 +57,49 @@ def fetch_layer_data(layer, bbox, filters=None, clip_mask=None):
     # 1. SpatialLayer DB
     try:
         query_box = GEOSPolygon.from_bbox(bbox)
-        db_spatial = SpatialLayer.objects.filter(name__iexact=layer, geometry__intersects=query_box)
-        if not db_spatial.exists():
-            db_spatial = SpatialLayer.objects.filter(name__iexact=layer)
+        
+        # Map export layer keys to DB layer_type
+        layer_map = {
+            'canals': 'canal',
+            'waterbodies': 'waterbody',
+            'groundwater_zones': 'groundwater_zone',
+            'aquifer': 'aquifer'
+        }
+        db_layer_type = layer_map.get(layer)
+        
+        if db_layer_type:
+            db_spatial = SpatialLayer.objects.filter(layer_type=db_layer_type, geometry__intersects=query_box)
+            if not db_spatial.exists():
+                db_spatial = SpatialLayer.objects.filter(layer_type=db_layer_type)
+        else:
+            # Fallback for other potential layer names
+            db_spatial = SpatialLayer.objects.filter(name__iexact=layer, geometry__intersects=query_box)
+            if not db_spatial.exists():
+                db_spatial = SpatialLayer.objects.filter(name__iexact=layer)
+                
         if db_spatial.exists():
             gdf = gpd.GeoDataFrame([{'geometry': load_wkt(l.geometry.wkt), **l.properties} for l in db_spatial])
             gdf = normalize_to_3857(gdf)
     except Exception: pass
 
     # 2. Admin Models
-    if (gdf is None or gdf.empty) and layer in ('district', 'block', 'grampanchayat', 'village'):
-        model_cls = {'district': District, 'block': Block, 'grampanchayat': Grampanchayat, 'village': Village}[layer]
+    if (gdf is None or gdf.empty) and layer in ('state', 'district', 'block', 'grampanchayat', 'village'):
+        from locationApi.models import State, District, Block, Grampanchayat, Village
+        model_map = {'state': State, 'district': District, 'block': Block, 'grampanchayat': Grampanchayat, 'village': Village}
+        model_cls = model_map[layer]
         items = model_cls.objects.exclude(geometry=None)
         
         # Hierarchical Filters
         dist_val = f.get('district', '')
         if dist_val and dist_val.lower() != 'rajasthan':
-            if layer == 'district': items = items.filter(name__iexact=dist_val)
+            if layer == 'state': items = items.filter(name__iexact=dist_val)
+            elif layer == 'district': items = items.filter(name__iexact=dist_val)
             elif layer == 'block': items = items.filter(district__name__iexact=dist_val)
             elif layer == 'grampanchayat': items = items.filter(block__district__name__iexact=dist_val)
             elif layer == 'village': items = items.filter(grampanchayat__block__district__name__iexact=dist_val)
+        elif layer == 'state':
+            # Default to Rajasthan if at state level
+            items = items.filter(name__iexact='Rajasthan')
 
         block_val = f.get('block', '')
         if block_val and layer in ('block', 'grampanchayat', 'village'):

@@ -27,7 +27,6 @@ export const useLocations = (currentFilters) => {
             // Only fetch if empty
             if (apiDistricts.length > 0) return;
 
-            console.log("📡 useLocations: Initial district fetch starting...");
             setGlobalLoading(true);
             try {
                 const districtRes = await api.location.getDistricts({
@@ -47,7 +46,6 @@ export const useLocations = (currentFilters) => {
                 else if (res && typeof res === 'object') districts = Object.values(res).filter(item => typeof item === 'object');
 
                 if (districts.length > 0) {
-                    console.log(`✅ useLocations: Received ${districts.length} districts`);
                     setApiDistricts(districts);
                 } else {
                     throw new Error("Empty district results");
@@ -58,7 +56,6 @@ export const useLocations = (currentFilters) => {
                 // If it fails on start, we should try again after a delay
                 if (active && apiDistricts.length === 0) {
                     const delay = 5000 + (Math.random() * 2000); // 5-7s jittered delay
-                    console.log(`📡 useLocations: Retrying district fetch in ${Math.round(delay / 1000)}s...`);
                     setTimeout(() => {
                         if (active) setRetryCount(c => c + 1);
                     }, delay);
@@ -79,7 +76,6 @@ export const useLocations = (currentFilters) => {
                 setApiBlocks([]);
                 return;
             }
-            console.log(`📡 useLocations: Fetching blocks for "${currentFilters.district}"...`);
             setGlobalLoading(true);
             try {
                 const params = { limit: 200 };
@@ -98,7 +94,6 @@ export const useLocations = (currentFilters) => {
                 else if (res?.data?.results && Array.isArray(res.data.results)) blocks = res.data.results;
                 else if (res?.data && Array.isArray(res.data)) blocks = res.data;
                 else if (res && typeof res === 'object') blocks = Object.values(res).filter(item => typeof item === 'object');
-                console.log(`✅ useLocations: Received ${blocks.length} blocks for "${currentFilters.district}"`);
                 setApiBlocks(blocks);
             } catch (error) {
                 console.error(`❌ useLocations: Error fetching blocks for "${currentFilters.district}":`, error);
@@ -119,7 +114,6 @@ export const useLocations = (currentFilters) => {
                 setApiGPs([]);
                 return;
             }
-            console.log(`📡 useLocations: Fetching GPs for "${currentFilters.block}"...`);
             setGlobalLoading(true);
             try {
                 const params = { limit: 500 };
@@ -138,7 +132,6 @@ export const useLocations = (currentFilters) => {
                 else if (res?.data?.results && Array.isArray(res.data.results)) gps = res.data.results;
                 else if (res?.data && Array.isArray(res.data)) gps = res.data;
                 else if (res && typeof res === 'object') gps = Object.values(res).filter(item => typeof item === 'object');
-                console.log(`✅ useLocations: Received ${gps.length} GPs for "${currentFilters.block}"`);
                 setApiGPs(gps);
             } catch (error) {
                 console.error(`❌ useLocations: Error fetching GPs for "${currentFilters.block}":`, error);
@@ -159,7 +152,6 @@ export const useLocations = (currentFilters) => {
                 setApiVillages([]);
                 return;
             }
-            console.log(`📡 useLocations: Fetching villages for block "${currentFilters.block}"...`);
             setGlobalLoading(true);
             try {
                 const params = { limit: 1000 };
@@ -181,7 +173,6 @@ export const useLocations = (currentFilters) => {
                 else if (res?.data?.results && Array.isArray(res.data.results)) villages = res.data.results;
                 else if (res?.data && Array.isArray(res.data)) villages = res.data;
                 else if (res && typeof res === 'object') villages = Object.values(res).filter(item => typeof item === 'object');
-                console.log(`✅ useLocations: Received ${villages.length} villages`);
                 setApiVillages(villages);
             } catch (error) {
                 console.error("❌ useLocations: Error fetching villages:", error);

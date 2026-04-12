@@ -9,7 +9,7 @@ class SpatialLayer(models.Model):
     ]
     
     name = models.CharField(max_length=255, null=True, blank=True)
-    layer_type = models.CharField(max_length=50, choices=LAYER_TYPES)
+    layer_type = models.CharField(max_length=50, choices=LAYER_TYPES, db_index=True)
     properties = models.JSONField(default=dict, help_text="Store extra GeoJSON properties")
     geometry = models.GeometryField(srid=4326)
     

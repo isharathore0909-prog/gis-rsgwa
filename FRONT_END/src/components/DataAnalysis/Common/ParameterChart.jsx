@@ -1,5 +1,5 @@
 import React from 'react';
-import { PieChart, Pie } from 'recharts';
+import { PieChart, Pie, Tooltip } from 'recharts';
 import SmartChartContainer from './SmartChartContainer';
 
 const ParameterChart = ({ name, value, limit, unit, status, color }) => {
@@ -15,6 +15,20 @@ const ParameterChart = ({ name, value, limit, unit, status, color }) => {
                             { value: Math.max(0, limit - value), fill: '#e5e7eb' }
                         ]}
                         cx="50%" cy="50%" innerRadius={22} outerRadius={38} dataKey="value" startAngle={90} endAngle={-270}
+                    />
+                    <Tooltip
+                        allowEscapeViewBox={{ x: false, y: true }}
+                        content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                                return (
+                                    <div className="custom-chart-tooltip" style={{ padding: '8px', fontSize: '12px' }}>
+                                        <p style={{ margin: 0 }}><strong>{name}</strong></p>
+                                        <p style={{ margin: 0 }}>{payload[0].value.toFixed(2)} {unit}</p>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        }}
                     />
                 </PieChart>
             </SmartChartContainer>

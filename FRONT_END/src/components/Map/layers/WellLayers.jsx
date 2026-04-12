@@ -1,7 +1,7 @@
 import React from 'react';
 import { PiezometerMarker, AquiferWellMarker } from '../Markers';
 
-export const PiezometerMarkersLayer = ({
+export const PiezometerMarkersLayer = React.memo(({
     isActive,
     records,
     onLocationClick
@@ -10,10 +10,10 @@ export const PiezometerMarkersLayer = ({
 
     return (
         <>
-            {records.map((record, idx) => (
+            {records.map((record) => (
                 record.latitude && record.longitude && (
                     <PiezometerMarker
-                        key={`pz-${idx}`}
+                        key={`pz-${record.id || record.piezometer_name}`}
                         record={record}
                         onMarkerClick={(rec, latlng) => onLocationClick(latlng, [{
                             ...rec,
@@ -26,9 +26,9 @@ export const PiezometerMarkersLayer = ({
             ))}
         </>
     );
-};
+});
 
-export const AquiferMarkersLayer = ({
+export const AquiferMarkersLayer = React.memo(({
     isActive,
     records,
     onLocationClick
@@ -37,10 +37,10 @@ export const AquiferMarkersLayer = ({
 
     return (
         <>
-            {records.map((record, idx) => (
+            {records.map((record) => (
                 record.latitude && record.longitude && (
                     <AquiferWellMarker
-                        key={`aq-${idx}`}
+                        key={`aq-${record.well_id || record.id}`}
                         record={record}
                         onMarkerClick={(rec, latlng) => onLocationClick(latlng, [{
                             ...rec,
@@ -53,4 +53,4 @@ export const AquiferMarkersLayer = ({
             ))}
         </>
     );
-};
+});

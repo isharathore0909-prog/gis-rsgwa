@@ -278,7 +278,6 @@ export const useValidatedBoundaries = (dynamicBoundaries, filters, dynamicRainfa
                             if (nearestStation && nearestStation.record_count > 0) {
                                 val = nearestStation.total_rainfall / nearestStation.record_count;
                                 // Log to help debugging empty matches
-                                console.log(`[Nearest Neighbor Fallback] ${drillLevel} ${targetName} -> Station: ${nearestStation.station_name}`);
                             }
                         }
                     } catch (e) {

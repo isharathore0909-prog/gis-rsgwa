@@ -8,6 +8,7 @@
     display: flex;
     flex-direction: column;
     z-index: 900;
+    position: relative;
     box-shadow: -10px 0 30px rgba(0, 0, 0, 0.04);
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -586,7 +587,7 @@
     justify-content: center;
     align-items: center;
     width: 100%;
-    overflow: visible;
+    overflow: visible !important;
 }
 
 .quality-legend-simple {

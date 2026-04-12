@@ -18,7 +18,10 @@ export const AquiferVectorLayer = ({
             layer_type: 'aquifer',
             district
         })
-        : '/data/aquifer_opt.json';
+        : buildBackendUrl(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS, {
+            layer_type: 'aquifer',
+            simplify: 0.001
+        });
 
     return (
         <VectorGridSlicer

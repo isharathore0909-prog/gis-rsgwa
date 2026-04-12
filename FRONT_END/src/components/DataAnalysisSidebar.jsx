@@ -9,6 +9,7 @@ import GroundWaterSection from './DataAnalysis/GroundWaterSection';
 import AquiferSection from './DataAnalysis/AquiferSection';
 import WellInventorySection from './DataAnalysis/WellInventorySection';
 import RechargeStructureSection from './DataAnalysis/RechargeStructureSection';
+import GlassLoadingOverlay from './Common/GlassLoadingOverlay';
 
 // Hooks & Context
 import { useAppContext } from '../context/AppContext';
@@ -66,11 +67,20 @@ const DataAnalysisSidebar = ({
         dynamicBoundaries // Inject dynamicBoundaries here or pass separately
     };
 
+    const isAnyDataLoading = rainfallLoading || waterQualityLoading || aquiferLoading || rechargeLoading || gwreLoading || nearbyLoading;
+
     return (
         <aside
             className={`data-analysis-sidebar ${isControlsSidebarCollapsed ? 'expanded-layout' : ''} ${className}`}
             data-expanded={isControlsSidebarCollapsed}
         >
+            {isAnyDataLoading && (
+                <GlassLoadingOverlay
+                    message="Analyzing Data..."
+                    subtext={`Processing ${globalFilters?.type || 'information'}`}
+                    fullScreen={false}
+                />
+            )}
             <div className="sidebar-content">
                 <AnalysisHeader
                     displayRegion={analysisName}

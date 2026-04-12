@@ -28,7 +28,7 @@ const MonsoonComparisonChart = ({ summary, isOverview = false }) => {
                     <XAxis dataKey="name" tick={{ fontSize: isOverview ? 11 : 10 }} />
                     <YAxis tick={{ fontSize: isOverview ? 11 : 10 }} />
                     <Tooltip
-                        allowEscapeViewBox={{ y: true }}
+                        allowEscapeViewBox={{ x: false, y: true }}
                         content={({ active, payload, label }) => {
                             if (active && payload && payload.length) {
                                 const isTds = label.includes('TDS');

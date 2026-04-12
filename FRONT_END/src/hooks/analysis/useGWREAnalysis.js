@@ -31,7 +31,6 @@ export const useGWREAnalysis = ({
     const isPendingInitialFetch = activeMode && !hasAttemptedFetch.current;
     const gwreLoading = isFetching || paramsChanged || isPendingInitialFetch;
 
-    console.log('[DEBUG useGWRE] activeMode:', activeMode, 'isFetching:', isFetching, 'paramsChanged:', paramsChanged, 'pendingInit:', isPendingInitialFetch, 'gwreLoading:', gwreLoading);
 
     useEffect(() => {
         let ignore = false;

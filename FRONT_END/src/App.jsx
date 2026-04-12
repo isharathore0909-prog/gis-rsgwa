@@ -8,6 +8,7 @@ import MapView from './components/Map/MapView';
 
 // Hooks
 import { useBoundaryHierarchy, useAppLogic, useDataAnalysis } from './hooks';
+import { useMapDataFetch } from './hooks/data/useMapDataFetch';
 
 // Styles
 import './App.css';
@@ -33,8 +34,8 @@ function AppContent() {
         setFilters, handleLayerChange, handleFiltersApply, handleBasemapChange,
         handleAddToTable, neighbors, setNeighbors, processedBlockData, rajasthanData,
         rajasthanId, activeCategory, isProceedClicked, rainfallPoints, selectedDams,
-        tableSelection, canalData, waterbodyData, microData, selectedWellInventory,
-        aquiferRecords, waterQualityRecords, rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading,
+        tableSelection, microData, selectedWellInventory,
+        aquiferRecords, waterQualityRecords, rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading: parentWaterResourcesLoading,
         rainfallDataSource, rainfallStations, rainfallStationRecords,
         handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory,
         handleSetWellInventory, handleCoordinateSearch, searchCoordinates
@@ -49,6 +50,19 @@ function AppContent() {
         currentLevel,
         hierarchy
     } = useBoundaryHierarchy(filters, rajasthanId);
+
+    const {
+        aggregatedRainfallPoints, stationRainfallPoints,
+        damMarkers, canalData, waterbodyData, canalLoading, waterbodyLoading,
+        validatedBoundaries, validatedRajasthanData,
+        selectedDistrictData, validatedBlockData
+    } = useMapDataFetch({
+        filters, rainfallPoints, blockBoundaryData: processedBlockData, rajasthanData,
+        dynamicBoundaries, rainfallStations, rainfallStationRecords,
+        legendFeature: 'Category', isLoading: parentWaterResourcesLoading
+    });
+
+    const waterResourcesLoading = parentWaterResourcesLoading || canalLoading || waterbodyLoading;
 
     // Lift analysis logic to share between Map and Sidebar
     const analysisResults = useDataAnalysis({

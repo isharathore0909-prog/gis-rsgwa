@@ -12,7 +12,6 @@ import {
     Line
 } from 'recharts';
 import AnalysisCard from './Common/AnalysisCard';
-import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 import './RechargeStructureSection.css';
 
 const RechargeStructureSection = ({ displayRegion, displayBlock, stats, isLoading, isExpanded }) => {
@@ -28,16 +27,7 @@ const RechargeStructureSection = ({ displayRegion, displayBlock, stats, isLoadin
         }));
     }, [stats]);
 
-    if (isLoading) {
-        return (
-            <div className="recharge-section" style={{ position: 'relative', minHeight: '300px' }}>
-                <GlassLoadingOverlay
-                    message="Indexing Structures"
-                    subtext="Retrieving recharge infrastructure data"
-                />
-            </div>
-        );
-    }
+
 
     if (!stats) return null;
 

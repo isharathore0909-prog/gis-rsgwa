@@ -82,10 +82,9 @@ export const WaterResourcesLayers = ({
         <>
             {showCanals && (
                 <VectorGridSlicer
-                    key={`canals-${layerColors.canals}`}
+                    key={`canals-${layerColors.canals}-${canalData?.features?.length || 0}`}
                     active={true}
                     data={canalData}
-                    dataUrl="/data/canals_opt.json"
                     layerName="canals"
                     filter={canalFilter}
                     style={canalStyle}
@@ -94,10 +93,9 @@ export const WaterResourcesLayers = ({
             )}
             {showWaterbodies && (
                 <VectorGridSlicer
-                    key={`waterbodies-${layerColors.waterbodies}`}
+                    key={`waterbodies-${layerColors.waterbodies}-${waterbodyData?.features?.length || 0}`}
                     active={true}
                     data={waterbodyData}
-                    dataUrl="/data/waterbodies_opt.json"
                     layerName="waterbodies"
                     filter={waterbodyFilter}
                     style={waterbodyStyle}

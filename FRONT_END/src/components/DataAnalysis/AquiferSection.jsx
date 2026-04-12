@@ -11,7 +11,6 @@ import {
 } from 'recharts';
 import AnalysisCard from './Common/AnalysisCard';
 import SmartChartContainer from './Common/SmartChartContainer';
-import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 import './AquiferSection.css';
 
 // Custom tooltip for the aquifer bar chart
@@ -57,16 +56,7 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
         return [];
     }, [data]);
 
-    if (isLoading) {
-        return (
-            <div className="aquifer-section" style={{ position: 'relative', minHeight: '300px' }}>
-                <GlassLoadingOverlay
-                    message="Exploring Aquifers..."
-                    subtext="Analyzing subterranean geological formations"
-                />
-            </div>
-        );
-    }
+    if (data?.isNoData) return null;
 
     if (aquiferData.length === 0) {
         return (

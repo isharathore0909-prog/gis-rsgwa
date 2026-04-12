@@ -16,7 +16,6 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
      */
     const fetchBoundariesForLevel = useCallback(async (level, parentId) => {
         try {
-            console.log(`📡 Fetching ${level} boundaries (parent_id: ${parentId})...`);
 
             const params = {
                 layer: level,
@@ -30,7 +29,6 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
             const data = await api.boundaries.getCollection(params);
 
             if (data && data.features && data.features.length > 0) {
-                console.log(`✅ Received ${data.features.length} ${level} boundaries`);
                 return reprojectGeoJSON(data);
             }
 
@@ -81,7 +79,6 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
                 setCurrentLevel(level);
                 setSelectedLevel(selLvl);
 
-                console.log(`🎯 Fetching boundaries for level: ${level}, parent: ${parentId}`);
 
                 // 1. Fetch boundaries for the determined level (CHILDREN)
                 const boundaryData = await fetchBoundariesForLevel(level, parentId);
@@ -89,7 +86,6 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
 
                 if (boundaryData) {
                     setBoundaries(boundaryData);
-                    console.log(`✅ Successfully loaded ${level} boundaries`);
                 } else {
                     console.warn(`⚠️ No boundaries found for ${level}`);
                     setBoundaries(null);
@@ -97,7 +93,6 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
 
                 // 2. Fetch or Extract Selected Boundary (THE ENTITY ITSELF)
                 if (selLvl && (level !== 'district')) {
-                    console.log(`🎯 Resolving selected boundary: ${selLvl} - ${selectedName} (Code: ${selectedCode})`);
 
                     let selGeom = null;
 
@@ -139,7 +134,6 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
                         });
 
                         if (feature) {
-                            console.log(`✅ Found selected boundary ${selectedName} in child collection`);
                             selGeom = feature;
                         }
                     }
@@ -149,7 +143,6 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
                         try {
                             const codeToUse = selectedCode || selectedName;
                             if (codeToUse) {
-                                console.log(`📡 Fetching specific ${selLvl} boundary: ${codeToUse}`);
                                 let data = null;
 
                                 // Use backend aggregator which has robust spatial fix-up and local caching
@@ -169,7 +162,6 @@ export const useBoundaryHierarchy = (filters, rajasthanId) => {
                     if (ignore) return;
 
                     if (selGeom) {
-                        console.log(`✅ Selected boundary geometry ready for ${selLvl}`);
                         setSelectedBoundary(selGeom);
                     } else {
                         console.warn(`⚠️ Geometry missing for ${selLvl} ${selectedName}`);

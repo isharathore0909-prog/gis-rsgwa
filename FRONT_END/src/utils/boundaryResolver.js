@@ -108,7 +108,6 @@ export const resolveParentInfo = async (filters, rajasthanId) => {
         // Generate a cache key for the current filter set
         const cacheKey = JSON.stringify({ dist: filters?.district, blk: filters?.block, gp: filters?.gramPanchayat, vlg: filters?.village });
         if (resolvedHierarchyCache.has(cacheKey)) {
-            console.log('🚀 Using cached hierarchy IDs');
             return resolvedHierarchyCache.get(cacheKey);
         }
 

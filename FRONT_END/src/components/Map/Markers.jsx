@@ -2,7 +2,7 @@ import React from 'react';
 import { Marker } from 'react-leaflet';
 import L from 'leaflet';
 
-export const DamMarker = ({ dam, coordinate, onDamClick, onAddToTable, color = '#0ea5e9' }) => {
+export const DamMarker = React.memo(({ dam, coordinate, onDamClick, onAddToTable, color = '#0ea5e9' }) => {
     const iconHtml = `
         <svg class="dam-icon-svg" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 12 2 12 2C12 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="${color}" stroke="white" stroke-width="2"/>
@@ -37,9 +37,9 @@ export const DamMarker = ({ dam, coordinate, onDamClick, onAddToTable, color = '
             }}
         />
     );
-};
+});
 
-export const WellMarker = ({ well, color, onMarkerClick }) => {
+export const WellMarker = React.memo(({ well, color, onMarkerClick }) => {
     const customIcon = L.divIcon({
         className: 'custom-marker',
         html: `<div style="background-color: ${color}; width: 100%; height: 100%; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
@@ -58,9 +58,9 @@ export const WellMarker = ({ well, color, onMarkerClick }) => {
             }}
         />
     );
-};
+});
 
-export const AquiferWellMarker = ({ record, onMarkerClick }) => {
+export const AquiferWellMarker = React.memo(({ record, onMarkerClick }) => {
     // Blue marker for Aquifer/Well Inventory
     const color = '#3b82f6';
 
@@ -92,7 +92,7 @@ export const AquiferWellMarker = ({ record, onMarkerClick }) => {
             }}
         />
     );
-};
+});
 
 export const RainfallMarker = ({ record, onMarkerClick }) => {
     // Determine color based on intensity

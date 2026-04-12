@@ -40,6 +40,18 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
             return WaterQualityListSerializer
         return WaterQualitySerializer
 
+    def list(self, request, *args, **kwargs):
+        # 1. Optimize List Fetching with Caching
+        cache_key = build_cache_key("wq_list", request)
+        cached_res = cache.get(cache_key)
+        if cached_res:
+            return Response(cached_res)
+        
+        response = super().list(request, *args, **kwargs)
+        if response.status_code == 200:
+            cache.set(cache_key, response.data, 3600)
+        return response
+
     def paginate_queryset(self, queryset):
         if self.request.query_params.get('map_markers') == 'true':
             return None

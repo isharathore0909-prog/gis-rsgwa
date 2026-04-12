@@ -1,4 +1,4 @@
-from django.db import models
+from django.contrib.gis.db import models
 from locationApi.models import Village
 
 class Rainfall(models.Model):
@@ -14,6 +14,7 @@ class Rainfall(models.Model):
     date = models.DateField(db_index=True)
     latitude = models.FloatField(null=True, blank=True, db_index=True)
     longitude = models.FloatField(null=True, blank=True, db_index=True)
+    geometry = models.PointField(null=True, blank=True, srid=4326)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -47,6 +48,7 @@ class RainfallStation(models.Model):
     district = models.CharField(max_length=255, null=True, blank=True)
     latitude = models.FloatField(db_index=True)
     longitude = models.FloatField(db_index=True)
+    geometry = models.PointField(null=True, blank=True, srid=4326)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

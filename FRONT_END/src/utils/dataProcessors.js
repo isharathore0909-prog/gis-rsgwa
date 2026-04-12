@@ -122,13 +122,21 @@ export const getAttributeData = (filters, processedBlockData, neighbors, rainfal
                     };
                 }).filter(f => f !== null && f.geometry !== null);
 
-                // Use spatial filter to handle GP/Village hierarchy even if names aren't in damsData
+                // For dams (represented as points at block centroids), spatial filtering at GP/Village 
+                // level is often too restrictive as the centroid might not fall in the specific boundary.
+                // We fallback to block-level matching if spatial filter returns nothing.
                 const filteredDams = filterGeoJsonByBoundary({ type: 'FeatureCollection', features: damFeatures }, selectedBoundary, {
                     field: 'District',
                     value: filters.district,
                     block: filters.block
                 });
-                combinedFeatures = [...combinedFeatures, ...filteredDams.features];
+
+                if (filteredDams.features.length === 0 && damFeatures.length > 0 && (filters.gramPanchayat || filters.village)) {
+                    // If spatial filter removed everything but we have dams in the block, keep them
+                    combinedFeatures = [...combinedFeatures, ...damFeatures];
+                } else {
+                    combinedFeatures = [...combinedFeatures, ...filteredDams.features];
+                }
             }
         }
 

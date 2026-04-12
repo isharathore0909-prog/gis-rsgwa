@@ -28,8 +28,8 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
 
         return baseData.map((d, i) => ({
             ...d,
-            'Average Trend': avgTrend ? avgTrend[i] : null,
-            'Rainfall Trend': rainTrend ? rainTrend[i] : null
+            'Average Trend': avgTrend && avgTrend[i] != null ? parseFloat(avgTrend[i].toFixed(3)) : null,
+            'Rainfall Trend': rainTrend && rainTrend[i] != null ? parseFloat(rainTrend[i].toFixed(3)) : null
         }));
     }, [data, showRainfall]);
 
@@ -76,7 +76,7 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                 />
 
                 <Tooltip
-                    allowEscapeViewBox={{ x: true, y: true }}
+                    allowEscapeViewBox={{ x: false, y: true }}
                     contentStyle={{
                         borderRadius: '8px',
                         border: 'none',
@@ -84,6 +84,10 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                         fontSize: '0.85rem',
                         pointerEvents: 'none'
                     }}
+                    formatter={(value, name) => [
+                        typeof value === 'number' ? value.toFixed(3) : value,
+                        name
+                    ]}
                     labelStyle={{ color: '#1e293b', fontWeight: 600, marginBottom: '4px' }}
                 />
                 <Legend verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: '10px', fontSize: '10px' }} iconType="circle" />

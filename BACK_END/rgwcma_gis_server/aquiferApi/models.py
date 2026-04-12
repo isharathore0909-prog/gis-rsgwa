@@ -42,6 +42,7 @@ class AquiferData(models.Model):
         max_length=255, 
         null=True, 
         blank=True, 
+        db_index=True,
         help_text="Aquifer type/name"
     )
     

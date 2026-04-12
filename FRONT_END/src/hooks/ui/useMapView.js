@@ -154,10 +154,8 @@ export const useMapView = ({
         // Only process clicks that have associated data (e.g. from layers or nearby markers)
         // unless we are in the special 'allowEmptyClick' mode
         if ((!data || data.length === 0) && !allowEmptyClick) {
-            console.log("useMapView: Click ignored - no data");
             return;
         }
-        console.log("useMapView: Processing click at", latlng, "Allow Empty:", allowEmptyClick);
         handleLocationClick(latlng, data);
     }, [handleLocationClick, filters]);
 

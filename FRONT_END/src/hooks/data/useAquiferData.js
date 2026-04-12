@@ -28,7 +28,9 @@ export const useAquiferData = (isActive, filters) => {
                     map_markers: 'true'
                 };
 
-                if (!params.district) {
+                // Skip fetching thousands of markers at the state level to prevent browser lag.
+                // Map markers should only be shown when a specific district is selected.
+                if (!params.district || params.district.toUpperCase() === 'RAJASTHAN') {
                     if (!ignore) {
                         setRecords([]);
                         setLoading(false);

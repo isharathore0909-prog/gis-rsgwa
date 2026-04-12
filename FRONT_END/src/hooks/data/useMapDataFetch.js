@@ -32,11 +32,6 @@ export const useMapDataFetch = ({
     isLoading
 }) => {
     const { data: districtRainfall, loading: districtRainfallLoading } = useDistrictRainfall(filters?.type === 'Rainfall', filters);
-    const { data: waterQualityRecords, loading: waterQualityLoading } = useWaterQuality(filters?.type === 'Water Quality', filters);
-    const { data: aquiferRecords, loading: aquiferLoading } = useAquiferData(
-        filters?.type === 'Well Inventory' || filters?.type === 'Aquifer',
-        filters
-    );
     const { data: piezometerRecords, loading: piezometersLoading } = usePiezometerData(filters?.type === 'Rainfall' && filters?.showPiezometers, filters);
 
     // Determine the active drill-down level for rainfall to avoid over-fetching
@@ -62,8 +57,12 @@ export const useMapDataFetch = ({
     const activeBlockStats = (drillLevel === 'block') ? dynamicRainfallStats : (blockRainfallStats || {});
 
     const { data: gwreData, loading: gwreLoading } = useSpatialLayerData('groundwater_zone', filters?.type === 'Ground Water Resource Estimation', filters);
+    const { data: canalData, loading: canalLoading } = useSpatialLayerData('canal', filters?.type === 'Water Resources' && filters?.showCanals, filters);
+    const { data: waterbodyData, loading: waterbodyLoading } = useSpatialLayerData('waterbody', filters?.type === 'Water Resources' && filters?.showWaterbodies, filters);
+
     const { data: raingaugeStations, loading: raingaugeLoading } = useGeoJSONData('/Raingauge Stations.geojson', filters?.type === 'Rainfall');
     const reprojectedGwreData = useMemo(() => gwreData ? reprojectGeoJSON(gwreData) : null, [gwreData]);
+
 
     const statsByDistrict = useRainfallStatsByDistrict(rainfallPoints);
 
@@ -114,13 +113,13 @@ export const useMapDataFetch = ({
     return {
         districtRainfall, districtRainfallLoading,
         dynamicRainfallStats, dynamicRainfallLoading,
-        waterQualityRecords, waterQualityLoading,
-        aquiferRecords, aquiferLoading,
         piezometerRecords, piezometersLoading,
         reprojectedGwreData, gwreLoading,
         raingaugeStations, raingaugeLoading,
         aggregatedRainfallPoints, stationRainfallPoints,
         damMarkers,
+        canalData, canalLoading,
+        waterbodyData, waterbodyLoading,
         validatedBoundaries, validatedRajasthanData,
         selectedDistrictData, validatedBlockData
     };

@@ -19,7 +19,7 @@ const ComplianceChart = ({ data }) => {
                     tick={{ fontSize: 11, fontWeight: 500 }}
                 />
                 <Tooltip
-                    allowEscapeViewBox={{ y: true }}
+                    allowEscapeViewBox={{ x: false, y: true }}
                     cursor={{ fill: 'transparent' }}
                     content={({ active, payload }) => {
                         if (active && payload && payload.length) {

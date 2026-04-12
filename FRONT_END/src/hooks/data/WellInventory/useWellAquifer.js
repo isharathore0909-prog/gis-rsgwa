@@ -45,11 +45,17 @@ export const useWellAquifer = ({
     if (
         lastFetchParams.current.displayRegion !== displayRegion ||
         lastFetchParams.current.displayBlock !== displayBlock ||
-        lastFetchParams.current.globalFilters !== globalFilters
+        lastFetchParams.current.gramPanchayat !== globalFilters?.gramPanchayat ||
+        lastFetchParams.current.village !== globalFilters?.village
     ) {
         // Only set loading if we don't have passed data
         if (!loading && passedRecords?.length === 0) setLoading(true);
-        lastFetchParams.current = { displayRegion, displayBlock, globalFilters };
+        lastFetchParams.current = {
+            displayRegion,
+            displayBlock,
+            gramPanchayat: globalFilters?.gramPanchayat,
+            village: globalFilters?.village
+        };
     }
 
     if (clickedLocation !== lastClickedLoc.current) {
@@ -63,6 +69,16 @@ export const useWellAquifer = ({
         let ignore = false;
         // Skip fetch if data is already passed from consolidated source
         if (passedRecords?.length > 0) return;
+
+        // Skip individual records fetch for regional overview (State/District level)
+        // unless a block or specific filters are provided.
+        // This avoids loading 100+ redundant records for the initial sidebar view.
+        const isGranular = displayBlock || globalFilters?.gramPanchayat || globalFilters?.village;
+        if (!isGranular && (displayRegion === 'RAJASTHAN' || !displayRegion)) {
+            setListData([]);
+            setLoading(false);
+            return;
+        }
 
         const fetchData = async () => {
             setLoading(true);
@@ -92,7 +108,7 @@ export const useWellAquifer = ({
 
         fetchData();
         return () => { ignore = true; };
-    }, [displayRegion, displayBlock, globalFilters, passedRecords?.length]);
+    }, [displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, passedRecords?.length]);
 
     useEffect(() => {
         let ignore = false;
@@ -161,7 +177,7 @@ export const useWellAquifer = ({
 
         fetchRegionalData();
         return () => { ignore = true; };
-    }, [displayRegion, displayBlock, globalFilters, passedTrends]);
+    }, [displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, passedTrends]);
 
     return { loading, listData, nearbyData, nearbyLoading, regionalStats, yearlyTrends, error };
 };

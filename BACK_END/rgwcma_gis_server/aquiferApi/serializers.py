@@ -4,11 +4,11 @@ from locationApi.serializers import VillageSerializer
 
 class AquiferDataSerializer(serializers.ModelSerializer):
     # Read-only fields for location hierarchy
-    state = serializers.CharField(read_only=True)
-    district = serializers.CharField(read_only=True)
-    block = serializers.CharField(read_only=True)
-    grampanchayat = serializers.CharField(read_only=True)
-    village_name = serializers.CharField(read_only=True)
+    state = serializers.ReadOnlyField(source='ann_state_name')
+    district = serializers.ReadOnlyField(source='ann_district_name')
+    block = serializers.ReadOnlyField(source='ann_block_name')
+    grampanchayat = serializers.ReadOnlyField(source='ann_gp_name')
+    village_name = serializers.ReadOnlyField(source='ann_village_name')
     
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
@@ -101,10 +101,10 @@ class AquiferDataSerializer(serializers.ModelSerializer):
 
 class AquiferDataListSerializer(serializers.ModelSerializer):
     """Simplified serializer for list views"""
-    state = serializers.CharField(read_only=True)
-    district = serializers.CharField(read_only=True)
-    block = serializers.CharField(read_only=True)
-    village_name = serializers.CharField(read_only=True)
+    state = serializers.ReadOnlyField(source='ann_state_name')
+    district = serializers.ReadOnlyField(source='ann_district_name')
+    block = serializers.ReadOnlyField(source='ann_block_name')
+    village_name = serializers.ReadOnlyField(source='ann_village_name')
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
     

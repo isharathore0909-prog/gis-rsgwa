@@ -50,6 +50,9 @@ def build_cache_key(prefix: str, request, *, extra: str = "") -> str:
     >>> build_cache_key("aquifer_stats", request, extra=str(year))
     'aquifer_stats__district=Jaipur_year=2024.2024'
     """
+    import re
+    import hashlib
+
     params = request.query_params
 
     parts = [
@@ -59,7 +62,16 @@ def build_cache_key(prefix: str, request, *, extra: str = "") -> str:
     ]
 
     param_str = "_".join(parts) if parts else "all"
+    
+    # Sanitize: replace spaces and other illegal characters
+    param_str = re.sub(r'[\s:?#\[\]@!$&\'()*+,;=]', '_', param_str)
+
+    # Memcached has a limit of 250 characters. Hashing long keys ensures safety.
+    if len(prefix) + len(param_str) + len(extra) > 200:
+        hash_str = hashlib.md5(param_str.encode('utf-8')).hexdigest()
+        param_str = f"hash_{hash_str}"
 
     if extra:
-        return f"{prefix}__{param_str}.{extra}"
+        extra_sanitized = re.sub(r'[\s:?#\[\]@!$&\'()*+,;=]', '_', str(extra))
+        return f"{prefix}__{param_str}.{extra_sanitized}"
     return f"{prefix}__{param_str}"

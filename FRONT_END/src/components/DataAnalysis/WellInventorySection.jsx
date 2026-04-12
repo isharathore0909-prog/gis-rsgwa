@@ -3,7 +3,6 @@ import { useWellInventoryData } from '../../hooks/data/useWellInventoryData';
 import { AquiferProfileCard } from './WellInventory/AquiferProfileCard';
 import { WellProfileCard } from './WellInventory/WellProfileCard';
 import { RegionalTrendCard } from './WellInventory/RegionalTrendCard';
-import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 import './WellInventorySection.css';
 
 const WellInventorySection = ({
@@ -116,16 +115,7 @@ const WellInventorySection = ({
         }
     }, [nearbyData, clickedLocation, nearbyLoading, listData, isSelected, selectedWell, onToggleWellInventory]);
 
-    if (loading || nearbyLoading) {
-        return (
-            <div className="well-inventory-container" style={{ position: 'relative', minHeight: '300px' }}>
-                <GlassLoadingOverlay
-                    message="Scanning Wells"
-                    subtext="Retrieving well inventory and regional trends"
-                />
-            </div>
-        );
-    }
+
     if (error) return <div className="well-inventory-error animated-entry">{error}</div>;
 
     return (

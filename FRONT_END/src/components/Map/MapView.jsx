@@ -36,7 +36,8 @@ const MapView = ({
     rainfallStationRecords = [], initialShowLegend, onAddToTable, onFiltersApply,
     microData, selectedWellInventory = [], onToggleWellInventory,
     isDataAnalysisSidebarHidden, isLoading, searchCoordinates, exportTrigger,
-    canalData, waterbodyData, aquiferPolygons
+    canalData, waterbodyData, aquiferPolygons,
+    aquiferRecords = [], waterQualityRecords = []
 }) => {
     const { filters, basemap, isControlsSidebarCollapsed, setClickedLocation } = useAppContext();
 
@@ -100,8 +101,6 @@ const MapView = ({
     const {
         districtRainfall, districtRainfallLoading,
         dynamicRainfallStats, dynamicRainfallLoading,
-        waterQualityRecords, waterQualityLoading,
-        aquiferRecords, aquiferLoading,
         piezometerRecords, piezometersLoading,
         reprojectedGwreData, gwreLoading,
         raingaugeStations, raingaugeLoading,
@@ -155,6 +154,17 @@ const MapView = ({
         fillOpacity: 0.7, stroke: true, color: '#94a3b8', weight: 0.3, opacity: 1, fill: true
     }), []);
 
+    const handleAquiferFeatureClick = useCallback((e) => {
+        setIgnoreNextClick();
+        const type = filters?.type;
+        const features = type === 'Well Inventory' ? [] : [{ ...e.layer.properties, type: 'aquifer_feature' }];
+        handleLocationClick(e.latlng, features);
+    }, [filters?.type, handleLocationClick, setIgnoreNextClick]);
+
+    const handleVectorLoading = useCallback((loading) => {
+        setVectorLoading(loading);
+    }, [setVectorLoading]);
+
     // --- Rendering ---
     const renderBasemap = () => {
         const url = basemap === 'imagery-labels' || basemap === 'imagery'
@@ -204,7 +214,7 @@ const MapView = ({
                     <CircleMarker key={`sel-${item.well_id || idx}`} center={[item.latitude || item.lat, item.longitude || item.lng]} radius={8} pathOptions={{ fillColor: '#ef4444', color: 'white', weight: 2, opacity: 1, fillOpacity: 1 }} />
                 ))}
 
-                <AquiferVectorLayer isActive={filters?.type === 'Aquifer' || filters?.type === 'Well Inventory'} district={filters?.district} filter={aquiferFilter} data={aquiferPolygons} style={memoizedAquiferStyle} onLoading={setVectorLoading} onFeatureClick={(e) => { setIgnoreNextClick(); handleLocationClick(e.latlng, filters?.type === 'Well Inventory' ? [] : [{ ...e.layer.properties, type: 'aquifer_feature' }]); }} />
+                <AquiferVectorLayer isActive={filters?.type === 'Aquifer' || filters?.type === 'Well Inventory'} district={filters?.district} filter={aquiferFilter} data={aquiferPolygons} style={memoizedAquiferStyle} onLoading={handleVectorLoading} onFeatureClick={handleAquiferFeatureClick} />
 
                 <WaterResourcesLayers isActive={filters?.type === 'Water Resources'} showCanals={filters?.showCanals} showWaterbodies={filters?.showWaterbodies} showMicro={filters?.showMicro} canalData={canalData} waterbodyData={waterbodyData} canalFilter={canalFilter} waterbodyFilter={waterbodyFilter} microData={microData} layerColors={layerColors} onLoading={setVectorLoading} />
 
@@ -241,7 +251,7 @@ const MapView = ({
             <MapWarning
                 layerType={filters?.type}
                 isRainfallDataEmpty={isRainfallDataEmpty}
-                isLoading={(isLayerChanging && isLoading) || (!rajasthanData && isLoading)}
+                isLoading={isLoading || vectorLoading || contourLoading || isLayerChanging}
             />
 
             <MapControls onResetView={handleResetView} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFullscreen={handleFullscreen} onToggleColorPicker={() => setShowColorPicker(!showColorPicker)} showColorPickerBtn={filters?.type === 'Water Resources'} onExport={handleExport} />

@@ -4,7 +4,6 @@ import MiniStatusCard from './Common/MiniStatusCard';
 import ParameterGrid from './WaterQuality/ParameterGrid';
 import MonsoonComparisonChart from './WaterQuality/MonsoonComparisonChart';
 import ComplianceChart from './WaterQuality/ComplianceChart';
-import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 
 const WaterQualitySection = ({
     displayRegion,
@@ -17,16 +16,7 @@ const WaterQualitySection = ({
     globalFilters,
     onFilterChange
 }) => {
-    if (isLoading) {
-        return (
-            <AnalysisCard className="animated-entry" style={{ position: 'relative', minHeight: '300px' }}>
-                <GlassLoadingOverlay
-                    message="Testing Water Quality"
-                    subtext="Analyzing chemical exceedances and WQI"
-                />
-            </AnalysisCard>
-        );
-    }
+
     return (
         <>
             <div className="sidebar-section animated-entry">

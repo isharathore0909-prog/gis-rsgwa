@@ -9,8 +9,6 @@ import './GlassLoadingOverlay.css';
  * @param {boolean} fullScreen - Whether it should cover the entire parent container
  */
 const GlassLoadingOverlay = ({
-    message = "Loading Data...",
-    subtext = "Please wait while we prepare the visualization",
     fullScreen = true
 }) => {
     return (

@@ -40,7 +40,7 @@ const WaterLevelChart = ({ data, height, showDots = true, isExpanded }) => {
                     domain={['auto', 'auto']}
                 />
                 <Tooltip
-                    allowEscapeViewBox={{ x: true, y: true }}
+                    allowEscapeViewBox={{ x: false, y: true }}
                     contentStyle={{
                         borderRadius: '8px',
                         border: 'none',
@@ -48,7 +48,7 @@ const WaterLevelChart = ({ data, height, showDots = true, isExpanded }) => {
                         fontSize: '0.85rem',
                         pointerEvents: 'none'
                     }}
-                    formatter={(value) => [`${value} m`, 'Avg Depth']}
+                    formatter={(value) => [`${typeof value === 'number' ? value.toFixed(2) : value} m`, 'Avg Depth']}
                     labelStyle={{ color: '#1e293b', fontWeight: 600, marginBottom: '4px' }}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />

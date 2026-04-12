@@ -7,7 +7,6 @@ import {
 import AnalysisCard from './Common/AnalysisCard';
 import MiniStatusCard from './Common/MiniStatusCard';
 import SmartChartContainer from './Common/SmartChartContainer';
-import GlassLoadingOverlay from '../Common/GlassLoadingOverlay';
 
 const GroundWaterSection = ({
     isGWRE,
@@ -21,16 +20,7 @@ const GroundWaterSection = ({
     isExpanded,
     isLoading
 }) => {
-    if (isLoading) {
-        return (
-            <div className="groundwater-analysis-grid animated-entry" style={{ position: 'relative', minHeight: '300px' }}>
-                <GlassLoadingOverlay
-                    message="Preparing Analysis..."
-                    subtext="Processing ground water data"
-                />
-            </div>
-        );
-    }
+
     const isNoData = isGWRE && pieData.length === 1 && pieData[0].name === 'Data N/A';
 
     if (isNoData) return null;
