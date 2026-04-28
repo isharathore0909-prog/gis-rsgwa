@@ -47,6 +47,7 @@ export const BACKEND_API = {
         AQUIFER_STATISTICS: '/aquifer/statistics/',
         AQUIFER_YEARLY_STATISTICS: '/aquifer/yearly_statistics/',
         AQUIFER_NEARBY: '/aquifer/nearby/',
+        AQUIFER_BY_LOCATION: '/aquifer/by_location/',
         RECHARGE_STRUCTURE: '/recharge-structure/',
         RECHARGE_STRUCTURE_STATISTICS: '/recharge-structure/statistics/',
 

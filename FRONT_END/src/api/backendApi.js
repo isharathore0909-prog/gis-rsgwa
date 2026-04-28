@@ -200,12 +200,14 @@ class BackendAPIClient {
 
     getWaterQualityRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY, params, signal); }
     getWaterQualityStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params, signal); }
+    getWaterQualityCorrelation(params = {}, signal = null) { return this.getWithApiKey('water-quality/correlation/', params, signal); }
     getWaterQualityAvailabilityStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY_STATISTICS, params, signal); }
 
     getAquiferRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER, params, signal); }
     getAquiferStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_STATISTICS, params, signal); }
     getAquiferYearlyStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_YEARLY_STATISTICS, params, signal); }
     getAquiferNearby(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_NEARBY, params, signal); }
+    getAquiferByLocation(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_BY_LOCATION, params, signal); }
 
     getRechargeStructureRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE, params, signal); }
     getRechargeStructureStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE_STATISTICS, params, signal); }

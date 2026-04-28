@@ -61,7 +61,7 @@ function AppContent() {
         rajasthanId, rainfallPoints, selectedDams,
         tableSelection, microData, selectedWellInventory,
         aquiferRecords, waterQualityRecords, rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading: parentWaterResourcesLoading,
-        rechargeRecords, rechargeLoading,
+        rechargeRecords, rechargeLoading, districtWaterLevelStats,
         rainfallDataSource, rainfallStations, rainfallStationRecords,
         handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory,
         handleSetWellInventory, handleCoordinateSearch, searchCoordinates
@@ -158,6 +158,7 @@ function AppContent() {
                             setFilters={setFilters}
                             setClickedLocation={setClickedLocation}
                             setNeighbors={setNeighbors}
+                            districtWaterLevelStats={districtWaterLevelStats}
                         />
                     </div>
                 ) : (

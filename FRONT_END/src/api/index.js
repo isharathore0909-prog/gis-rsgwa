@@ -61,6 +61,7 @@ export default {
     waterQuality: {
         getRecords: (params) => backendApi.getWaterQualityRecords(params),
         getStatistics: (params) => backendApi.getWaterQualityStatistics(params),
+        getCorrelation: (params) => backendApi.getWaterQualityCorrelation(params),
         getAvailabilityRecords: (params) => backendApi.getWaterQualityAvailabilityRecords(params),
         getAvailabilityStatistics: (params) => backendApi.getWaterQualityAvailabilityStatistics(params),
     },
@@ -71,6 +72,7 @@ export default {
         getStatistics: (params) => backendApi.getAquiferStatistics(params),
         getYearlyStatistics: (params) => backendApi.getAquiferYearlyStatistics(params),
         getNearby: (params) => backendApi.getAquiferNearby(params),
+        byLocation: (params) => backendApi.getAquiferByLocation(params),
     },
 
     // Recharge Structure API

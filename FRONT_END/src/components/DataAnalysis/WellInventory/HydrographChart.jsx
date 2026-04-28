@@ -14,26 +14,34 @@ import {
 import SmartChartContainer from '../Common/SmartChartContainer';
 import { calculateRobustTrendLine } from '../../../utils/statsUtils';
 
-const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
+const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpanded, showRainfall = true }) => {
     const processedData = useMemo(() => {
         if (!data) return [];
 
         const baseData = data.map(d => ({
             ...d,
-            'Average Water Level': d[`avg_${d.year}`] ?? d['Average Water Level'] ?? null
+            [dataKey]: d[dataKey] ?? null
         }));
 
-        const avgTrend = calculateRobustTrendLine(baseData, 'Average Water Level');
+        const levelTrend = calculateRobustTrendLine(baseData, dataKey);
         const rainTrend = showRainfall ? calculateRobustTrendLine(baseData, 'Annual Rainfall') : null;
 
         return baseData.map((d, i) => ({
             ...d,
-            'Average Trend': avgTrend && avgTrend[i] != null ? parseFloat(avgTrend[i].toFixed(3)) : null,
+            'Level Trend': levelTrend && levelTrend[i] != null ? parseFloat(levelTrend[i].toFixed(3)) : null,
             'Rainfall Trend': rainTrend && rainTrend[i] != null ? parseFloat(rainTrend[i].toFixed(3)) : null
         }));
-    }, [data, showRainfall]);
+    }, [data, dataKey, showRainfall]);
 
     if (!processedData.length) return null;
+
+    const getSeriesColor = () => {
+        if (dataKey.includes('Pre')) return '#3b82f6';
+        if (dataKey.includes('Post')) return '#0ea5e9';
+        return '#1e3a8a';
+    };
+
+    const seriesColor = getSeriesColor();
 
     return (
         <SmartChartContainer height={height || (isExpanded ? '500px' : '400px')}>
@@ -66,10 +74,10 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                         value: 'Static water level in m.bgl',
                         angle: showRainfall ? 90 : -90,
                         position: showRainfall ? 'insideRight' : 'insideLeft',
-                        style: { fontSize: '10px', fill: '#1e3a8a', fontWeight: 600 },
+                        style: { fontSize: '10px', fill: seriesColor, fontWeight: 600 },
                         dx: showRainfall ? 10 : -10
                     }}
-                    tick={{ fontSize: 10, fill: '#1e3a8a' }}
+                    tick={{ fontSize: 10, fill: seriesColor }}
                     axisLine={false}
                     tickLine={false}
                     domain={['auto', 'auto']}
@@ -126,19 +134,19 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                 <Line
                     yAxisId="right"
                     type="monotone"
-                    dataKey="Average Water Level"
-                    name="Avg Water Level (m)"
-                    stroke="#1e3a8a"
+                    dataKey={dataKey}
+                    name={dataKey}
+                    stroke={seriesColor}
                     strokeWidth={3}
-                    dot={{ r: 5, fill: '#1e3a8a' }}
+                    dot={{ r: 5, fill: seriesColor }}
                     connectNulls
                 />
                 <Line
                     yAxisId="right"
                     type="monotone"
-                    dataKey="Average Trend"
-                    name="Linear (Avg Level)"
-                    stroke="#1e3a8a"
+                    dataKey="Level Trend"
+                    name={`Linear (${dataKey})`}
+                    stroke={seriesColor}
                     strokeDasharray="3 3"
                     dot={false}
                     strokeWidth={1.5}

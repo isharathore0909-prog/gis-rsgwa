@@ -9,14 +9,21 @@ import WaterLevelCharts from './Charts/WaterLevelCharts';
 import MetricDataTable from './MetricDataTable';
 import './MetricDetailView.css';
 
-const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecords = [], rechargeLoading = false }) => {
+const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecords = [], rechargeLoading = false, districtWaterLevelStats = [] }) => {
     if (!metric) return null;
 
     const isWaterLevelView = metric.id === 'water_level';
 
     // 1. District-wise Water Level Averages for Chart 2
     const districtWaterLevelData = React.useMemo(() => {
-        if (!isWaterLevelView || !data?.features) return [];
+        if (!isWaterLevelView) return [];
+
+        // If we have static state-wide stats, use them to remain "static" as requested
+        if (districtWaterLevelStats && districtWaterLevelStats.length > 0) {
+            return [...districtWaterLevelStats].sort((a, b) => b.value - a.value);
+        }
+
+        if (!data?.features) return [];
 
         const districtGroups = {};
         data.features.forEach(f => {
@@ -37,7 +44,7 @@ const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecor
                 value: parseFloat((stats.sum / stats.count).toFixed(2))
             }))
             .sort((a, b) => b.value - a.value);
-    }, [isWaterLevelView, data]);
+    }, [isWaterLevelView, data, districtWaterLevelStats]);
 
     // 2. Fluoride vs Water Level correlation for Chart 3
     const fluorideWaterLevelCorrelation = React.useMemo(() => {
@@ -90,7 +97,6 @@ const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecor
                     <WaterLevelCharts
                         analysisResults={analysisResults}
                         districtWaterLevelData={districtWaterLevelData}
-                        fluorideCorrelation={fluorideWaterLevelCorrelation}
                         metricColor={metric.color}
                     />
                 );

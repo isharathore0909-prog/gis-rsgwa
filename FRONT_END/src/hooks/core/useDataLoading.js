@@ -25,6 +25,7 @@ export const useDataLoading = (filters, neighbors) => {
     const [waterbodyData, setWaterbodyData] = useState(null);
     const [microData, setMicroData] = useState(null);
     const [rechargeRecords, setRechargeRecords] = useState([]);
+    const [districtWaterLevelStats, setDistrictWaterLevelStats] = useState([]);
 
     // Loading States
     const [rainfallLoading, setRainfallLoading] = useState(false);
@@ -275,6 +276,31 @@ export const useDataLoading = (filters, neighbors) => {
         return () => { ignore = true; };
     }, [filters?.type, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
 
+    // Fetch State-wide District Water Level Stats (Static for dashboard charts)
+    useEffect(() => {
+        let ignore = false;
+        if (filters?.type !== 'Well Inventory' && filters?.type !== 'Aquifer') return;
+
+        const fetchDistrictStats = async () => {
+            try {
+                // We intentionally do NOT pass district/block filters here to keep it state-wide
+                const params = { level: 'district', year: filters.year || 2024 };
+                const res = await api.aquifer.byLocation(params);
+                if (!ignore && res.data) {
+                    setDistrictWaterLevelStats(res.data.map(d => ({
+                        name: d.district,
+                        value: d.avg_pre || d.avg_pst || 0
+                    })));
+                }
+            } catch (err) {
+                console.error("Failed to fetch district water level stats:", err);
+            }
+        };
+
+        fetchDistrictStats();
+        return () => { ignore = true; };
+    }, [filters?.type, filters?.year]);
+
     // Secondary Data Fetching (Canals, etc)
     useEffect(() => {
         if (filters?.type === 'Water Resources') {
@@ -327,6 +353,7 @@ export const useDataLoading = (filters, neighbors) => {
         aquiferLoading, setAquiferLoading,
         waterResourcesLoading, setWaterResourcesLoading,
         rechargeRecords, setRechargeRecords,
-        rechargeLoading, setRechargeLoading
+        rechargeLoading, setRechargeLoading,
+        districtWaterLevelStats
     };
 };
