@@ -63,11 +63,11 @@ export const GWRE_LEGEND = [
 ];
 
 export const WELL_INVENTORY_LEGEND = [
-    { label: 'Water Level < 5m (Good)', color: '#3b82f6', isCategorical: true },
-    { label: 'Water Level 5–10m', color: '#60a5fa', isCategorical: true },
-    { label: 'Water Level 10–20m', color: '#f59e0b', isCategorical: true },
-    { label: 'Water Level 20–30m (Stress)', color: '#ef4444', isCategorical: true },
-    { label: 'Water Level > 30m (High Stress)', color: '#b91c1c', isCategorical: true }
+    { label: 'Water Level < 0m (Surface)', color: '#2196f3', isCategorical: true },
+    { label: 'Water Level 0–10m (Good)', color: '#4caf50', isCategorical: true },
+    { label: 'Water Level 10–30m', color: '#ffc107', isCategorical: true },
+    { label: 'Water Level 30–50m (Stress)', color: '#f44336', isCategorical: true },
+    { label: 'Water Level > 50m (High Stress)', color: '#b91c1c', isCategorical: true }
 ];
 
 export const STATIC_LEGENDS = {

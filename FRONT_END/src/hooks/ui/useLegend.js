@@ -93,7 +93,7 @@ export const useLegendData = (
         }
         // Well Inventory
         else if (filters?.type === 'Well Inventory') {
-            return [...WELL_INVENTORY_LEGEND, { label: 'No Data / 0m', color: '#cbd5e1', isCategorical: true }];
+            return [...WELL_INVENTORY_LEGEND, { label: 'No Data', color: '#cbd5e1', isCategorical: true }];
         }
         // Aquifer
         else if (filters?.type === 'Aquifer') {
