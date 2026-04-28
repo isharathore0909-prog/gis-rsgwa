@@ -1,0 +1,60 @@
+.portal-layout {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #f0f2f5;
+}
+
+.portal-main {
+    flex: 1;
+    position: relative;
+    background-color: #e5e7eb;
+    overflow: hidden;
+}
+
+.portal-map-viewer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Floating Domain Label */
+.portal-domain-label {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #0f172a;
+    color: white;
+    padding: 8px 30px;
+    border-radius: 30px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: lowercase;
+    z-index: 10;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Location Navbar override for GIS portal */
+.portal-location-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 50;
+    max-width: calc(100% - 100px);
+    /* Leave room for other UI elements */
+}
+
+.portal-location-container .location-navbar {
+    margin-bottom: 0;
+    padding: 12px 24px;
+    gap: 32px;
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}

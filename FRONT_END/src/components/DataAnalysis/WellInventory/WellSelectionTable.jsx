@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { downloadCSV } from '../../../utils/exportUtils';
 import WellInventoryModal from './WellInventoryModal';
+import Pagination from '../../Common/Pagination';
 
 export const WellSelectionTable = ({
     selectedWellInventory,
@@ -8,8 +9,20 @@ export const WellSelectionTable = ({
     onToggleWellInventory
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
+
+    // Reset to first page when data changes
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedWellInventory.length]);
 
     if (!selectedWellInventory || selectedWellInventory.length === 0) return null;
+
+    const paginatedItems = selectedWellInventory.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
     const handleBatchDownload = () => {
         if (selectedWellInventory.length === 0) return;
@@ -66,15 +79,16 @@ export const WellSelectionTable = ({
                 </tr>
             </thead>
             <tbody>
-                {selectedWellInventory.map((item, idx) => {
+                {paginatedItems.map((item, idx) => {
+                    const globalIdx = (currentPage - 1) * itemsPerPage + idx;
                     const lat = item.latitude || item.lat || item.properties?.latitude || '-';
                     const lon = item.longitude || item.lng || item.properties?.longitude || '-';
                     return (
-                        <tr key={idx}>
+                        <tr key={globalIdx}>
                             <td className="col-check">
                                 <input type="checkbox" checked={true} onChange={() => onToggleWellInventory(item)} />
                             </td>
-                            <td className="col-sno">{idx + 1}</td>
+                            <td className="col-sno">{globalIdx + 1}</td>
                             <td className="col-lat">{typeof lat === 'number' ? lat.toFixed(4) : lat}</td>
                             <td className="col-lon">{typeof lon === 'number' ? lon.toFixed(4) : lon}</td>
                             {years.map(year => (
@@ -119,6 +133,13 @@ export const WellSelectionTable = ({
             <div className="data-table-wrapper">
                 {renderTableContent()}
             </div>
+
+            <Pagination
+                currentPage={currentPage}
+                totalItems={selectedWellInventory.length}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+            />
 
             <WellInventoryModal
                 isOpen={isModalOpen}

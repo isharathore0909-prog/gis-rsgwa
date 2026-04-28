@@ -24,12 +24,14 @@ export const useDataLoading = (filters, neighbors) => {
     const [canalData, setCanalData] = useState(null);
     const [waterbodyData, setWaterbodyData] = useState(null);
     const [microData, setMicroData] = useState(null);
+    const [rechargeRecords, setRechargeRecords] = useState([]);
 
     // Loading States
     const [rainfallLoading, setRainfallLoading] = useState(false);
     const [waterQualityLoading, setWaterQualityLoading] = useState(false);
     const [aquiferLoading, setAquiferLoading] = useState(false);
     const [waterResourcesLoading, setWaterResourcesLoading] = useState(false);
+    const [rechargeLoading, setRechargeLoading] = useState(false);
     const [initRetry, setInitRetry] = useState(0);
 
     const originalStaticBlockDataRef = useRef(null);
@@ -96,7 +98,7 @@ export const useDataLoading = (filters, neighbors) => {
     const lastFetchedDistrict = useRef(null);
     useEffect(() => {
         let ignore = false;
-        const isRelevant = ['Rainfall', 'Well Inventory'].includes(filters?.type);
+        const isRelevant = ['Rainfall', 'Well Inventory'].includes(filters?.type) || rainfallStations.length === 0;
 
         const fetchStationRainfall = async () => {
             // Only trigger global loading if we don't have stations yet
@@ -136,13 +138,7 @@ export const useDataLoading = (filters, neighbors) => {
             if (!ignore) setRainfallLoading(false);
         }, 15000);
 
-        if (isRelevant) {
-            fetchStationRainfall();
-        } else {
-            // Already handled above, but ensure it's false
-            setRainfallLoading(false);
-            lastFetchedDistrict.current = null;
-        }
+        fetchStationRainfall();
         return () => {
             ignore = true;
             clearTimeout(safetyTimeout);
@@ -152,13 +148,12 @@ export const useDataLoading = (filters, neighbors) => {
     // Water Quality Data Fetching
     useEffect(() => {
         let ignore = false;
-        if (filters?.type !== 'Water Quality') {
-            setWaterQualityRecords([]);
-            setWaterQualityLoading(false);
-            return;
-        }
         const fetchWQ = async () => {
             setWaterQualityLoading(true);
+            const timeoutId = setTimeout(() => {
+                if (!ignore) setWaterQualityLoading(false);
+            }, 15000);
+
             try {
                 const neighbor = neighbors?.[0];
                 const params = {
@@ -185,6 +180,8 @@ export const useDataLoading = (filters, neighbors) => {
                     setWaterQualityRecords([]);
                     setWaterQualityLoading(false);
                 }
+            } finally {
+                clearTimeout(timeoutId);
             }
         };
         fetchWQ();
@@ -194,13 +191,60 @@ export const useDataLoading = (filters, neighbors) => {
     // Aquifer Data Fetching
     useEffect(() => {
         let ignore = false;
-        if (filters?.type !== 'Well Inventory' && filters?.type !== 'Aquifer') {
-            setAquiferRecords([]);
-            setAquiferLoading(false);
-            return;
-        }
         const fetchAquifer = async () => {
+            // Optimization: Don't fetch the entire state's database wells at once.
+            // Wait for a district selection to show markers. Polygons are handled via WMS.
+            if (!filters.district && filters.type === 'Aquifer') {
+                setAquiferRecords([]);
+                setAquiferLoading(false);
+                return;
+            }
+
             setAquiferLoading(true);
+            const timeoutId = setTimeout(() => {
+                if (!ignore) setAquiferLoading(false);
+            }, 15000);
+
+            try {
+                const params = {
+                    district_id: filters.district_id,
+                    district: filters.district,
+                    block_id: filters.block_id,
+                    block: filters.block,
+                    gp_id: filters.gp_id,
+                    grampanchayat: filters.gramPanchayat,
+                    village_id: filters.village_id,
+                    village_name: filters.village,
+                    detailed: filters.district ? 'true' : 'false',
+                    map_markers: !filters.district ? 'true' : undefined
+                };
+                const data = await api.aquifer.getRecords(params);
+                if (!ignore) {
+                    setAquiferRecords(data.results || data || []);
+                    setAquiferLoading(false);
+                }
+            } catch (err) {
+                if (!ignore) {
+                    setAquiferRecords([]);
+                    setAquiferLoading(false);
+                }
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        };
+        fetchAquifer();
+        return () => { ignore = true; };
+    }, [filters?.type, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
+
+    // Recharge Structure Data Fetching
+    useEffect(() => {
+        let ignore = false;
+        const fetchRecharge = async () => {
+            setRechargeLoading(true);
+            const timeoutId = setTimeout(() => {
+                if (!ignore) setRechargeLoading(false);
+            }, 15000);
+
             try {
                 const params = {
                     district_id: filters.district_id,
@@ -213,19 +257,21 @@ export const useDataLoading = (filters, neighbors) => {
                     village_name: filters.village,
                     detailed: 'true'
                 };
-                const data = await api.aquifer.getRecords(params);
+                const data = await api.rechargeStructure.getRecords(params);
                 if (!ignore) {
-                    setAquiferRecords(data.results || data || []);
-                    setAquiferLoading(false);
+                    setRechargeRecords(data.results || data || []);
+                    setRechargeLoading(false);
                 }
             } catch (err) {
                 if (!ignore) {
-                    setAquiferRecords([]);
-                    setAquiferLoading(false);
+                    setRechargeRecords([]);
+                    setRechargeLoading(false);
                 }
+            } finally {
+                clearTimeout(timeoutId);
             }
         };
-        fetchAquifer();
+        fetchRecharge();
         return () => { ignore = true; };
     }, [filters?.type, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
 
@@ -234,7 +280,7 @@ export const useDataLoading = (filters, neighbors) => {
         if (filters?.type === 'Water Resources') {
             const fetches = [];
             // fetching for canals and waterbodies is now handled by useMapDataFetch via backend API
-            if (filters.showMicro && !microData) {
+            if (!microData) {
                 fetches.push(fetch('/micro.json').then(res => res.json()).then(data => setMicroData(data || { features: [] })).catch(() => setMicroData({ features: [] })));
             }
             if (fetches.length > 0) {
@@ -249,49 +295,19 @@ export const useDataLoading = (filters, neighbors) => {
         }
     }, [filters?.type, filters?.showCanals, filters?.showWaterbodies, filters?.showMicro, canalData, waterbodyData, microData]);
 
-    // High Precision Blocks Fetching
+    // High Precision Blocks Fetching Removed: WMS now provides high precision rendering.
+    // The static base boundary is sufficient for local filtering and legend counts.
     useEffect(() => {
-        if (!filters?.district || !rajasthanId || filters?.type === 'Ground Water Resource Estimation') {
+        if (!filters?.district || !rajasthanId) {
             if (originalStaticBlockDataRef.current) setProcessedBlockData(originalStaticBlockDataRef.current);
             return;
         }
-
-        setProcessedBlockData(null);
-
-        let ignore = false;
-        const fetchHighPrecisionBlocks = async () => {
-            try {
-                const districts = await api.location.getDistricts({ name: filters.district });
-                const district = districts.results?.[0] || districts[0];
-                if (!district || ignore) return;
-                const data = await api.boundaries.getCollection({ layer: 'block', parent_id: district.id, fetch: 'true' });
-                if (data && data.features && !ignore) {
-                    const mergedFeatures = data.features.map(f => {
-                        const bName = (f.properties.name || f.properties.BLOCK_NAME || '').toString().toUpperCase().trim();
-                        const staticMatch = originalStaticBlockDataRef.current?.features?.find(sf => {
-                            const sfName = (sf.properties.BLOCK_NAME || sf.properties.Block || '').toString().toUpperCase().trim();
-                            const sfDist = (sf.properties.DIST_NAME || sf.properties.District || '').toString().toUpperCase().trim();
-                            return sfDist === filters.district.toUpperCase().trim() && (bName === sfName || bName.includes(sfName) || sfName.includes(bName));
-                        });
-                        return {
-                            ...f,
-                            properties: {
-                                ...f.properties, ...(staticMatch?.properties || {}),
-                                BLOCK_NAME: f.properties.name || f.properties.BLOCK_NAME || staticMatch?.properties.BLOCK_NAME,
-                                DIST_NAME: f.properties.district_name || staticMatch?.properties.DIST_NAME || filters.district
-                            }
-                        };
-                    });
-                    const reprojected = reprojectGeoJSON({ ...data, features: mergedFeatures });
-                    if (!ignore) setProcessedBlockData(reprojected);
-                }
-            } catch (err) {
-                console.warn("Failed to enrichment blocks:", err);
-            }
-        };
-        fetchHighPrecisionBlocks();
-        return () => { ignore = true; };
-    }, [filters?.district, filters?.type, rajasthanId]);
+        // In GIS mode with district selected, we keep using the static processed block data 
+        // to avoid heavy GeoJSON fetch/reproject cycles. Rendering is handled by WMS.
+        if (originalStaticBlockDataRef.current) {
+            setProcessedBlockData(originalStaticBlockDataRef.current);
+        }
+    }, [filters?.district, rajasthanId]);
 
     return {
         processedBlockData, setProcessedBlockData,
@@ -309,6 +325,8 @@ export const useDataLoading = (filters, neighbors) => {
         rainfallLoading, setRainfallLoading,
         waterQualityLoading, setWaterQualityLoading,
         aquiferLoading, setAquiferLoading,
-        waterResourcesLoading, setWaterResourcesLoading
+        waterResourcesLoading, setWaterResourcesLoading,
+        rechargeRecords, setRechargeRecords,
+        rechargeLoading, setRechargeLoading
     };
 };

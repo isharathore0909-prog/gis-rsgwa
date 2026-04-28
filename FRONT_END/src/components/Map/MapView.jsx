@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useState, useCallback, memo } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Pane } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -12,12 +12,7 @@ import { useLegendData, useFeatureOptions, useMapView } from '../../hooks';
 import { useAppContext } from '../../context/AppContext';
 
 import { MapEvents, MapUpdater } from './MapEvents';
-import {
-    StateBoundaryLayer, DistrictHighlightLayer, SelectionHighlightLayer,
-    BlockBoundaryLayer, DrillDownBoundariesLayer, RaingaugeStationsLayer,
-    WaterQualityMarkersLayer, AquiferMarkersLayer, PiezometerMarkersLayer,
-    DamMarkersLayer, AquiferVectorLayer, WaterResourcesLayers, WaterQualityContourLayer
-} from './layers';
+import MapLayerRenderer from './MapLayerRenderer';
 import {
     MapControls, LegendToggle, LegendWidget, MapWarning, ColorPickerWidget, ExportLoadingOverlay
 } from './Overlays';
@@ -29,23 +24,20 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const MapView = ({
-    onLocationClick, blockBoundaryData, rajasthanData, dynamicBoundaries,
-    selectedBoundary, selectedLevel, currentLevel, hierarchy,
+const MapView = memo(({
+    onLocationClick, blockBoundaryData, rajasthanData,
+    currentLevel,
     rainfallPoints = [], rainfallDataSource = 'station', rainfallStations = [],
     rainfallStationRecords = [], initialShowLegend, onAddToTable, onFiltersApply,
     microData, selectedWellInventory = [], onToggleWellInventory,
     isDataAnalysisSidebarHidden, isLoading, searchCoordinates, exportTrigger,
-    canalData, waterbodyData, aquiferPolygons,
     aquiferRecords = [], waterQualityRecords = []
 }) => {
-    const { filters, basemap, isControlsSidebarCollapsed, setClickedLocation } = useAppContext();
+    const { filters, updateFilters, basemap, isControlsSidebarCollapsed, setClickedLocation, setMap, showColorPicker, setShowColorPicker } = useAppContext();
 
     // --- Core UI State ---
-    const [showLegend, setShowLegend] = useState(false);
-    const [legendFeature, setLegendFeature] = useState('Category');
+    const [showLegend, setShowLegend] = useState(true);
     const [numClasses, setNumClasses] = useState(5);
-    const [showColorPicker, setShowColorPicker] = useState(false);
     const [vectorLoading, setVectorLoading] = useState(false);
     const [contourLoading, setContourLoading] = useState(false);
 
@@ -56,19 +48,25 @@ const MapView = ({
 
     // --- Legend Logic ---
     useEffect(() => { if (initialShowLegend) setShowLegend(true); }, [initialShowLegend]);
+
+    const legendFeature = filters?.legendFeature || 'Category';
+
     useEffect(() => {
         const type = filters?.type;
+        let targetFeature = 'Category';
+
         if (type === 'Rainfall') {
-            setLegendFeature('avg_rainfall');
+            targetFeature = 'avg_rainfall';
         } else if (type === 'Ground Water Resource Estimation') {
-            setLegendFeature('Category');
+            targetFeature = 'Category';
         } else if (type === 'Water Quality') {
-            setLegendFeature('status');
-        } else {
-            // Default to Category for other layers that might use it
-            setLegendFeature('Category');
+            targetFeature = 'status';
         }
-    }, [filters?.type]);
+
+        if (targetFeature !== filters?.legendFeature) {
+            updateFilters({ legendFeature: targetFeature });
+        }
+    }, [filters?.type, filters?.legendFeature, updateFilters]);
     const toggleLegend = useCallback(() => setShowLegend(prev => !prev), []);
 
     // --- Stability Tracking ---
@@ -81,8 +79,6 @@ const MapView = ({
             setIsLayerChanging(true);
             prevTypeRef.current = filters?.type;
 
-            // Safety timeout: Clear the 'changing' overlay after 6 seconds regardless of isLoading
-            // This prevents a stuck overlay if any of the complex hooks fail to clear their loading flags
             if (layerChangeTimeoutRef.current) clearTimeout(layerChangeTimeoutRef.current);
             layerChangeTimeoutRef.current = setTimeout(() => {
                 setIsLayerChanging(false);
@@ -106,33 +102,38 @@ const MapView = ({
         raingaugeStations, raingaugeLoading,
         aggregatedRainfallPoints, stationRainfallPoints,
         damMarkers,
-        validatedBoundaries, validatedRajasthanData,
-        selectedDistrictData, validatedBlockData
+        validatedBlockData,
+        selectedDistrictData,
+        selectedBoundary
     } = useMapDataFetch({
-        filters, rainfallPoints, blockBoundaryData, rajasthanData,
-        dynamicBoundaries, rainfallStations, rainfallStationRecords,
+        filters, rainfallPoints, blockBoundaryData: blockBoundaryData, rajasthanData,
+        dynamicBoundaries: null, rainfallStations, rainfallStationRecords,
         legendFeature, isLoading
     });
 
     // --- GeoJSON Refs ---
     const blockGeoJsonRef = useRef(null);
-    const stateGeoJsonRef = useRef(null);
-    const drillDownGeoJsonRef = useRef(null);
 
     // --- Map View Logic ---
     const {
-        map, mapRef, selectedDam, setSelectedDam, isRainfallDataEmpty,
-        handleMapReady, handleResetView, handleZoomIn, handleZoomOut,
+        map: mapInstance, mapRef, selectedDam, setSelectedDam, isRainfallDataEmpty,
+        handleMapReady: handleMapReadyInternal, handleResetView, handleZoomIn, handleZoomOut,
         handleFullscreen, onMapClick, handleLocationClick, setIgnoreNextClick
     } = useMapView({
-        filters, onLocationClick, validatedBlockData, selectedDistrictData,
-        validatedBoundaries, selectedBoundary, rainfallPoints, searchCoordinates,
+        filters, onLocationClick, validatedBlockData,
+        selectedBoundary, selectedDistrictData,
+        rainfallPoints, searchCoordinates,
         districtRainfall, isLoading, isControlsSidebarCollapsed, isDataAnalysisSidebarHidden
     });
 
+    const handleMapReady = useCallback((m) => {
+        handleMapReadyInternal(m);
+        setMap(m);
+    }, [handleMapReadyInternal, setMap]);
+
     // --- Feature Hooks ---
-    useMapResize(map, isControlsSidebarCollapsed, isDataAnalysisSidebarHidden);
-    const { handleExport, isExporting } = useMapExport(map, filters, exportTrigger);
+    useMapResize(mapInstance, isControlsSidebarCollapsed, isDataAnalysisSidebarHidden);
+    const { handleExport, isExporting } = useMapExport(mapInstance, filters, exportTrigger);
 
     const featureOptions = useFeatureOptions(filters?.type);
     const legendData = useLegendData(filters, legendFeature, numClasses, validatedBlockData, reprojectedGwreData, aggregatedRainfallPoints, waterQualityRecords, aquiferRecords, districtRainfall);
@@ -140,14 +141,43 @@ const MapView = ({
     // Auto-reset view to Rajasthan on layer switch
     useEffect(() => { if (filters?.type) handleResetView(); }, [filters?.type]);
 
+    // Reset view when navigating back to state level (district cleared)
+    useEffect(() => {
+        if (!filters?.district && !filters?.block) {
+            handleResetView();
+        }
+    }, [filters?.district, filters?.block, handleResetView]);
+
+    // Force map to invalidate size when switching from dashboard to full map
+    const { viewMode } = useAppContext();
+    useEffect(() => {
+        if (mapRef.current) {
+            setTimeout(() => {
+                if (mapRef.current) mapRef.current.invalidateSize();
+            }, 250);
+        }
+    }, [viewMode]);
+
     // --- Style & Filter Memos ---
-    const aquiferFilter = useMemo(() => filters?.district ? {
-        field: 'New_Dist',
-        value: filters.district,
-        block: filters.block
-    } : null, [filters?.district, filters.block]);
-    const canalFilter = useMemo(() => filters?.district ? { field: 'District', value: filters.district, block: filters.block, gp: filters.gramPanchayat, boundary: selectedBoundary } : null, [filters?.district, filters?.block, filters?.gramPanchayat, selectedBoundary]);
-    const waterbodyFilter = useMemo(() => filters?.district ? { field: 'District', value: filters.district, block: filters.block, gp: filters.gramPanchayat, boundary: selectedBoundary } : null, [filters?.district, filters?.block, filters?.gramPanchayat, selectedBoundary]);
+    const canalFilter = useMemo(() => filters?.district ? {
+        district: filters.district,
+        districtId: filters.districtId,
+        block: filters.block,
+        blockId: filters.blockId,
+        gramPanchayat: filters.gramPanchayat,
+        gpId: filters.gpId,
+        village: filters.village
+    } : null, [filters?.district, filters?.districtId, filters.block, filters.blockId, filters.gramPanchayat, filters.gpId, filters.village]);
+
+    const waterbodyFilter = useMemo(() => filters?.district ? {
+        district: filters.district,
+        districtId: filters.districtId,
+        block: filters.block,
+        blockId: filters.blockId,
+        gramPanchayat: filters.gramPanchayat,
+        gpId: filters.gpId,
+        village: filters.village
+    } : null, [filters?.district, filters?.districtId, filters.block, filters.blockId, filters.gramPanchayat, filters.gpId, filters.village]);
 
     const memoizedAquiferStyle = useMemo(() => (props) => ({
         fillColor: getAquiferColor(props.Aquifer || props.aquifer || ''),
@@ -166,7 +196,7 @@ const MapView = ({
     }, [setVectorLoading]);
 
     // --- Rendering ---
-    const renderBasemap = () => {
+    const memoizedBasemap = useMemo(() => {
         const url = basemap === 'imagery-labels' || basemap === 'imagery'
             ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
             : basemap === 'streets'
@@ -178,73 +208,42 @@ const MapView = ({
                 {basemap === 'imagery-labels' && <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" zIndex={10} />}
             </>
         );
-    };
+    }, [basemap]);
 
     return (
         <div className="map-container professional-border">
             <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} style={{ height: '100%', width: '100%' }} zoomControl={false} attributionControl={false}>
                 <MapUpdater center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} basemap={basemap} onMapReady={handleMapReady} />
                 <MapEvents onLocationClick={onMapClick} />
-                {renderBasemap()}
+                {memoizedBasemap}
 
-                {/* State-Level District Choropleth - Keep visible for Rainfall mode even during drill-down */}
-                {(!filters?.district || filters?.type === 'Rainfall') && (
-                    <StateBoundaryLayer key={`state-${filters?.type}-${filters?.district}-${Object.keys(districtRainfall || {}).length}`} data={validatedRajasthanData} filters={filters} legendFeature={legendFeature} legendData={legendData} districtRainfall={districtRainfall} onFiltersApply={onFiltersApply} onLocationClick={handleLocationClick} geoJsonRef={stateGeoJsonRef} />
-                )}
-
-                {/* Show block choropleth for GWRE at state level, OR for all layers when drilling into a district. 
-                    Keep it visible for thematic layers (Rainfall/GWRE) even when a block is selected so the color persists. */}
-                {((filters?.district && (filters?.block || filters?.type === 'Ground Water Resource Estimation') && !filters?.gramPanchayat) || (filters?.type === 'Ground Water Resource Estimation' && !filters?.district)) && (
-                    <BlockBoundaryLayer key={`block-${filters?.type}-${filters?.district}-${filters?.block}`} data={validatedBlockData} filters={filters} legendFeature={legendFeature} legendData={legendData} geoJsonRef={blockGeoJsonRef} onLocationClick={handleLocationClick} />
-                )}
-
-                <DamMarkersLayer isActive={filters?.showDams} damMarkers={damMarkers} onDamClick={setSelectedDam} onAddToTable={onAddToTable} color={layerColors.dams} />
-                <RaingaugeStationsLayer isActive={filters?.type === 'Rainfall'} showStations={filters?.showRaingaugeStations} data={raingaugeStations} district={filters?.district} />
-                <PiezometerMarkersLayer isActive={filters?.type === 'Rainfall' && filters?.showPiezometers} records={piezometerRecords} onLocationClick={handleLocationClick} />
-                <WaterQualityMarkersLayer isActive={filters?.type === 'Water Quality' && filters?.showMarkers} records={waterQualityRecords} onLocationClick={handleLocationClick} />
-
-                <WaterQualityContourLayer isActive={filters?.type === 'Water Quality' && filters?.showEC} parameter="ec" filters={filters} label="EC" onLoading={setContourLoading} />
-                <WaterQualityContourLayer isActive={filters?.type === 'Water Quality' && filters?.showNitrate} parameter="nitrate" filters={filters} label="Nitrate" onLoading={setContourLoading} />
-                <WaterQualityContourLayer isActive={filters?.type === 'Water Quality' && filters?.showFluoride} parameter="fluoride" filters={filters} label="Fluoride" onLoading={setContourLoading} />
-                <WaterQualityContourLayer isActive={filters?.type === 'Water Quality' && filters?.showTDS} parameter="tds" filters={filters} label="TDS" onLoading={setContourLoading} />
-
-                <AquiferMarkersLayer isActive={filters?.type === 'Well Inventory'} records={aquiferRecords} onLocationClick={handleLocationClick} />
-
-                {filters?.type === 'Well Inventory' && selectedWellInventory.length > 0 && selectedWellInventory.map((item, idx) => (
-                    <CircleMarker key={`sel-${item.well_id || idx}`} center={[item.latitude || item.lat, item.longitude || item.lng]} radius={8} pathOptions={{ fillColor: '#ef4444', color: 'white', weight: 2, opacity: 1, fillOpacity: 1 }} />
-                ))}
-
-                <AquiferVectorLayer isActive={filters?.type === 'Aquifer' || filters?.type === 'Well Inventory'} district={filters?.district} filter={aquiferFilter} data={aquiferPolygons} style={memoizedAquiferStyle} onLoading={handleVectorLoading} onFeatureClick={handleAquiferFeatureClick} />
-
-                <WaterResourcesLayers isActive={filters?.type === 'Water Resources'} showCanals={filters?.showCanals} showWaterbodies={filters?.showWaterbodies} showMicro={filters?.showMicro} canalData={canalData} waterbodyData={waterbodyData} canalFilter={canalFilter} waterbodyFilter={waterbodyFilter} microData={microData} layerColors={layerColors} onLoading={setVectorLoading} />
-
-
-
-                {/* Hierarchical Selection Highlights (Shared Pane) */}
-                <Pane name="selectionHighlightPane" style={{ zIndex: 650 }}>
-                    {filters?.village ? (
-                        <SelectionHighlightLayer key={`sel-high-village-${filters?.village}`} data={hierarchy.village} level="village" />
-                    ) : filters?.gramPanchayat ? (
-                        <SelectionHighlightLayer key={`sel-high-gp-${filters?.gramPanchayat}`} data={hierarchy.gp} level="gp" />
-                    ) : filters?.block ? (
-                        // For thematic layers at block level, BlockBoundaryLayer already handles the fill/outline
-                        !['Rainfall', 'Ground Water Resource Estimation'].includes(filters?.type) && (
-                            <SelectionHighlightLayer key={`sel-high-block-${filters?.block}`} data={hierarchy.block} level="block" />
-                        )
-                    ) : filters?.district ? (
-                        <SelectionHighlightLayer key={`sel-high-dist-${filters?.district}`} data={hierarchy.district} level="district" />
-                    ) : null}
-
-
-                    {/* Selection Highlights (Dynamic Fallback) */}
-                    {!hierarchy?.village && !hierarchy?.gp && !hierarchy?.block && !hierarchy?.district && selectedBoundary && (
-                        <SelectionHighlightLayer
-                            key={`sel-high-fallback-${selectedLevel}`}
-                            data={selectedBoundary}
-                            level={selectedLevel || currentLevel}
-                        />
-                    )}
-                </Pane>
+                <MapLayerRenderer
+                    filters={filters}
+                    districtRainfall={districtRainfall}
+                    legendFeature={legendFeature}
+                    legendData={legendData}
+                    onFiltersApply={onFiltersApply}
+                    handleLocationClick={handleLocationClick}
+                    validatedBlockData={validatedBlockData}
+                    blockGeoJsonRef={blockGeoJsonRef}
+                    damMarkers={damMarkers}
+                    setSelectedDam={setSelectedDam}
+                    onAddToTable={onAddToTable}
+                    layerColors={layerColors}
+                    raingaugeStations={raingaugeStations}
+                    piezometerRecords={piezometerRecords}
+                    waterQualityRecords={waterQualityRecords}
+                    setContourLoading={setContourLoading}
+                    aquiferRecords={aquiferRecords}
+                    selectedWellInventory={selectedWellInventory}
+                    memoizedAquiferStyle={memoizedAquiferStyle}
+                    handleVectorLoading={handleVectorLoading}
+                    handleAquiferFeatureClick={handleAquiferFeatureClick}
+                    canalFilter={canalFilter}
+                    waterbodyFilter={waterbodyFilter}
+                    microData={microData}
+                    currentLevel={currentLevel}
+                />
             </MapContainer>
 
             {/* Only show the full-screen warning for major layer changes or initial load. Filter updates are silent. */}
@@ -258,11 +257,11 @@ const MapView = ({
             <ColorPickerWidget isActive={showColorPicker && filters?.type === 'Water Resources'} layerColors={layerColors} onColorChange={handleColorChange} onClose={() => setShowColorPicker(false)} />
 
             <LegendToggle isActive={filters?.type} showLegend={showLegend} hasData={legendData.length > 0} onToggle={toggleLegend} />
-            <LegendWidget isActive={filters?.type} showLegend={showLegend} legendData={legendData} legendFeature={legendFeature} numClasses={numClasses} featureOptions={featureOptions} onFeatureChange={setLegendFeature} onClassesChange={setNumClasses} onHide={toggleLegend} />
+            <LegendWidget isActive={filters?.type} showLegend={showLegend} legendData={legendData} legendFeature={legendFeature} numClasses={numClasses} featureOptions={featureOptions} onFeatureChange={(feat) => updateFilters({ legendFeature: feat })} onClassesChange={setNumClasses} onHide={toggleLegend} />
 
             <ExportLoadingOverlay isActive={isExporting} />
         </div>
     );
-};
+});
 
 export default MapView;

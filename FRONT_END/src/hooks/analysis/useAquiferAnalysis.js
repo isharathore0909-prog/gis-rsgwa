@@ -61,7 +61,8 @@ export const useAquiferAnalysis = ({
         paramsChanged,
         hasAttemptedSpatialFetch,
         globalFilters,
-        analysisLevel
+        analysisLevel,
+        rajasthanId
     });
 
     const {
@@ -107,21 +108,10 @@ export const useAquiferAnalysis = ({
                     color: getAquiferColor(item.name)
                 };
             });
-            return !displayRegion ? result.slice(0, 5) : result;
+            return (!displayRegion || displayRegion === 'Rajasthan') ? result.slice(0, 6) : result;
         }
 
-        if (aquiferStats?.aquifer_distribution) {
-            const totalWells = aquiferStats.summary.total_wells || 1;
-            return aquiferStats.aquifer_distribution
-                .map((aq) => ({
-                    name: aq.aquifer || 'Unknown',
-                    value: aq.count,
-                    unit: 'Wells',
-                    percent: Math.round((aq.count / totalWells) * 100),
-                    color: getAquiferColor(aq.aquifer)
-                }))
-                .sort((a, b) => b.value - a.value);
-        }
+        // Strictly do not fall back to well data as per user instructions
         return [];
     }, [aquiferStats, aquiferSpatialStats, displayRegion]);
 

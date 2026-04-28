@@ -10,7 +10,8 @@ export const useAquiferSpatialStats = ({
     paramsChanged,
     hasAttemptedSpatialFetch,
     globalFilters,
-    analysisLevel
+    analysisLevel,
+    rajasthanId
 }) => {
     const [aquiferSpatialStats, setAquiferSpatialStats] = useState(null);
     const [aquiferPolygons, setAquiferPolygons] = useState(null);
@@ -27,11 +28,13 @@ export const useAquiferSpatialStats = ({
 
     useEffect(() => {
         let ignore = false;
-        if (!activeMode) {
-            setAquiferSpatialStats(null);
-            setAquiferPolygons(null);
-            hasAttemptedSpatialFetch.current = false;
-            setIsFetchingSpatial(false);
+        if (!activeMode || !rajasthanId) {
+            if (!activeMode) {
+                setAquiferSpatialStats(null);
+                setAquiferPolygons(null);
+                hasAttemptedSpatialFetch.current = false;
+                setIsFetchingSpatial(false);
+            }
             return;
         }
 
@@ -84,7 +87,7 @@ export const useAquiferSpatialStats = ({
 
         fetchSpatialStats();
         return () => { ignore = true; };
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, hasAttemptedSpatialFetch, analysisLevel]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, hasAttemptedSpatialFetch, analysisLevel, rajasthanId]);
 
     return {
         aquiferSpatialStats,

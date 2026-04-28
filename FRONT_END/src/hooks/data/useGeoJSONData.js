@@ -19,6 +19,8 @@ export const useGeoJSONData = (url, isActive) => {
             return;
         }
 
+        const controller = new AbortController();
+
         if (geoJSONCache.has(url)) {
             setData(geoJSONCache.get(url));
             setLoading(false);
@@ -44,7 +46,7 @@ export const useGeoJSONData = (url, isActive) => {
             return;
         }
 
-        const fetchPromise = fetch(url)
+        const fetchPromise = fetch(url, { signal: controller.signal })
             .then(res => {
                 if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
                 return res.json();
@@ -59,6 +61,7 @@ export const useGeoJSONData = (url, isActive) => {
                 return jsonData;
             })
             .catch(err => {
+                if (err.name === 'AbortError') return;
                 pendingRequests.delete(url);
                 if (!ignore) {
                     console.error(`[useGeoJSONData] Error loading ${url}:`, err);
@@ -70,7 +73,10 @@ export const useGeoJSONData = (url, isActive) => {
 
         pendingRequests.set(url, fetchPromise);
 
-        return () => { ignore = true; };
+        return () => {
+            ignore = true;
+            controller.abort();
+        };
     }, [url, isActive]);
 
     return { data, loading, error };

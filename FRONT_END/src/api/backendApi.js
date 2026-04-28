@@ -88,7 +88,7 @@ class BackendAPIClient {
     /**
      * Cache-aware GET helper
      */
-    async getCached(endpoint, params = {}, headers = {}) {
+    async getCached(endpoint, params = {}, headers = {}, signal = null) {
         const cacheKey = endpoint + JSON.stringify(params || {});
         const cached = this.cache.get(cacheKey);
 
@@ -97,7 +97,7 @@ class BackendAPIClient {
             return cached.data;
         }
 
-        return this.client.get(endpoint, { params, headers });
+        return this.client.get(endpoint, { params, headers, signal });
     }
 
     /**
@@ -157,59 +157,63 @@ class BackendAPIClient {
     /**
      * Helper for API Key requests
      */
-    getWithApiKey(endpoint, params = {}) {
-        return this.getCached(endpoint, params, { 'x-auth-key': BACKEND_API.API_KEY });
+    getWithApiKey(endpoint, params = {}, signal = null) {
+        return this.getCached(endpoint, params, { 'x-auth-key': BACKEND_API.API_KEY }, signal);
     }
 
     // ==================== API Methods ====================
 
-    getStates(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.STATES, params); }
-    getDistricts(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.DISTRICTS, params); }
-    getBlocks(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BLOCKS, params); }
-    getGrampanchayats(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.GRAMPANCHAYATS, params); }
-    getVillages(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.VILLAGES, params); }
-    getLocationCodes(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.LOCATION_CODES, params); }
+    getStates(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.STATES, params, signal); }
+    getDistricts(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.DISTRICTS, params, signal); }
+    getBlocks(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BLOCKS, params, signal); }
+    getGrampanchayats(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.GRAMPANCHAYATS, params, signal); }
+    getVillages(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.VILLAGES, params, signal); }
+    getLocationCodes(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.LOCATION_CODES, params, signal); }
 
-    getBoundaryCollection(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BOUNDARY_COLLECTION, params); }
-    getBoundaryByCode(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BOUNDARY_BY_CODE, params); }
+    getBoundaryCollection(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BOUNDARY_COLLECTION, params, signal); }
+    getBoundaryByCode(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BOUNDARY_BY_CODE, params, signal); }
 
-    getAddressByLatLon(lat, lon, includeBoundary = false) {
+    getAddressByLatLon(lat, lon, includeBoundary = false, signal = null) {
         const params = { lat, lon };
         if (includeBoundary) params.boundary = 'true';
-        return this.getWithApiKey(BACKEND_API.ENDPOINTS.PINCODE, params);
+        return this.getWithApiKey(BACKEND_API.ENDPOINTS.PINCODE, params, signal);
     }
 
-    getRainfallRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL, params); }
-    getRainfallStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATISTICS, params); }
-    getRainfallSummary(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_SUMMARY, params); }
-    getRainfallNearby(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_NEARBY, params); }
-    getRainfallDistrictWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_DISTRICT_WISE, params); }
-    getRainfallLocationWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_LOCATION_WISE, params); }
-    getRainfallStations(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATIONS, params); }
-    getRainfallStationRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_RECORDS, params); }
-    getRainfallStationStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_STATISTICS, params); }
-    getRainfallStationSummary(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_SUMMARY, params); }
-    getRainfallStationDistrictWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_DISTRICT_WISE, params); }
-    getRainfallStationLocationWise(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_LOCATION_WISE, params); }
+    pointIdentify(lat, lon, signal = null) {
+        return this.getWithApiKey(BACKEND_API.ENDPOINTS.POINT_IDENTIFY, { lat, lon }, signal);
+    }
 
-    getWaterQualityRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY, params); }
-    getWaterQualityStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params); }
-    getWaterQualityContourMap(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_CONTOUR, params); }
-    getWaterQualityAvailabilityRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY, params); }
-    getWaterQualityAvailabilityStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY_STATISTICS, params); }
+    getRainfallRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL, params, signal); }
+    getRainfallStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATISTICS, params, signal); }
+    getRainfallSummary(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_SUMMARY, params, signal); }
+    getRainfallNearby(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_NEARBY, params, signal); }
+    getRainfallDistrictWise(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_DISTRICT_WISE, params, signal); }
+    getRainfallLocationWise(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_LOCATION_WISE, params, signal); }
+    getRainfallStations(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATIONS, params, signal); }
+    getRainfallStationRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_RECORDS, params, signal); }
+    getRainfallStationStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_STATISTICS, params, signal); }
+    getRainfallStationSummary(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_SUMMARY, params, signal); }
+    getRainfallStationDistrictWise(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_DISTRICT_WISE, params, signal); }
+    getRainfallStationLocationWise(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_LOCATION_WISE, params, signal); }
+    getRainfallDistribution(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_DISTRIBUTION, params, signal); }
+    getRainfallStationDistribution(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_DISTRIBUTION, params, signal); }
 
-    getAquiferRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER, params); }
-    getAquiferStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_STATISTICS, params); }
-    getAquiferYearlyStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_YEARLY_STATISTICS, params); }
-    getAquiferNearby(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_NEARBY, params); }
+    getWaterQualityRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY, params, signal); }
+    getWaterQualityStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params, signal); }
+    getWaterQualityAvailabilityStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY_STATISTICS, params, signal); }
 
-    getRechargeStructureRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE, params); }
-    getRechargeStructureStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE_STATISTICS, params); }
+    getAquiferRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER, params, signal); }
+    getAquiferStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_STATISTICS, params, signal); }
+    getAquiferYearlyStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_YEARLY_STATISTICS, params, signal); }
+    getAquiferNearby(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_NEARBY, params, signal); }
 
-    getPiezometerRecords(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.PIEZOMETER, params); }
-    getSpatialLayers(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS, params); }
-    getSpatialStatistics(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_STATISTICS, params); }
-    getSpatialIntersect(params = {}) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_INTERSECT, params); }
+    getRechargeStructureRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE, params, signal); }
+    getRechargeStructureStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE_STATISTICS, params, signal); }
+
+    getPiezometerRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.PIEZOMETER, params, signal); }
+    getSpatialLayers(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS, params, signal); }
+    getSpatialStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_STATISTICS, params, signal); }
+    getSpatialIntersect(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_INTERSECT, params, signal); }
 
     async login(credentials) {
         const data = await this.client.post(BACKEND_API.ENDPOINTS.LOGIN, credentials);

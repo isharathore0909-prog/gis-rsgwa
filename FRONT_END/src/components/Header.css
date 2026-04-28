@@ -1,40 +1,75 @@
-/* Header.css */
-:root {
-    --sky-50: #f0f9ff;
-    --sky-100: #e0f2fe;
-    --sky-300: #7dd3fc;
-    --sky-400: #38bdf8;
-    --sky-600: #0284c7;
-    --sky-700: #0369a1;
-    --sky-900: #0c4a6e;
-    --orange-400: #fb923c;
-    --orange-500: #f97316;
-    --gray-100: #f3f4f6;
-    --gray-200: #e5e7eb;
-    --gray-400: #9ca3af;
-    --gray-500: #6b7280;
-    --gray-600: #4b5563;
-    --gray-700: #374151;
-    --gray-900: #111827;
-}
-
 .header-container {
     width: 100%;
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     position: sticky;
     top: 0;
-    z-index: 10;
-    background-color: white;
-    backdrop-filter: blur(12px);
-    border-bottom: 3px solid var(--sky-900);
+    z-index: 1000;
+    background: white;
+    border-bottom: 1px solid var(--border-light);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Top Info Bar */
+.header-top-bar {
+    background: #0f172a;
+    /* Dark Navy Blue */
+    color: white;
+    padding: 6px 0;
+    font-size: 0.8rem;
+}
+
+.top-bar-content {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0 var(--spacing-md);
+}
+
+.live-stats .stat-value {
+    color: #38bdf8;
+    font-size: 0.9rem;
+    margin: 0 4px;
+}
+
+.live-stats .sub-stat {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    margin-left: 8px;
+}
+
+.top-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.top-nav a {
+    color: white;
+    text-decoration: none;
+    opacity: 0.9;
+    transition: opacity 0.2s;
+}
+
+.top-nav a:hover {
+    opacity: 1;
+}
+
+.login-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
 }
 
 /* Main Header */
 .header-main {
-    background: white;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    transition: all 0.3s;
-    padding: 12px 0;
+    padding: var(--spacing-sm) 0;
+    transition: all 0.3s ease;
 }
 
 .header-main.compact {
@@ -45,28 +80,18 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 16px;
-    margin: 0 auto;
+    padding: 0 var(--spacing-md);
 }
 
 .branding-section {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: var(--spacing-md);
 }
 
 .logo-wrapper {
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 80px;
-    height: 80px;
-}
-
-.header-main.compact .logo-wrapper {
-    width: 48px;
-    height: 48px;
+    width: 60px;
+    height: 60px;
 }
 
 .logo-img {
@@ -76,67 +101,66 @@
 }
 
 .separator-line {
-    display: none;
-    width: 4px;
-    background-color: var(--sky-900);
-    transition: all 0.3s;
-    height: 64px;
-}
-
-@media (min-width: 640px) {
-    .separator-line {
-        display: block;
-    }
-}
-
-.header-main.compact .separator-line {
+    width: 1px;
     height: 40px;
-}
-
-.title-wrapper {
-    display: flex;
-    flex-direction: column;
+    background: #e2e8f0;
 }
 
 .department-name {
-    font-weight: 700;
-    color: var(--sky-900);
-    text-transform: uppercase;
-    letter-spacing: 0.025em;
-    transition: all 0.3s;
-    font-size: 1.5rem;
-    /* ~24px */
-    margin: 0;
-}
-
-.header-main.compact .department-name {
-    font-size: 1.125rem;
-    /* ~18px */
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.2;
 }
 
 .govt-name {
-    color: var(--sky-900);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
     font-weight: 500;
-    letter-spacing: 0.05em;
-    font-size: 1.125rem;
-    /* ~18px */
-    margin: 0;
 }
 
-.header-main.compact .govt-name {
-    font-size: 0.875rem;
-    /* ~14px */
+/* Main Navigation */
+.main-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.main-nav a,
+.nav-dropdown,
+.nav-link-btn {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    background: transparent;
+    border: none;
+    font-family: inherit;
+}
+
+.main-nav a.active,
+.nav-link-btn.active {
+    background: var(--primary, #2563eb);
+    color: white;
+}
+
+.main-nav a:hover:not(.active),
+.nav-dropdown:hover,
+.nav-link-btn:hover:not(.active) {
+    color: var(--primary, #2563eb);
+    background: var(--primary-light, #eff6ff);
 }
 
 .emblem-wrapper {
-    transition: all 0.3s;
-    width: 80px;
-    height: 80px;
-}
-
-.header-main.compact .emblem-wrapper {
-    width: 48px;
-    height: 48px;
+    width: 50px;
+    height: 50px;
 }
 
 .emblem-img {
@@ -145,73 +169,8 @@
     object-fit: contain;
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-/* Responsiveness */
-@media (max-width: 768px) {
-    .header-container {
-        height: var(--header-height);
-        overflow: hidden;
-    }
-
-    .top-bar-content {
-        display: none;
-    }
-
-    .main-content {
-        padding: 0 12px;
-        height: 100%;
-    }
-
-    .department-name {
-        font-size: 0.85rem;
-        line-height: 1.2;
-        max-width: 200px;
-    }
-
-    .govt-name {
-        font-size: 0.7rem;
-        margin-top: 2px;
-    }
-
-    .logo-wrapper,
-    .emblem-wrapper {
-        width: 40px;
-        height: 40px;
-    }
-
-    .branding-section {
-        gap: 10px;
-    }
-
-    .separator-line {
-        height: 32px !important;
-        width: 2px;
-    }
-}
-
-@media (max-width: 480px) {
-    .department-name {
-        font-size: 0.75rem;
-        max-width: 160px;
-    }
-
-    .logo-wrapper {
-        width: 32px;
-        height: 32px;
-    }
-
-    .emblem-wrapper {
+@media (max-width: 1024px) {
+    .main-nav {
         display: none;
     }
 }

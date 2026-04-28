@@ -57,7 +57,10 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
                 'latitude', 
                 'longitude', 
                 'aquifer',
-                'village__name'
+                'village__name',
+                'village__grampanchayat__block__district__name',
+                'pre_2024',
+                'pst_2024'
             )
             
             # Construct the response list manually
@@ -68,7 +71,10 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
                     'latitude': item['latitude'],
                     'longitude': item['longitude'],
                     'aquifer': item['aquifer'],
-                    'village_name': item['village__name']
+                    'village_name': item['village__name'],
+                    'district': item['village__grampanchayat__block__district__name'],
+                    'pre_2024': item['pre_2024'],
+                    'pst_2024': item['pst_2024']
                 } for item in data
             ]
             
@@ -96,7 +102,8 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         is_stats_request = self.action in ['statistics', 'yearly_statistics']
         
         # Only add heavy annotations if we are likely to serialize individual records
-        if not is_map_request and not is_stats_request and self.action in ['list', 'retrieve', 'year_data']:
+        # Note: Added is_map_request to support District aggregation even on slim responses
+        if not is_stats_request and self.action in ['list', 'retrieve', 'year_data']:
             queryset = queryset.annotate(
                 ann_village_name=F('village__name'),
                 ann_gp_name=F('village__grampanchayat__name'),
@@ -108,9 +115,10 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             if is_map_request:
                 # Map Marker Optimization: Only fetch essential fields
-                return queryset.select_related('village').only(
+                return queryset.select_related('village', 'village__grampanchayat__block__district').only(
                     'id', 'well_id', 'latitude', 'longitude', 'aquifer',
-                    'village__name', 'village__latitude', 'village__longitude'
+                    'village__name', 'village__latitude', 'village__longitude',
+                    'village__grampanchayat__block__district__name'
                 )
             
             # Standard list view optimization - select_related is still good but 

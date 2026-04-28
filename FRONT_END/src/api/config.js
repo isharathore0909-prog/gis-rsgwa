@@ -22,6 +22,7 @@ export const BACKEND_API = {
         BOUNDARY_COLLECTION: '/location/boundary-collection/',
         BOUNDARY_BY_CODE: '/location/boundary-by-code/',
         PINCODE: '/location/pincode/',
+        POINT_IDENTIFY: '/location/point-identify/',
 
         // Data endpoints
         RAINFALL: '/rainfall/records/',
@@ -30,15 +31,16 @@ export const BACKEND_API = {
         RAINFALL_NEARBY: '/rainfall/records/nearby/',
         RAINFALL_DISTRICT_WISE: '/rainfall/records/district_wise/',
         RAINFALL_LOCATION_WISE: '/rainfall/records/location_wise/',
+        RAINFALL_DISTRIBUTION: '/rainfall/records/distribution/',
         RAINFALL_STATIONS: '/rainfall/station-records/stations/',
         RAINFALL_STATION_RECORDS: '/rainfall/station-records/',
         RAINFALL_STATION_STATISTICS: '/rainfall/station-records/statistics/',
         RAINFALL_STATION_SUMMARY: '/rainfall/station-records/summary/',
         RAINFALL_STATION_DISTRICT_WISE: '/rainfall/station-records/district_wise/',
         RAINFALL_STATION_LOCATION_WISE: '/rainfall/station-records/location_wise/',
+        RAINFALL_STATION_DISTRIBUTION: '/rainfall/station-records/distribution/',
         WATER_QUALITY: '/water-quality/',
         WATER_QUALITY_STATISTICS: '/water-quality/statistics/',
-        WATER_QUALITY_CONTOUR: '/water-quality/contour-map/',
         WATER_QUALITY_AVAILABILITY: '/water-quality-availability/',
         WATER_QUALITY_AVAILABILITY_STATISTICS: '/water-quality-availability/statistics/',
         AQUIFER: '/aquifer/',
@@ -61,17 +63,19 @@ export const BACKEND_API = {
     }
 };
 
-// External Boundary API Configuration (Now Proxied through Backend)
-const BACKEND_URL_BASE = 'http://127.0.0.1:8000/api';
-
-export const EXTERNAL_API = {
-    BASE_URL: BACKEND_URL_BASE,
-    // When calling our proxy, we use our internal backend API key
-    API_KEY: 'e32ebc1d-fe04-4bd7-9003-df5274c990e2',
-    ENDPOINTS: {
-        BOUNDARY_BY_CODE: '/location/boundary-by-code/',
-        PINCODE: '/location/pincode/', // Already proxied in backend
-        MULTIPLE_POINTS: '/location/external-proxy/mpinp/',
+// GeoServer Configuration
+export const GEOSERVER_CONFIG = {
+    BASE_URL: import.meta.env.VITE_GEOSERVER_URL || 'http://localhost:8080/geoserver',
+    WORKSPACE: import.meta.env.VITE_GEOSERVER_WORKSPACE || 'rajasthan',
+    LAYERS: {
+        DISTRICT: 'district_boundary',
+        BLOCK: 'block_boundary',
+        GP: 'gp_boundary',
+        VILLAGE: 'village_boundary',
+        AQUIFER: 'aquifers_layer',
+        WATERBODIES: 'waterbodies_layer',
+        CANAL: 'canal_layer',
+        GROUNDWATERZONE: 'groundwater_zone_layer'
     }
 };
 
@@ -99,11 +103,6 @@ export const getBackendHeaders = (includeAuth = true) => {
     return headers;
 };
 
-export const getExternalHeaders = () => ({
-    'X-Auth-Key': EXTERNAL_API.API_KEY,
-    'Content-Type': 'application/json',
-});
-
 export const getInternalApiKeyHeaders = () => ({
     'X-Auth-Key': BACKEND_API.API_KEY,
     'Content-Type': 'application/json',
@@ -124,24 +123,12 @@ export const buildBackendUrl = (endpoint, params = {}) => {
     return url.toString();
 };
 
-export const buildExternalUrl = (endpoint, params = {}) => {
-    const url = new URL(`${EXTERNAL_API.BASE_URL}${endpoint}`);
-    Object.keys(params).forEach(key => {
-        if (params[key] !== undefined && params[key] !== null) {
-            url.searchParams.append(key, params[key]);
-        }
-    });
-    return url.toString();
-};
-
 // Export all configurations
 export default {
     BACKEND_API,
-    EXTERNAL_API,
+    GEOSERVER_CONFIG,
     API_CONFIG,
     getBackendHeaders,
-    getExternalHeaders,
     getInternalApiKeyHeaders,
     buildBackendUrl,
-    buildExternalUrl,
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
+import useDebounce from '../core/useDebounce';
 
 /**
  * Custom hook for fetching water quality records
@@ -7,6 +8,8 @@ import api from '../../api';
 export const useWaterQuality = (isActive, filters) => {
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    const debouncedFilters = useDebounce(filters, 500);
 
     useEffect(() => {
         let ignore = false;
@@ -17,15 +20,17 @@ export const useWaterQuality = (isActive, filters) => {
             return;
         }
 
+        const controller = new AbortController();
+
         const fetchData = async () => {
             setLoading(true);
             try {
                 const params = { map_markers: 'true' };
-                if (filters?.district) params.district = filters.district;
-                if (filters?.block) params.block = filters.block;
-                if (filters?.gramPanchayat) params.gp_id = filters.gramPanchayat;
-                if (filters?.village) params.village_name = filters.village;
-                if (filters?.villageId) params.village_id = filters.villageId;
+                if (debouncedFilters?.district) params.district = debouncedFilters.district;
+                if (debouncedFilters?.block) params.block = debouncedFilters.block;
+                if (debouncedFilters?.gramPanchayat) params.gp_id = debouncedFilters.gramPanchayat;
+                if (debouncedFilters?.village) params.village_name = debouncedFilters.village;
+                if (debouncedFilters?.villageId) params.village_id = debouncedFilters.villageId;
 
                 if (!params.district) {
                     if (!ignore) {
@@ -36,7 +41,7 @@ export const useWaterQuality = (isActive, filters) => {
                     return;
                 }
 
-                const data = await api.waterQuality.getRecords(params);
+                const data = await api.waterQuality.getRecords(params, controller.signal);
                 if (!ignore) {
                     // Support both paginated (results) and unpaginated (array) responses
                     const results = data.results || (Array.isArray(data) ? data : []);
@@ -45,6 +50,9 @@ export const useWaterQuality = (isActive, filters) => {
                     setLoading(false);
                 }
             } catch (error) {
+                if (error.name === 'CanceledError' || error.name === 'AbortError') {
+                    return;
+                }
                 if (!ignore) {
                     console.error('[useWaterQuality] Error:', error);
                     setRecords([]);
@@ -54,8 +62,11 @@ export const useWaterQuality = (isActive, filters) => {
         };
 
         fetchData();
-        return () => { ignore = true; };
-    }, [isActive, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
+        return () => {
+            ignore = true;
+            controller.abort();
+        };
+    }, [isActive, debouncedFilters]);
 
     return { data: records, loading };
 };

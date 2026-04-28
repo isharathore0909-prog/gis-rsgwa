@@ -23,6 +23,38 @@ def _invalidate_recharge_cache():
         pass
 
 
+def _get_boundary_geometry(district=None, block=None, grampanchayat=None, village=None):
+    try:
+        from locationApi.models import District as DistrictModel, Block as BlockModel, Grampanchayat as GrampanchayatModel, Village as VillageModel
+        from core.spatial_utils import normalize_geometry_crs
+
+        if village and village.strip() and village.strip().lower() not in ['-- all villages --', 'none', '']:
+            vlg_q = Q(name__icontains=village.strip())
+            if grampanchayat and grampanchayat.strip() and grampanchayat.strip().lower() not in ['-- all gram panchayats --', 'none', '']:
+                vlg_q &= Q(grampanchayat__name__icontains=grampanchayat.strip())
+            vlg = VillageModel.objects.filter(vlg_q).exclude(geometry__isnull=True).first()
+            if vlg and vlg.geometry: return normalize_geometry_crs(vlg.geometry)
+
+        if grampanchayat and grampanchayat.strip() and grampanchayat.strip().lower() not in ['-- all gram panchayats --', 'none', '']:
+            gp_q = Q(name__icontains=grampanchayat.strip())
+            if block and block.strip(): gp_q &= Q(block__name__icontains=block.strip())
+            gp = GrampanchayatModel.objects.filter(gp_q).exclude(geometry__isnull=True).first()
+            if gp and gp.geometry: return normalize_geometry_crs(gp.geometry)
+
+        if block and block.strip() and block.strip().lower() not in ['none', '']:
+            blk_q = Q(name__icontains=block.strip())
+            if district and district.strip(): blk_q &= Q(district__name__icontains=district.strip())
+            blk = BlockModel.objects.filter(blk_q).exclude(geometry__isnull=True).first()
+            if blk and blk.geometry: return normalize_geometry_crs(blk.geometry)
+
+        if district and district.strip() and district.strip().lower() not in ['none', '']:
+            dist = DistrictModel.objects.filter(name__icontains=district.strip()).exclude(geometry__isnull=True).first()
+            if dist and dist.geometry: return normalize_geometry_crs(dist.geometry)
+    except Exception as e:
+        logger.warning(f"Fallback boundary geometry lookup failed: {e}")
+    return None
+
+
 class RechargeStructureViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Water Recharge Structures with optimized filtering and performance.
@@ -76,11 +108,36 @@ class RechargeStructureViewSet(viewsets.ModelViewSet):
         if cached_res:
             return Response(cached_res)
 
+        # 1. Standard Property-based filtering
         queryset = self.filter_queryset(self.get_queryset())
 
+        # 2. Spatial Fallback if property filtering yields nothing
+        # This handles newly added districts or mis-tagged data
+        if not queryset.exists():
+            district = request.query_params.get('district', '').strip()
+            block = request.query_params.get('block', '').strip()
+            gp = request.query_params.get('grampanchayat', '').strip() or request.query_params.get('gp', '').strip()
+            village = request.query_params.get('village', '').strip()
+
+            boundary_geom = _get_boundary_geometry(
+                district=district or None,
+                block=block or None,
+                grampanchayat=gp or None,
+                village=village or None
+            )
+
+            if boundary_geom:
+                # Use spatial intersection as fallback
+                queryset = self.get_queryset().filter(latitude__isnull=False, longitude__isnull=False)
+                # Instead of expensive geometry intersection on every record, 
+                # we can use point-in-polygon if we had a geometry field on RechargeStructure.
+                # Since we have latitude/longitude, we use them to construct points.
+                from django.contrib.gis.geos import Point
+                # This is still a bit slow for large datasets but works for fallbacks.
+                # Optimized approach: use a spatial field or bounding box first.
+                queryset = queryset.filter(village__geometry__intersects=boundary_geom)
+
         # Determine the display label for each record:
-        # - If structure_type is blank / 'Other' / 'Others', use other_recharge_structures
-        # - Otherwise use structure_type itself
         OTHER_TYPES = ['other', 'others', 'other recharge structures']
 
         stats_queryset = queryset.annotate(
@@ -110,6 +167,7 @@ class RechargeStructureViewSet(viewsets.ModelViewSet):
         res = {
             'total_count': total_stats['total_count'],
             'total_capacity': round(total_stats['total_capacity'] or 0, 2),
+            'total_available_in_db': RechargeStructure.objects.count(),
             'by_type': [
                 {
                     'type': (item['display_type'] or 'Unspecified').strip() or 'Unspecified',

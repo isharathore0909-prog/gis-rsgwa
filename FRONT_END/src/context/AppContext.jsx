@@ -12,8 +12,14 @@ export const AppContextProvider = ({ children }) => {
         type: '',
         source: 'Rajasthan GW',
         district: '',
+        districtId: null,
+        districtCode: null,
         block: '',
+        blockId: null,
+        blockCode: null,
         gramPanchayat: '',
+        gpId: null,
+        gpCode: null,
         village: '',
         timestep: 'Monthly',
         dataRangeStart: '',
@@ -25,11 +31,15 @@ export const AppContextProvider = ({ children }) => {
         showCanals: false,
         showWaterbodies: false,
         showMicro: false,
+        showRecharge: false,
         showEC: false,
+
         showNitrate: false,
         showFluoride: false,
         showTDS: false,
-        showMarkers: true
+        showPH: false,
+        showMarkers: true,
+        legendFeature: 'Category'
     });
 
     // 3. Global Layers Visibility
@@ -42,9 +52,12 @@ export const AppContextProvider = ({ children }) => {
     });
 
     // 4. Shared Map State
+    const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard' or 'gis'
     const [basemap, setBasemap] = useState('light-gray');
     const [clickedLocation, setClickedLocation] = useState(null);
     const [isControlsSidebarCollapsed, setIsControlsSidebarCollapsed] = useState(false);
+    const [map, setMap] = useState(null);
+    const [showColorPicker, setShowColorPicker] = useState(false);
 
     // --- URL Routing Utils ---
     const TYPE_SLUGS = useMemo(() => ({
@@ -80,7 +93,22 @@ export const AppContextProvider = ({ children }) => {
             const path = window.location.pathname.replace(/^\//, '');
             const targetType = SLUG_TO_TYPE[path] || '';
             if (targetType && filters.type !== targetType) {
-                setFilters(prev => ({ ...prev, type: targetType }));
+                const isWR = targetType === 'Water Resources';
+                const isWQ = targetType === 'Water Quality';
+                setFilters(prev => ({
+                    ...prev,
+                    type: targetType,
+                    legendFeature: isWR ? 'Category' : (isWQ ? 'status' : (targetType === 'Rainfall' ? 'avg_rainfall' : 'Category')),
+                    showDams: isWR,
+                    showCanals: false,
+                    showWaterbodies: false,
+                    showMicro: false,
+                    showMarkers: isWR || isWQ,
+                    showEC: isWQ,
+                    showTDS: false,
+                    showFluoride: false,
+                    showPH: false
+                }));
             }
         };
 
@@ -104,12 +132,15 @@ export const AppContextProvider = ({ children }) => {
     const value = useMemo(() => ({
         fontSize, setFontSize,
         theme, setTheme,
+        viewMode, setViewMode,
         filters, setFilters, updateFilters,
         layers, setLayers, toggleLayer,
         basemap, setBasemap,
         clickedLocation, setClickedLocation,
-        isControlsSidebarCollapsed, setIsControlsSidebarCollapsed
-    }), [fontSize, theme, filters, updateFilters, layers, toggleLayer, basemap, clickedLocation, isControlsSidebarCollapsed]);
+        isControlsSidebarCollapsed, setIsControlsSidebarCollapsed,
+        map, setMap,
+        showColorPicker, setShowColorPicker
+    }), [fontSize, theme, viewMode, filters, updateFilters, layers, toggleLayer, basemap, clickedLocation, isControlsSidebarCollapsed, map, showColorPicker]);
 
     return (
         <AppContext.Provider value={value}>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
+import useDebounce from '../core/useDebounce';
 
 /**
  * Custom hook for fetching piezometer records
@@ -8,6 +9,8 @@ export const usePiezometerData = (isActive, filters) => {
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(false);
 
+    const debouncedFilters = useDebounce(filters, 500);
+
     useEffect(() => {
         let ignore = false;
         if (!isActive) {
@@ -15,17 +18,18 @@ export const usePiezometerData = (isActive, filters) => {
             setLoading(false);
             return;
         }
+        const controller = new AbortController();
 
         const fetchData = async () => {
             setLoading(true);
             try {
                 const params = {};
-                if (filters?.district) params.village__grampanchayat__block__district__name = filters.district;
-                if (filters?.block) params.village__grampanchayat__block__name = filters.block;
-                if (filters?.gramPanchayat) params.village__grampanchayat__name = filters.gramPanchayat;
-                if (filters?.village) params.village__name = filters.village;
+                if (debouncedFilters?.district) params.village__grampanchayat__block__district__name = debouncedFilters.district;
+                if (debouncedFilters?.block) params.village__grampanchayat__block__name = debouncedFilters.block;
+                if (debouncedFilters?.gramPanchayat) params.village__grampanchayat__name = debouncedFilters.gramPanchayat;
+                if (debouncedFilters?.village) params.village__name = debouncedFilters.village;
 
-                const data = await api.piezometer.getRecords(params);
+                const data = await api.piezometer.getRecords(params, controller.signal);
                 if (!ignore) {
                     setRecords(data.results || data || []);
                     setLoading(false);
@@ -39,8 +43,11 @@ export const usePiezometerData = (isActive, filters) => {
         };
 
         fetchData();
-        return () => { ignore = true; };
-    }, [isActive, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village, filters?.showPiezometers]);
+        return () => {
+            ignore = true;
+            controller.abort();
+        };
+    }, [isActive, debouncedFilters]);
 
     return { data: records, loading };
 };

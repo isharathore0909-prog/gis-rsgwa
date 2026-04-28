@@ -81,3 +81,11 @@ export const normalizeDistrictName = (name) => {
 
     return normalized;
 };
+
+/**
+ * Converts a string to Title Case.
+ */
+export const toTitleCase = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.toLowerCase().replace(/\b\w/g, s => s.toUpperCase());
+};

@@ -115,15 +115,21 @@ export const resolveParentInfo = async (filters, rajasthanId) => {
 
         // Case: Village selected
         if (filters?.village && filters?.block && filters?.district) {
-            // Fetch village and parent info in parallel
-            const [vlg, blockObj] = await Promise.all([
-                getVillage(filters.district, filters.block, filters.gramPanchayat, filters.village),
-                getBlock(filters.district, filters.block)
-            ]);
+            // Favor IDs if already present in filters to avoid redundant lookups
+            let vlg = null;
+            let blockObj = { id: filters.blockId };
+            let gp = { id: filters.gpId };
 
-            let gp = null;
-            if (filters.gramPanchayat) {
-                gp = await getGp(filters.district, filters.block, filters.gramPanchayat);
+            if (!filters.blockId || !filters.gpId) {
+                const [vlgRes, blockRes] = await Promise.all([
+                    getVillage(filters.district, filters.block, filters.gramPanchayat, filters.village),
+                    getBlock(filters.district, filters.block)
+                ]);
+                vlg = vlgRes;
+                blockObj = blockRes;
+                if (filters.gramPanchayat) {
+                    gp = await getGp(filters.district, filters.block, filters.gramPanchayat);
+                }
             }
 
             result = {
@@ -131,39 +137,32 @@ export const resolveParentInfo = async (filters, rajasthanId) => {
                 parentId: gp?.id || blockObj?.id,
                 selectedLevel: 'village',
                 selectedName: filters.village,
-                selectedId: vlg?.id,
+                selectedId: vlg?.id || filters.villageId,
                 selectedCode: vlg?.code
             };
-
-            // Fallback: If we couldn't get IDs from DB but have names, try location codes
-            if (!vlg?.id) {
-                const res = await api.location.getLocationCodes({
-                    dist_name: filters.district,
-                    block_name: filters.block,
-                    gp_name: filters.gramPanchayat || '',
-                    vlg_name: filters.village
-                });
-                const items = res.results || res;
-                if (items.length > 0) {
-                    const loc = items[0];
-                    result.selectedCode = loc.vlg_code;
-                    if (!result.selectedId) result.selectedId = loc.id;
-                }
-            }
         }
         // Case: GP selected
         else if (filters?.gramPanchayat && filters?.block && filters?.district) {
-            const gp = await getGp(filters.district, filters.block, filters.gramPanchayat);
+            let gp = { id: filters.gpId };
+            if (!filters.gpId) {
+                gp = await getGp(filters.district, filters.block, filters.gramPanchayat);
+            }
             result = { level: 'village', parentId: gp?.id, selectedLevel: 'gp', selectedName: filters.gramPanchayat, selectedId: gp?.id, selectedCode: gp?.code };
         }
         // Case: Block selected
         else if (filters?.block && filters?.district) {
-            const blockObj = await getBlock(filters.district, filters.block);
+            let blockObj = { id: filters.blockId };
+            if (!filters.blockId) {
+                blockObj = await getBlock(filters.district, filters.block);
+            }
             result = { level: 'gp', parentId: blockObj?.id, selectedLevel: 'block', selectedName: filters.block, selectedId: blockObj?.id, selectedCode: blockObj?.code };
         }
         // Case: District selected
         else if (filters?.district) {
-            const dist = await getDistrict(filters.district);
+            let dist = { id: filters.districtId };
+            if (!filters.districtId) {
+                dist = await getDistrict(filters.district);
+            }
             result = { level: 'block', parentId: dist?.id, selectedLevel: 'district', selectedName: filters.district, selectedId: dist?.id, selectedCode: dist?.code };
         }
 

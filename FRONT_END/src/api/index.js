@@ -6,16 +6,14 @@
  */
 
 import backendApi from './backendApi';
-import externalApi from './externalApi';
 import config from './config';
 
 // Export API clients
-export { backendApi, externalApi, config };
+export { backendApi, config };
 
 // Export default object with all APIs (Backward compatible with old api.js)
 export default {
     backend: backendApi,
-    external: externalApi,
     config,
     setTokens: (access, refresh) => backendApi.setTokens(access, refresh),
     clearTokens: () => backendApi.clearTokens(),
@@ -40,13 +38,6 @@ export default {
     boundaries: {
         getCollection: (params) => backendApi.getBoundaryCollection(params),
         getByCode: (params) => backendApi.getBoundaryByCode(params),
-
-        // External boundaries
-        getByVillageCode: (code) => externalApi.fetchBoundaryByVillageCode(code),
-        getByGPCode: (code) => externalApi.fetchBoundaryByGPCode(code),
-        getByBlockCode: (code) => externalApi.fetchBoundaryByBlockCode(code),
-        getByDistrictCode: (code) => externalApi.fetchBoundaryByDistrictCode(code),
-        getByCodes: (codes) => externalApi.fetchBoundaryByCodes(codes),
     },
 
     rainfall: {
@@ -62,13 +53,14 @@ export default {
         getStationSummary: (params) => backendApi.getRainfallStationSummary(params),
         getStationDistrictWise: (params) => backendApi.getRainfallStationDistrictWise(params),
         getStationLocationWise: (params) => backendApi.getRainfallStationLocationWise(params),
+        getDistribution: (params) => backendApi.getRainfallDistribution(params),
+        getStationDistribution: (params) => backendApi.getRainfallStationDistribution(params),
     },
 
     // Water Quality API
     waterQuality: {
         getRecords: (params) => backendApi.getWaterQualityRecords(params),
         getStatistics: (params) => backendApi.getWaterQualityStatistics(params),
-        getContourMap: (params) => backendApi.getWaterQualityContourMap(params),
         getAvailabilityRecords: (params) => backendApi.getWaterQualityAvailabilityRecords(params),
         getAvailabilityStatistics: (params) => backendApi.getWaterQualityAvailabilityStatistics(params),
     },
@@ -106,11 +98,4 @@ export default {
         logout: () => backendApi.logout(),
         refreshToken: () => backendApi.refreshToken(),
     },
-
-    // Geocoding API (External)
-    geocoding: {
-        getAddressByLatLon: (lat, lon, includeBoundary) =>
-            externalApi.fetchAddressByCoordinates(lat, lon, includeBoundary),
-        getMultiplePoints: (points) => externalApi.fetchMultiplePoints(points),
-    }
 };

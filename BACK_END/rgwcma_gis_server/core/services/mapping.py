@@ -176,6 +176,13 @@ def generate_contour_map(points, bounds, width=600, height=500, p=2.0, buckets=N
 
         def _draw_label(x_px, y_px, text):
             """Draw a single label with white outline for contrast."""
+            # Use boundary mask for clipping if available
+            if boundary_geojson and 'mask_arr' in locals():
+                ix, iy = int(x_px), int(y_px)
+                if 0 <= ix < width and 0 <= iy < height:
+                    if mask_arr[iy, ix] == 0:
+                        return
+            
             if not (20 < x_px < width - 20 and 20 < y_px < height - 20):
                 return
             if is_truetype:
@@ -275,17 +282,25 @@ def get_parameter_analysis(parameter, values):
             {'min': 30, 'max': 50, 'color': '#fde047', 'label': '30-50'},
             {'min': 50, 'max': 70, 'color': '#fbbf24', 'label': '50-70'},
             {'min': 70, 'max': 90, 'color': '#f97316', 'label': '70-90'},
-            {'min': 90, 'max': 1000, 'color': '#ef4444', 'label': '> 90'}
+            {'min': 90, 'max': 10000, 'color': '#ef4444', 'label': '> 90'}
         ]
     elif 'fluoride' in p:
         buckets = [
-            {'min': 0, 'max': 0.5, 'color': '#10b981', 'label': '< 0.5'},
-            {'min': 0.5, 'max': 1.0, 'color': '#34d399', 'label': '0.5-1.0'},
-            {'min': 1.0, 'max': 1.5, 'color': '#fde047', 'label': '1.0-1.5'},
-            {'min': 1.5, 'max': 2.0, 'color': '#facc15', 'label': '1.5-2.0'},
-            {'min': 2.0, 'max': 2.5, 'color': '#fbbf24', 'label': '2.0-2.5'},
-            {'min': 2.5, 'max': 3.0, 'color': '#f97316', 'label': '2.5-3.0'},
-            {'min': 3.0, 'max': 100, 'color': '#ef4444', 'label': '> 3.0'}
+            {'min': 0, 'max': 1.5, 'color': '#10b981', 'label': '< 1.5 (Safe)'},
+            {'min': 1.5, 'max': 3.0, 'color': '#facc15', 'label': '1.5-3.0'},
+            {'min': 3.0, 'max': 10.0, 'color': '#ef4444', 'label': '3.0-10.0'},
+            {'min': 10.0, 'max': 25.0, 'color': '#dc2626', 'label': '10.0-25.0'},
+            {'min': 25.0, 'max': 50.0, 'color': '#991b1b', 'label': '25.0-50.0'},
+            {'min': 50.0, 'max': 100.0, 'color': '#7f1d1d', 'label': '50.0-100.0'},
+            {'min': 100.0, 'max': 10000, 'color': '#450a0a', 'label': '> 100.0'}
+        ]
+    elif 'ph' in p:
+        buckets = [
+            {'min': 0, 'max': 6.5, 'color': '#ef4444', 'label': '< 6.5'},
+            {'min': 6.5, 'max': 7.0, 'color': '#fbbf24', 'label': '6.5-7.0'},
+            {'min': 7.0, 'max': 8.5, 'color': '#10b981', 'label': '7.0-8.5'},
+            {'min': 8.5, 'max': 9.0, 'color': '#f97316', 'label': '8.5-9.0'},
+            {'min': 9.0, 'max': 14.0, 'color': '#ef4444', 'label': '> 9.0'}
         ]
     elif 'tds' in p:
         buckets = [
@@ -295,7 +310,7 @@ def get_parameter_analysis(parameter, values):
             {'min': 1500, 'max': 2000, 'color': '#facc15', 'label': '1500-2000'},
             {'min': 2000, 'max': 2500, 'color': '#fbbf24', 'label': '2000-2500'},
             {'min': 2500, 'max': 3000, 'color': '#f97316', 'label': '2500-3000'},
-            {'min': 3000, 'max': 50000, 'color': '#ef4444', 'label': '> 3000'}
+            {'min': 3000, 'max': 100000, 'color': '#ef4444', 'label': '> 3000'}
         ]
     else:
         buckets = [
@@ -311,8 +326,8 @@ def get_parameter_analysis(parameter, values):
         'unit': unit,
         'is_quality': is_quality,
         'parameter': parameter,
-        'min': min(values) if values else 0,
-        'max': max(values) if values else 10
+        'min': float(np.min(values)) if len(values) > 0 else 0,
+        'max': float(np.max(values)) if len(values) > 0 else 10
     }
 
 def utm_to_latlon(easting, northing):

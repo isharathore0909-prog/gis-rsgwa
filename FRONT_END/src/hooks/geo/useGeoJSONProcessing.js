@@ -1,9 +1,54 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getFeatureProperty } from '../../utils/geoUtils';
 import { parseWKT } from '../../utils/wktParser';
 import { reprojectGeoJSON } from '../../utils/reproject';
 import { getPolygonCentroid } from '../../utils/mapUtils';
 import { normalizeDistrictName } from '../../utils/namingUtils';
+import api from '../../api';
+
+/**
+ * Custom hook to fetch the specific geometry of the selected unit (Block, GP, Village) for zooming.
+ */
+export const useSelectedBoundaryGeometry = (filters) => {
+    const [boundary, setBoundary] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const activeLevel = filters?.village ? 'village' : (filters?.gramPanchayat ? 'gp' : (filters?.block ? 'block' : null));
+    const activeCode = filters?.vlgCode || filters?.gpCode || filters?.blockCode;
+    const activeId = filters?.vlgId || filters?.gpId || filters?.blockId;
+
+    useEffect(() => {
+        if (!activeLevel || (!activeCode && !activeId)) {
+            setBoundary(null);
+            return;
+        }
+
+        let ignore = false;
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                // Fetch high-precision boundary by code/id
+                const params = { layer: activeLevel };
+                if (activeCode) params.code = activeCode;
+                if (activeId) params.id = activeId;
+
+                const result = await api.location.getBoundaryByCode(params);
+                if (!ignore && result) {
+                    setBoundary(result);
+                }
+            } catch (err) {
+                console.error('[useSelectedBoundaryGeometry] Error:', err);
+            } finally {
+                if (!ignore) setLoading(false);
+            }
+        };
+
+        fetchData();
+        return () => { ignore = true; };
+    }, [activeLevel, activeCode]);
+
+    return { boundary, loading };
+};
 
 /**
  * Validates and filters Rajasthan state boundary data
@@ -96,30 +141,29 @@ export const useSelectedDistrictData = (rajasthanData, district, dynamicBoundari
  */
 export const useFilteredBlockData = (blockBoundaryData, gwreData, filters, rajasthanData, legendFeature) => {
     return useMemo(() => {
-        const sourceData = (filters?.type === 'Ground Water Resource Estimation')
-            ? gwreData
-            : blockBoundaryData;
+        // Priority order for GWRE: 1. DB source (if loaded), 2. Static source (fallback)
+        const isGWRE = filters?.type === 'Ground Water Resource Estimation';
+        const hasGwreData = gwreData?.features?.length > 0;
+        const sourceData = isGWRE && hasGwreData ? gwreData : blockBoundaryData;
+        const sourceTag = (isGWRE && hasGwreData) ? 'db' : 'static';
 
-        if (!sourceData || !filters?.district) return sourceData;
+        if (!sourceData) return null;
 
-        // CRITICAL FIX: For Groundwater Resource Estimation, the backend ALREADY handles
-        // spatial filtering by district. Re-filtering here by properties (like DISTRICT_N)
-        // often FAILS for new districts (e.g., Balotra vs Barmer) or border features.
-        if (filters?.type === 'Ground Water Resource Estimation') {
-            // We still filter out parents/districts level markers to avoid duplication
-            const blocksOnly = sourceData.features.filter(f =>
-                f.properties.level !== 'district' && f.properties.is_parent !== true
-            );
-            return { ...sourceData, features: blocksOnly };
+        // 1. If no district is selected, return the whole (but cleaned) source collection
+        if (!filters?.district) {
+            if (isGWRE) {
+                const cleaned = sourceData.features.filter(f =>
+                    f.properties.level !== 'district' && f.properties.is_parent !== true
+                );
+                return { ...sourceData, features: cleaned, source: sourceTag };
+            }
+            return { ...sourceData, source: sourceTag };
         }
 
+        // 2. District filtering logic
         const searchDist = normalizeDistrictName(filters.district);
-
-        // Filter features that belong to the district
-        // AND exclude the parent object itself (so it isn't drawn as a block)
         const filteredFeatures = sourceData.features.filter(f => {
             const p = f.properties;
-
             // Skip parent features (district boundary) - these are for the highlight layer
             if (p.is_parent === true || p.level === 'district') return false;
 
@@ -130,13 +174,15 @@ export const useFilteredBlockData = (blockBoundaryData, gwreData, filters, rajas
         // Fallback to district boundary if no blocks found
         if (filteredFeatures.length === 0 && rajasthanData) {
             const distBoundary = rajasthanData.features.filter(f => {
-                const distName = f.properties.name || f.properties.New_Dist || f.properties.DIST_NAME || f.properties.District || '';
+                const p = f.properties;
+                const distName = p.name || p.New_Dist || p.DIST_NAME || p.District || p.district || p.dist_name || p.district_name || '';
                 return normalizeDistrictName(distName) === searchDist;
             });
 
             if (distBoundary.length > 0) {
                 return {
                     type: 'FeatureCollection',
+                    source: sourceTag,
                     features: distBoundary.map(f => ({
                         ...f,
                         properties: {
@@ -149,8 +195,23 @@ export const useFilteredBlockData = (blockBoundaryData, gwreData, filters, rajas
             }
         }
 
-        return { ...sourceData, features: filteredFeatures };
+        return {
+            ...sourceData,
+            features: filteredFeatures,
+            source: sourceTag
+        };
     }, [blockBoundaryData, gwreData, filters?.district, filters?.type, rajasthanData, legendFeature]);
+};
+
+const normalizeGWRECategory = (name) => {
+    if (!name) return 'Unknown';
+    const catLower = name.toString().toLowerCase().trim();
+    if (catLower.includes('over') && catLower.includes('exploited')) return 'Over Exploited';
+    if (catLower.includes('semi') && catLower.includes('critical')) return 'Semi Critical';
+    if (catLower.includes('critical')) return 'Critical';
+    if (catLower.includes('safe')) return 'Safe';
+    if (catLower.includes('saline')) return 'Saline';
+    return name;
 };
 
 /**
@@ -205,8 +266,44 @@ export const useValidatedBlockData = (filteredBlockData, filters, rainfallStatsB
             return { ...filteredBlockData, features: featuresWithRainfall };
         }
 
+        // Standardize GWRE properties to ensure categorical styling works consistently
+        if (filters?.type === 'Ground Water Resource Estimation') {
+            const featuresWithGWRE = valid.map((f, i) => {
+                const p = f.properties || {};
+                // Normalize the category value so legend matching is reliable
+                // Priority: 1. Category, 2. block_status, 3. exploitation, 4. status, 5. GWDL
+                const rawCategory = p.Category || p.category ||
+                    p.block_status || p.block_stat ||
+                    p.exploitation_status || p.exploitation ||
+                    p.status || p.GWDL || p.gwdl || 'No Data';
+
+                // Normalizing category to ensure exact matching with legend labels
+                const normalizedCategory = normalizeGWRECategory(rawCategory);
+
+                // Use the legend feature from filters if available, default to 'Category'
+                const legendKey = filters?.legendFeature || 'Category';
+
+                return {
+                    ...f,
+                    type: 'Feature',
+                    properties: {
+                        ...p,
+                        Category: normalizedCategory,
+                        [legendKey]: normalizedCategory,
+                        _categoryNormalized: true
+                    }
+                };
+            });
+            return {
+                ...filteredBlockData,
+                features: featuresWithGWRE,
+                source: filteredBlockData.source || 'db',
+                lastUpdated: Date.now()
+            };
+        }
+
         return { ...filteredBlockData, features: valid };
-    }, [filteredBlockData, filters?.type, rainfallStatsByBlock, districtRainfall, legendFeature]);
+    }, [filteredBlockData, filters?.type, filters?.legendFeature, rainfallStatsByBlock, districtRainfall, legendFeature]);
 };
 
 /**

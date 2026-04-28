@@ -7,6 +7,7 @@ from django.core.cache import cache
 from rest_framework import viewsets, permissions
 from rest_framework.permissions import AllowAny
 from django.db.models import QuerySet
+from rest_framework.response import Response
 
 from ..models import Country, State, District, Block, Grampanchayat, Village
 
@@ -124,3 +125,16 @@ class BaseLocationViewSet(viewsets.ModelViewSet):
         if name:
             queryset = queryset.filter(name__iexact=name)
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        from core.services.cache_utils import build_cache_key
+        # Different cache key for each model and filter combination
+        cache_key = build_cache_key(f"loc_{self.__class__.__name__.lower()}", request)
+        cached_res = cache.get(cache_key)
+        if cached_res:
+            return Response(cached_res)
+            
+        response = super().list(request, *args, **kwargs)
+        # Cache for 1 hour as location data is nearly static
+        cache.set(cache_key, response.data, 3600)
+        return response

@@ -16,7 +16,9 @@ export const reprojectGeoJSON = (geoJSON) => {
     let isSingleFeature = false;
     let isGeometryOnly = false;
 
-    if (geoJSON.type === 'FeatureCollection') {
+    if (Array.isArray(geoJSON)) {
+        features = geoJSON;
+    } else if (geoJSON.type === 'FeatureCollection') {
         features = geoJSON.features || [];
     } else if (geoJSON.type === 'Feature') {
         features = [geoJSON];
@@ -27,8 +29,14 @@ export const reprojectGeoJSON = (geoJSON) => {
     } else if (geoJSON.features) {
         features = geoJSON.features;
     } else {
-        console.error("Invalid GeoJSON data provided to reprojectGeoJSON", geoJSON);
-        return null;
+        console.error("Invalid GeoJSON data provided to reprojectGeoJSON:", geoJSON);
+        // Fallback: if it's an object but not obviously GeoJSON, maybe it's a single feature?
+        if (typeof geoJSON === 'object' && geoJSON.geometry) {
+            features = [geoJSON];
+            isSingleFeature = true;
+        } else {
+            return null;
+        }
     }
 
     try {

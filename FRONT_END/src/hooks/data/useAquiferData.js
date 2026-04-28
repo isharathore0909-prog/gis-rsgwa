@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
+import useDebounce from '../core/useDebounce';
 
 /**
  * Custom hook for fetching aquifer/well inventory records
@@ -7,6 +8,8 @@ import api from '../../api';
 export const useAquiferData = (isActive, filters) => {
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    const debouncedFilters = useDebounce(filters, 500);
 
     useEffect(() => {
         let ignore = false;
@@ -16,15 +19,17 @@ export const useAquiferData = (isActive, filters) => {
             return;
         }
 
+        const controller = new AbortController();
+
         const fetchData = async () => {
             setLoading(true);
             try {
                 const params = {
-                    district: filters?.district,
-                    block: filters?.block,
-                    gp_id: filters?.gramPanchayat,
-                    village_id: filters?.villageId,
-                    village_name: filters?.village,
+                    district: debouncedFilters?.district,
+                    block: debouncedFilters?.block,
+                    gp_id: debouncedFilters?.gramPanchayat,
+                    village_id: debouncedFilters?.villageId,
+                    village_name: debouncedFilters?.village,
                     map_markers: 'true'
                 };
 
@@ -38,7 +43,7 @@ export const useAquiferData = (isActive, filters) => {
                     return;
                 }
 
-                const data = await api.aquifer.getRecords(params);
+                const data = await api.aquifer.getRecords(params, controller.signal);
                 if (!ignore) {
                     // Support both paginated (results) and unpaginated (array) responses
                     const recordsList = data.results || (Array.isArray(data) ? data : []);
@@ -46,6 +51,9 @@ export const useAquiferData = (isActive, filters) => {
                     setLoading(false);
                 }
             } catch (error) {
+                if (error.name === 'CanceledError' || error.name === 'AbortError') {
+                    return;
+                }
                 if (!ignore) {
                     console.error('[useAquiferData] Error:', error);
                     setRecords([]);
@@ -55,8 +63,11 @@ export const useAquiferData = (isActive, filters) => {
         };
 
         fetchData();
-        return () => { ignore = true; };
-    }, [isActive, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
+        return () => {
+            ignore = true;
+            controller.abort();
+        };
+    }, [isActive, debouncedFilters]);
 
     return { data: records, loading };
 };

@@ -99,6 +99,8 @@ export const useRechargeAnalysis = ({
         return () => { ignore = true; };
     }, [
         isRechargeStructure,
+        analysisLevel,
+        analysisName,
         displayRegion,
         displayBlock,
         globalFilters?.gramPanchayat,

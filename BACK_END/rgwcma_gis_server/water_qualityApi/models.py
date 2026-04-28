@@ -92,3 +92,38 @@ class WaterQuality(models.Model):
             return self.village.name
         except AttributeError:
             return "N/A"
+
+from django.contrib.gis.db import models as gis_models
+
+class WaterQualityContour(gis_models.Model):
+    """
+    Stores precomputed contour polygons (isobands) for water quality parameters.
+    This allows GeoServer to serve them directly from PostGIS, bypassing slow SLD transformations.
+    """
+    parameter = models.CharField(max_length=50, db_index=True, help_text="ec, tds, ph, nitrate, fluoride, etc.")
+    meta_date = models.DateField(db_index=True, help_text="Measurement date/year")
+    
+    # Bucket info
+    min_value = models.FloatField(help_text="Lower bound of the contour interval")
+    max_value = models.FloatField(help_text="Upper bound of the contour interval")
+    label = models.CharField(max_length=100, blank=True)
+    color = models.CharField(max_length=20, blank=True, help_text="Suggested HEX color for the contour polygon")
+    
+    # Spatial property
+    geom = gis_models.MultiPolygonField(srid=4326)
+    
+    # Administrative scope (for fast CQL filtering)
+    district_id = models.IntegerField(null=True, blank=True, db_index=True)
+    block_id = models.IntegerField(null=True, blank=True, db_index=True)
+    gp_id = models.IntegerField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        db_table = 'water_quality_contours'
+        verbose_name = 'Water Quality Contour'
+        verbose_name_plural = 'Water Quality Contours'
+        indexes = [
+            models.Index(fields=['parameter', 'meta_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.parameter} ({self.min_value}-{self.max_value}) - {self.meta_date}"

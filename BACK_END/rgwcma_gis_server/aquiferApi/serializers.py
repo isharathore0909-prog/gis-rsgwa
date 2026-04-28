@@ -172,12 +172,13 @@ class YearDataSerializer(serializers.Serializer):
 class AquiferMapSerializer(serializers.ModelSerializer):
     """Ultra-slim serializer for map markers to minimize performance impact"""
     village_name = serializers.CharField(source='village.name', read_only=True)
+    district = serializers.ReadOnlyField(source='ann_district_name')
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
     
     class Meta:
         model = AquiferData
-        fields = ['id', 'well_id', 'latitude', 'longitude', 'village_name', 'aquifer']
+        fields = ['id', 'well_id', 'latitude', 'longitude', 'village_name', 'district', 'aquifer']
 
     def get_latitude(self, obj):
         if obj.latitude: return obj.latitude

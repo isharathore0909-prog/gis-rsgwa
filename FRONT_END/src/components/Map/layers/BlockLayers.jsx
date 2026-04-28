@@ -1,240 +1,138 @@
-import React from 'react';
-import { GeoJSON, Pane } from 'react-leaflet';
-import L from 'leaflet';
-import { getFeatureProperty } from '../../../utils/geoUtils';
-import { getFeatureColor } from '../../../utils/mapUtils';
+import React, { useMemo } from 'react';
+import { WMSTileLayer } from 'react-leaflet';
 
-/**
- * Block Boundary Layer with Thematic Styling
- */
-export const BlockBoundaryLayer = React.memo(({
-    data,
+export const BlockBoundaryLayer = ({
     filters,
-    legendFeature,
     legendData,
-    geoJsonRef,
-    onLocationClick
+    blockData
 }) => {
-    // Filter blocks to only show the selected block if one is selected
-    const filteredData = React.useMemo(() => {
-        if (!data || !filters?.block) return data;
+    // Generate CQL filter with support for multiple common field names in Geoserver layers
+    const cqlFilterParam = useMemo(() => {
+        const bid = filters.blockId || filters.blockCode;
+        const did = filters.districtId;
 
-        const features = data.features.filter(f => {
-            const name = f.properties.BLOCK_NAME || f.properties.Block;
-            return name?.toString().toLowerCase() === filters.block.toLowerCase();
-        });
+        if (bid) {
+            return `id = ${bid} OR code = '${bid}' OR name ILIKE '${filters.block?.replace("'", "''")}'`;
+        }
+        if (did) {
+            return `district_id = ${did}`;
+        }
+        return '1=0';
+    }, [filters.districtId, filters.blockId, filters.blockCode, filters.block]);
 
-        return { ...data, features };
-    }, [data, filters?.block]);
+    const sldBody = useMemo(() => {
+        // Standard outline style for blocks
+        const strokeColor = "#64748b";
+        const strokeWidth = 0.8;
 
-    if (!data) return null;
+        return `<?xml version="1.0" encoding="UTF-8"?><StyledLayerDescriptor version="1.0.0" xmlns="http://www.opengis.net/sld" xmlns:ogc="http://www.opengis.net/ogc"><NamedLayer><Name>rgwcma:locationApi_block</Name><UserStyle><FeatureTypeStyle><Rule><PolygonSymbolizer><Stroke><CssParameter name="stroke">${strokeColor}</CssParameter><CssParameter name="stroke-width">${strokeWidth}</CssParameter></Stroke></PolygonSymbolizer></Rule></FeatureTypeStyle></UserStyle></NamedLayer></StyledLayerDescriptor>`.replace(/>\s+</g, '><');
+    }, []);
+
+    // Hide block boundary when an individual GP is selected to focus strictly on the GP level
+    if (filters.gramPanchayat) return null;
 
     return (
-        <Pane name="blockBoundaryPane" style={{ zIndex: 1000 }}>
-            <GeoJSON
-                key={`geojson-${filters?.type}-${legendFeature}-${filters?.district || 'all'}-${filters?.block || 'all'}`}
-                ref={geoJsonRef}
-                data={filteredData}
-                style={(feature) => {
-                    const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
-
-                    // Check if this block is selected
-                    const blockName = feature.properties.BLOCK_NAME || feature.properties.Block;
-                    const isSelected = filters?.block && blockName &&
-                        filters?.type !== 'Ground Water Resource Estimation' &&
-                        blockName.toString().trim().toUpperCase() === filters.block.toString().trim().toUpperCase();
-
-                    let val;
-                    if (isThematic) {
-                        const propKey = filters?.type === 'Ground Water Resource Estimation' ? (legendFeature || 'Category') : legendFeature;
-                        val = getFeatureProperty(feature, propKey);
-
-                        // Robust fallback for GWRE - handles various potential property names and case differences
-                        if (filters?.type === 'Ground Water Resource Estimation' && (val === undefined || val === null)) {
-                            val = getFeatureProperty(feature, 'Category') ||
-                                getFeatureProperty(feature, 'category') ||
-                                getFeatureProperty(feature, 'block_status') ||
-                                getFeatureProperty(feature, 'block_stat') ||
-                                getFeatureProperty(feature, 'BLOCK_STATUS') ||
-                                getFeatureProperty(feature, 'BLOCK_STAT') ||
-                                getFeatureProperty(feature, 'GWDL') ||
-                                getFeatureProperty(feature, 'status');
-                        }
-                    }
-
-                    const hasData = val !== null && val !== undefined && val !== "" && val !== "No Data" && val !== "Unknown";
-
-                    if (isSelected) {
-                        return {
-                            fillColor: isThematic ? getFeatureColor(val, legendData) : 'transparent',
-                            weight: 3.5,
-                            color: '#059669', // Emerald highlight to match SelectionHighlightLayer
-                            fillOpacity: isThematic ? (hasData ? 0.9 : 0) : 0, // No fill for selection unless thematic
-                            dashArray: ''
-                        };
-                    }
-
-                    return {
-                        fillColor: isThematic && hasData ? getFeatureColor(val, legendData) : 'transparent',
-                        weight: 1,
-                        color: isThematic ? '#64748b' : '#cbd5e1',
-                        fillOpacity: isThematic ? (hasData ? 0.75 : 0) : 0,
-                        fill: true
-                    };
-                }}
-                onEachFeature={(feature, layer) => {
-                    const isThematic = ['Ground Water Resource Estimation', 'Rainfall'].includes(filters?.type);
-                    let val;
-                    if (isThematic) {
-                        const propKey = filters?.type === 'Ground Water Resource Estimation' ? (legendFeature || 'Category') : legendFeature;
-                        val = getFeatureProperty(feature, propKey);
-
-                        // Robust fallback for GWRE - same logic as above for consistency
-                        if (filters?.type === 'Ground Water Resource Estimation' && (val === undefined || val === null)) {
-                            val = getFeatureProperty(feature, 'Category') ||
-                                getFeatureProperty(feature, 'category') ||
-                                getFeatureProperty(feature, 'block_status') ||
-                                getFeatureProperty(feature, 'block_stat') ||
-                                getFeatureProperty(feature, 'BLOCK_STATUS') ||
-                                getFeatureProperty(feature, 'BLOCK_STAT') ||
-                                getFeatureProperty(feature, 'GWDL') ||
-                                getFeatureProperty(feature, 'status');
-                        }
-                    }
-                    layer.on({
-                        click: e => {
-                            const props = e.target.feature.properties;
-                            onLocationClick({ lat: e.latlng.lat, lng: e.latlng.lng }, [{
-                                id: props.BLOCK_NAME || props.Block,
-                                location: props.BLOCK_NAME || props.Block,
-                                district: props.DIST_NAME || props.District
-                            }]);
-                        }
-                    });
-                }}
-            />
-        </Pane>
-    );
-});
-
-/**
- * Dynamic Drill-down Boundaries Layer
- */
-export const DrillDownBoundariesLayer = ({
-    data,
-    filters,
-    legendFeature,
-    legendData,
-    currentLevel,
-    onFiltersApply,
-    onLocationClick,
-    geoJsonRef
-}) => {
-    if (!data) return null;
-
-    return (
-        <GeoJSON
-            key={`dynamic-drill-${data.features?.length || 0}-${filters?.district}-${filters?.block}-${filters?.gramPanchayat}-${filters?.village}-${currentLevel}`}
-            ref={geoJsonRef}
-            data={data}
-            pointToLayer={(_, latlng) => L.circleMarker(latlng, {
-                radius: 5,
-                fillColor: '#94a3b8',
-                color: '#ecfeff',
-                weight: 1,
-                opacity: 1,
-                fillOpacity: 0.8
-            })}
-            style={(feature) => {
-                const level = feature.properties.level || currentLevel;
-                const isDist = level === 'district';
-                const isBlock = level === 'block';
-
-                // Only show boundaries for the CURRENT level of exploration.
-                // If nothing selected -> show districts.
-                // If district selected -> show blocks.
-                // If block selected -> show gps.
-                // If gp selected -> show villages.
-                let isRelevantLevel = false;
-                if (!filters?.district) isRelevantLevel = isDist;
-                else if (!filters?.block) isRelevantLevel = isBlock;
-                else if (!filters?.gramPanchayat) isRelevantLevel = ['gp', 'GP', 'grampanchayat', 'gram_panchayat'].includes(level);
-                else isRelevantLevel = level === 'village' || level === 'VILLAGE';
-
-                // CRITICAL: Even if level matches, verify PARENT matches to prevent ghosts
-                // from the previous district/block showing at the wrong coordinates.
-                // This check only applies to block-level features when a district is selected.
-                if (isRelevantLevel && filters?.district && isBlock) {
-                    const featDist = (feature.properties.DIST_NAME || feature.properties.District || feature.properties.district || '').toString().toUpperCase();
-                    if (featDist && featDist.replace(/[^A-Z0-9]/g, '') !== filters.district.toUpperCase().replace(/[^A-Z0-9]/g, '')) {
-                        isRelevantLevel = false;
-                    }
-                }
-
-                if (!isRelevantLevel) {
-                    return {
-                        fillColor: 'transparent',
-                        fillOpacity: 0,
-                        color: 'transparent',
-                        weight: 0,
-                        interactive: false
-                    };
-                }
-
-                const isThematic = filters?.type === 'Rainfall';
-                let val;
-                if (isThematic && legendFeature) {
-                    val = feature.properties[legendFeature] ?? feature.properties.avg_rainfall;
-                }
-                const hasData = val !== null && val !== undefined && val !== "No Data";
-
-                return {
-                    fillColor: isThematic ? (hasData ? getFeatureColor(val, legendData) : 'transparent') : 'transparent',
-                    fillOpacity: isThematic ? (hasData ? 0.75 : 0) : 0,
-                    color: isDist ? '#1e40af' : (isThematic ? '#64748b' : '#059669'),
-                    weight: isDist ? 2.5 : (isThematic ? 1 : 2)
-                };
-            }}
-            onEachFeature={(feature, layer) => {
-                const props = feature.properties;
-                const level = props.level || currentLevel;
-                const name = props.name || props.BLOCK_NAME ||
-                    props.DIST_NAME || props.vllg_name || props.v_name || 'Unknown';
-
-                // Only handle tooltips and clicks for the level currently being explored
-                let isRelevantLevel = false;
-                if (!filters?.district) isRelevantLevel = level === 'district';
-                else if (!filters?.block) isRelevantLevel = level === 'block';
-                else if (!filters?.gramPanchayat) isRelevantLevel = ['gp', 'GP', 'grampanchayat', 'gram_panchayat'].includes(level);
-                else isRelevantLevel = level === 'village' || level === 'VILLAGE';
-
-                if (!isRelevantLevel) return;
-
-                // Bind tooltip with level info
-
-                layer.on({
-                    click: e => {
-                        if (onLocationClick) {
-                            onLocationClick({ lat: e.latlng.lat, lng: e.latlng.lng }, [{
-                                id: name,
-                                location: name,
-                                level: feature.properties.level || currentLevel
-                            }]);
-                        }
-
-                        const nextFilters = { ...filters };
-                        if (!nextFilters.district) onFiltersApply({ ...nextFilters, district: name });
-                        else if (!nextFilters.block) onFiltersApply({ ...nextFilters, block: name });
-                        else if (!nextFilters.gramPanchayat) onFiltersApply({ ...nextFilters, gramPanchayat: name });
-                        else if (level === 'village' || level === 'VILLAGE') onFiltersApply({ ...nextFilters, village: name });
-
-                        const bounds = e.target.getBounds();
-                        if (bounds.isValid()) {
-                            e.target._map.flyToBounds(bounds, { padding: [50, 50], duration: 1.2 });
-                        }
-                    }
-                });
+        <WMSTileLayer
+            key={`block-wms-${filters.district}-${filters.block}-${filters.type}`}
+            url="http://localhost:8080/geoserver/rgwcma/wms"
+            layers="rgwcma:locationApi_block"
+            format="image/png"
+            transparent={true}
+            zIndex={410}
+            params={{
+                sld_body: sldBody,
+                version: '1.1.1',
+                ...(cqlFilterParam ? { cql_filter: cqlFilterParam } : {})
             }}
         />
     );
 };
+
+/**
+ * Drill-down Boundaries Layer (GP, Village)
+ * Renders hierarchical boundaries below the Block level using the SQL view in Geoserver.
+ */
+export const DrillDownBoundariesLayer = ({ filters }) => {
+    // 1. GP Layer Config (Show GPs in the selected Block)
+    const gpConfig = useMemo(() => {
+        if (!filters.block) return null;
+
+        const bid = filters.blockId || filters.block_id || -1;
+        const gpid = filters.gpId || filters.gp_id || -1;
+
+        let filter;
+        if (gpid !== -1) {
+            // If a GP is selected, show only that GP
+            filter = `id = ${gpid}`;
+        } else if (bid !== -1) {
+            // If only a block is selected, show all GPs in that block
+            filter = `block_id = ${bid}`;
+        } else {
+            filter = `block_id = -1`;
+        }
+
+        return {
+            layer: "rgwcma:locationApi_grampanchayat",
+            filter: filter,
+            color: '#ff0000',
+            weight: '2.0'
+        };
+    }, [filters.block, filters.blockId, filters.block_id, filters.gpId, filters.gp_id]);
+
+    // 2. Village Layer Config (Show Villages inside the selected GP)
+    const villageConfig = useMemo(() => {
+        if (!filters.gramPanchayat) return null;
+
+        const gpid = filters.gpId || filters.gp_id || filters.gpCode || filters.gp_code || -1;
+        let filter = gpid !== -1 ? `grampanchayat_id = ${gpid}` : `grampanchayat_id = -1`;
+
+        return {
+            layer: "rgwcma:locationApi_village",
+            filter: filter,
+            color: '#ff0000',
+            weight: '2.0'
+        };
+    }, [filters.gramPanchayat, filters.gpId, filters.gp_id, filters.gpCode, filters.gp_code]);
+
+    // Helper to generate SLD dynamically
+    const generateSld = (color, weight, layerName) => {
+        return `<?xml version="1.0" encoding="UTF-8"?><StyledLayerDescriptor version="1.0.0" xmlns="http://www.opengis.net/sld" xmlns:ogc="http://www.opengis.net/ogc"><NamedLayer><Name>${layerName}</Name><UserStyle><FeatureTypeStyle><Rule><PolygonSymbolizer><Stroke><CssParameter name="stroke">${color}</CssParameter><CssParameter name="stroke-width">${weight}</CssParameter></Stroke></PolygonSymbolizer></Rule></FeatureTypeStyle></UserStyle></NamedLayer></StyledLayerDescriptor>`.replace(/>\s+</g, '><');
+    };
+
+    return (
+        <React.Fragment>
+            {/* Render GPs in the Block */}
+            {gpConfig && (
+                <WMSTileLayer
+                    key={`drill-gp-${gpConfig.layer}-${filters.block}`}
+                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    layers={gpConfig.layer}
+                    format="image/png"
+                    transparent={true}
+                    zIndex={415}
+                    params={{
+                        sld_body: generateSld(gpConfig.color, gpConfig.weight, gpConfig.layer),
+                        cql_filter: gpConfig.filter
+                    }}
+                />
+            )}
+
+            {/* Render Villages in the GP */}
+            {villageConfig && (
+                <WMSTileLayer
+                    key={`drill-vill-${villageConfig.layer}-${filters.gramPanchayat}`}
+                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    layers={villageConfig.layer}
+                    format="image/png"
+                    transparent={true}
+                    zIndex={420}
+                    params={{
+                        sld_body: generateSld(villageConfig.color, villageConfig.weight, villageConfig.layer),
+                        cql_filter: villageConfig.filter
+                    }}
+                />
+            )}
+        </React.Fragment>
+    );
+};
+

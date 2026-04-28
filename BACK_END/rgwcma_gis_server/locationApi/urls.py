@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CountryViewSet, StateViewSet, DistrictViewSet, BlockViewSet, GPViewSet, VillageViewSet,
-    PincodeView, BoundaryByCodeView, BoundaryCollectionView, LocationCodeView, ExternalRequestProxyView
+    PincodeView, BoundaryByCodeView, BoundaryCollectionView, LocationCodeView, 
+    ExternalRequestProxyView, PointIdentifyView
 )
 
 router = DefaultRouter()
@@ -20,4 +21,5 @@ urlpatterns = [
     path('boundary-collection/', BoundaryCollectionView.as_view(), name='boundary-collection'),
     path('location-codes/', LocationCodeView.as_view(), name='location-codes'),
     path('external-proxy/<path:endpoint>/', ExternalRequestProxyView.as_view(), name='external-proxy'),
+    path('point-identify/', PointIdentifyView.as_view(), name='point-identify'),
 ]

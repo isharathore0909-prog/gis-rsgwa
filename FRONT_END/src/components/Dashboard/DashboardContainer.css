@@ -1,0 +1,12 @@
+.dashboard-container {
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-layout {
+    background: #eef2f6;
+    /* Soft blue-gray */
+    padding: 0;
+}

@@ -42,6 +42,13 @@ class WaterQualityAvailabilityViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
+        from core.services.cache_utils import build_cache_key
+        from django.core.cache import cache
+        cache_key = build_cache_key("wq_availability_stats", request)
+        cached_res = cache.get(cache_key)
+        if cached_res:
+            return Response(cached_res)
+
         queryset = self.filter_queryset(self.get_queryset())
         if hasattr(queryset, 'select_related'):
             queryset = queryset.select_related(None) 
@@ -63,7 +70,9 @@ class WaterQualityAvailabilityViewSet(viewsets.ModelViewSet):
             count=Count('id')
         ).order_by('-count')
         
-        return Response({
+        res = {
             'summary': stats,
             'well_type_distribution': list(well_types),
-        })
+        }
+        cache.set(cache_key, res, 3600)
+        return Response(res)

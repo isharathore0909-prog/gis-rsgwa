@@ -54,7 +54,7 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                         tick={{ fontSize: 10, fill: '#3b82f6' }}
                         axisLine={false}
                         tickLine={false}
-                        domain={[0, 'auto']}
+                        domain={[0, dataMax => dataMax * 1.4]}
                     />
                 )}
 
@@ -66,10 +66,10 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                         value: 'Static water level in m.bgl',
                         angle: showRainfall ? 90 : -90,
                         position: showRainfall ? 'insideRight' : 'insideLeft',
-                        style: { fontSize: '10px', fill: '#ef4444', fontWeight: 600 },
+                        style: { fontSize: '10px', fill: '#1e3a8a', fontWeight: 600 },
                         dx: showRainfall ? 10 : -10
                     }}
-                    tick={{ fontSize: 10, fill: '#ef4444' }}
+                    tick={{ fontSize: 10, fill: '#1e3a8a' }}
                     axisLine={false}
                     tickLine={false}
                     domain={['auto', 'auto']}
@@ -97,7 +97,7 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                         yAxisId="left"
                         dataKey="Annual Rainfall"
                         name="Annual Rainfall (m)"
-                        fill="#3b82f6"
+                        fill="#93c5fd"
                         barSize={30}
                         radius={[2, 2, 0, 0]}
                     >
@@ -116,7 +116,7 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                         type="monotone"
                         dataKey="Rainfall Trend"
                         name="Linear (Annual Rainfall)"
-                        stroke="#3b82f6"
+                        stroke="#60a5fa"
                         strokeDasharray="5 5"
                         dot={false}
                         strokeWidth={1.5}
@@ -128,9 +128,9 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                     type="monotone"
                     dataKey="Average Water Level"
                     name="Avg Water Level (m)"
-                    stroke="#6366f1"
+                    stroke="#1e3a8a"
                     strokeWidth={3}
-                    dot={{ r: 5, fill: '#6366f1' }}
+                    dot={{ r: 5, fill: '#1e3a8a' }}
                     connectNulls
                 />
                 <Line
@@ -138,7 +138,7 @@ const HydrographChart = ({ data, height, isExpanded, showRainfall = true }) => {
                     type="monotone"
                     dataKey="Average Trend"
                     name="Linear (Avg Level)"
-                    stroke="#6366f1"
+                    stroke="#1e3a8a"
                     strokeDasharray="3 3"
                     dot={false}
                     strokeWidth={1.5}

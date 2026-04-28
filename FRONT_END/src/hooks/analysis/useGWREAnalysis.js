@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import api from '../../api';
+import { GWRE_COLORS } from '../../constants/mapConstants';
 
 export const useGWREAnalysis = ({
     isGWRE,
@@ -91,22 +92,40 @@ export const useGWREAnalysis = ({
     }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, rajasthanId, apiRetryCount, analysisLevel]);
 
     const pieData = useMemo(() => {
-        if (gwreStats?.distribution && gwreStats.distribution.length > 0) {
-            const colors = {
-                'Over Exploited': '#e63946',
-                'Saline': '#457b9d',
-                'Critical': '#f4a261',
-                'Semi Critical': '#e9c46a',
-                'Safe': '#2a9d8f'
-            };
-            return gwreStats.distribution.map(d => ({
-                name: d.name,
-                value: parseFloat(d.count) || 0,
-                area: parseFloat(d.area) || 0,
-                color: colors[d.name] || '#e2e8f0'
-            }));
+        const categories = [
+            'Over Exploited',
+            'Safe',
+            'Semi Critical',
+            'Critical',
+            'Saline',
+            'Unknown'
+        ];
+
+        const colors = {
+            'Over Exploited': GWRE_COLORS.over,
+            'Safe': GWRE_COLORS.safe,
+            'Semi Critical': GWRE_COLORS.semi,
+            'Critical': GWRE_COLORS.critical,
+            'Saline': GWRE_COLORS.saline,
+            'Unknown': '#e2e8f0'
+        };
+
+        const distributionMap = {};
+        if (gwreStats?.distribution) {
+            gwreStats.distribution.forEach(d => {
+                distributionMap[d.name] = {
+                    count: parseFloat(d.count) || 0,
+                    area: parseFloat(d.area) || 0
+                };
+            });
         }
-        return [];
+
+        return categories.map(name => ({
+            name,
+            value: distributionMap[name]?.count || 0,
+            area: distributionMap[name]?.area || 0,
+            color: colors[name] || '#e2e8f0'
+        }));
     }, [gwreStats]);
 
     const totalBlocks = useMemo(() => {

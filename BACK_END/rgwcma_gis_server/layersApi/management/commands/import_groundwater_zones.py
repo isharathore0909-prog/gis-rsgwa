@@ -36,39 +36,43 @@ class Command(BaseCommand):
 
         try:
             with transaction.atomic():
-                # Clear existing groundwater zones
-                deleted_count = SpatialLayer.objects.filter(layer_type='groundwater_zone').delete()[0]
-                self.stdout.write(self.style.SUCCESS(f"Deleted {deleted_count} old records"))
-
+                # 1. Prepare records for import
                 layers_to_create = []
+                incoming_names = set()
+                
                 for feature in features:
                     geom_data = feature.get('geometry')
-                    if not geom_data:
-                        continue
+                    if not geom_data: continue
                     
                     properties = feature.get('properties', {})
-                    
-                    # Try to find a name in common GeoJSON fields
-                    name = properties.get('block', properties.get('BLOCK', properties.get('name', properties.get('NAME'))))
+                    name = properties.get('BLOCK_NAME', properties.get('block', properties.get('BLOCK', properties.get('name', properties.get('NAME')))))
+                    if name: name = name.lower().strip()
                     
                     try:
                         geometry = GEOSGeometry(json.dumps(geom_data))
-                        # Ensure SRID is 4326
-                        if not geometry.srid:
-                            geometry.srid = 4326
-                            
+                        if not geometry.srid: geometry.srid = 4326
+                        
                         layers_to_create.append(SpatialLayer(
                             name=name,
                             layer_type='groundwater_zone',
                             properties=properties,
                             geometry=geometry
                         ))
+                        if name: incoming_names.add(name)
                     except Exception as geom_error:
                         self.stderr.write(self.style.WARNING(f"Skipping invalid geometry for {name}: {geom_error}"))
 
-                # Bulk create for performance
-                SpatialLayer.objects.bulk_create(layers_to_create)
-                self.stdout.write(self.style.SUCCESS(f"Successfully imported {len(layers_to_create)} groundwater zones"))
+                # 2. Non-destructive update: Only delete the records we are about to replace
+                if incoming_names:
+                    deleted_count = SpatialLayer.objects.filter(
+                        layer_type='groundwater_zone', 
+                        name__in=list(incoming_names)
+                    ).delete()[0]
+                    self.stdout.write(self.style.SUCCESS(f"Replacing {deleted_count} existing matching records."))
+
+                # 3. Bulk create the new records
+                SpatialLayer.objects.bulk_create(layers_to_create, batch_size=100)
+                self.stdout.write(self.style.SUCCESS(f"Successfully imported {len(layers_to_create)} groundwater zones."))
 
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"Import failed: {e}"))

@@ -88,8 +88,18 @@ class RainfallViewSet(viewsets.ModelViewSet):
         elif level == 'gp' or level in ['grampanchayat', 'gram_panchayat']: group_field = 'village__grampanchayat__name'
         elif level == 'village': group_field = 'village__name'
         else: return Response({'error': 'Invalid aggregation level'}, status=status.HTTP_400_BAD_REQUEST)
-        data = queryset.values(group_field).annotate(average_rainfall=Avg('rainfall_mm')).order_by(group_field)
-        result = [{'location': d[group_field], 'average_rainfall': round(d['average_rainfall'] or 0, 2)} for d in data if d[group_field]]
+        data = queryset.values(group_field).annotate(
+            total_rainfall=Sum('rainfall_mm'),
+            unit_count=Count('village_id', distinct=True)
+        ).order_by(group_field)
+        
+        result = [
+            {
+                'location': d[group_field], 
+                'average_rainfall': round((d['total_rainfall'] / d['unit_count']) if d['unit_count'] > 0 else 0, 2)
+            } 
+            for d in data if d[group_field]
+        ]
         cache.set(cache_key, result, 3600)
         return Response(result)
 
@@ -131,5 +141,26 @@ class RainfallViewSet(viewsets.ModelViewSet):
             summary_data = nearby_records.values('date').annotate(total=Sum('rainfall_mm'), average=Avg('rainfall_mm')).order_by('date')
             summary = [{'name': str(d['date']), 'total': round(d['total'] or 0, 2), 'average': round(d['average'] or 0, 2)} for d in summary_data]
         result = {'location': {'lat': lat, 'lon': lon}, 'radius_km': radius_km, 'gram_panchayat': gram_panchayat, 'count': stats['count'], 'stats': {'total': round(stats['total'] or 0, 2), 'avg': round(stats['avg'] or 0, 2), 'max': round(stats['max'] or 0, 2), 'min': round(stats['min'] or 0, 2), 'max_village': max_info.get('village'), 'max_date': max_info.get('date')}, 'summary': summary}
+        cache.set(cache_key, result, 3600)
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def distribution(self, request):
+        """
+        Categorized distribution of rainfall (Excess, Normal, etc.) by location.
+        """
+        cache_key = build_cache_key("rainfall_distribution", request)
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+        
+        queryset = self.filter_queryset(self.get_queryset())
+        from ..utils import calculate_rainfall_distribution
+        normal = request.query_params.get('normal')
+        if normal:
+            try: normal = float(normal)
+            except: normal = None
+            
+        result = calculate_rainfall_distribution(queryset, normal_avg=normal, is_station_data=False)
+        
         cache.set(cache_key, result, 3600)
         return Response(result)

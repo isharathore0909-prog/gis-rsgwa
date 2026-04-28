@@ -6,6 +6,7 @@ import { useRainfallAnalysis } from './analysis/useRainfallAnalysis';
 import { useAquiferAnalysis } from './analysis/useAquiferAnalysis';
 import { useGWREAnalysis } from './analysis/useGWREAnalysis';
 import { useRechargeAnalysis } from './analysis/useRechargeAnalysis';
+import { useWellRainfall } from './data/WellInventory/useWellRainfall';
 
 // ---------------------------------------------------------------------------
 // useDataAnalysis Hook
@@ -30,6 +31,8 @@ export const useDataAnalysis = ({
     parentRechargeLoading = false,
     rajasthanId // Backend readiness signal
 }) => {
+    const isDashboard = !globalFilters?.type || globalFilters?.type === '';
+
     // -------------------------------------------------------------------------
     // 1. Basic Derived Flags & Location Info
     // -------------------------------------------------------------------------
@@ -80,7 +83,7 @@ export const useDataAnalysis = ({
         qualityData,
         blockWaterQualityData
     } = useWaterQualityAnalysis({
-        isWaterQuality: isWaterQuality || isGWRE || (!isRainfall && !isAquifer && !isWellInventory && !isRechargeStructure && !isWaterResources),
+        isWaterQuality: isWaterQuality || isGWRE || isWellInventory || (!isRainfall && !isAquifer && !isWellInventory && !isRechargeStructure && !isWaterResources),
         globalFilters,
         displayRegion,
         displayBlock,
@@ -93,11 +96,13 @@ export const useDataAnalysis = ({
     const {
         rainfallStatsData,
         rainfallSummaryData,
+        rainfallDistributionData,
+        overallDistribution,
         intersectingStationIds,
         rainfallLoading,
         rainfallError
     } = useRainfallAnalysis({
-        isRainfall,
+        isRainfall: isRainfall || isGWRE || isDashboard,
         globalFilters,
         displayRegion,
         displayBlock,
@@ -139,6 +144,15 @@ export const useDataAnalysis = ({
     const aquiferSpatialFilterApplied = !!aquiferSpatialStats;
     // -------------------------------------------------------------------------
 
+    // Yearly Rainfall for Hydrographs
+    const { rainfallData: yearlyRainfallData } = useWellRainfall({
+        displayRegion,
+        displayBlock,
+        globalFilters,
+        selectedWell: null,
+        rainfallStations
+    });
+
     // GWRE
     const {
         gwreStats,
@@ -160,7 +174,7 @@ export const useDataAnalysis = ({
         rechargeStats,
         rechargeLoading
     } = useRechargeAnalysis({
-        isRechargeStructure,
+        isRechargeStructure: isRechargeStructure || isDashboard,
         analysisLevel,
         analysisName,
         globalFilters,
@@ -218,9 +232,12 @@ export const useDataAnalysis = ({
         // Rainfall
         rainfallStats: rainfallStatsData,
         rainfallSummaryData,
+        rainfallDistributionData,
+        overallDistribution,
         rainfallError,
         rainfallLoading,
         intersectingStationIds,
+        yearlyRainfallData,
 
         // Recharge Structure
         rechargeStats,
@@ -233,7 +250,7 @@ export const useDataAnalysis = ({
         aquiferStats, aquiferLoading, spatialStatsLoading, aquiferSpatialStats, aquiferData, aquiferPolygons, waterLevelChartData,
         aquiferSpatialFilterApplied, aquiferTotalArea, aquiferTotalCount,
         aquiferRecords, yearlyTrends, nearbyData, nearbyLoading,
-        rainfallStatsData, rainfallSummaryData, rainfallError, rainfallLoading, intersectingStationIds,
+        rainfallStatsData, rainfallSummaryData, rainfallDistributionData, overallDistribution, rainfallError, rainfallLoading, intersectingStationIds, yearlyRainfallData,
         rechargeStats, rechargeLoading
     ]);
 };

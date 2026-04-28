@@ -2,13 +2,39 @@ import { useEffect } from 'react';
 import { useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { getNeighbors } from '../../utils/geoUtils';
+import backendApi from '../../api/backendApi';
 
 export function MapEvents({ onLocationClick }) {
     useMapEvents({
-        click(e) {
+        async click(e) {
             const { lat, lng } = e.latlng;
-            const neighbors = getNeighbors(lat, lng, []);
-            onLocationClick({ lat, lng }, neighbors);
+
+            try {
+                // Use the central API client to identify coordinates
+                const data = await backendApi.pointIdentify(lat, lng);
+
+                if (data && (data.district || data.block || data.gramPanchayat || data.village)) {
+                    onLocationClick({ lat, lng }, [{
+                        id: data.village || data.gramPanchayat || data.block || data.district,
+                        location: data.village || data.gramPanchayat || data.block || data.district,
+                        district: data.district,
+                        block: data.block,
+                        gramPanchayat: data.gramPanchayat,
+                        village: data.village,
+                        districtId: data.district_id,
+                        blockId: data.block_id,
+                        gpId: data.gp_id,
+                        villageId: data.village_id,
+                        districtCode: data.district_code,
+                        blockCode: data.block_code,
+                        gpCode: data.gp_code,
+                        villageCode: data.village_code,
+                        type: data.village ? 'village' : (data.gramPanchayat ? 'gp' : (data.block ? 'block' : 'district'))
+                    }]);
+                }
+            } catch (error) {
+                console.error("Failed to identify click location:", error);
+            }
         },
     });
     return null;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import { normalizeDistrictName } from '../../utils/namingUtils';
+import useDebounce from '../core/useDebounce';
 
 /**
  * Custom hook for fetching district-wise rainfall data
@@ -10,7 +11,10 @@ export const useDistrictRainfall = (isActive, filters) => {
     const [districtRainfall, setDistrictRainfall] = useState({});
     const [loading, setLoading] = useState(false);
 
+    const debouncedFilters = useDebounce(filters, 500);
+
     useEffect(() => {
+
         let ignore = false;
         if (!isActive) {
             setDistrictRainfall({});
@@ -18,23 +22,24 @@ export const useDistrictRainfall = (isActive, filters) => {
             return;
         }
 
+        const controller = new AbortController();
+
         const fetchData = async () => {
             setLoading(true);
             try {
                 // Prepare filters - specifically extract date range if present
                 const params = { limit: 10000 }; // Get more records for accurate averaging
-                if (filters?.startDate) params.start_date = filters.startDate;
-                if (filters?.endDate) params.end_date = filters.endDate;
-                if (filters?.dataRangeStart) params.start_date = filters.dataRangeStart;
-                if (filters?.dataRangeEnd) params.end_date = filters.dataRangeEnd;
+                if (debouncedFilters?.startDate) params.start_date = debouncedFilters.startDate;
+                if (debouncedFilters?.endDate) params.end_date = debouncedFilters.endDate;
+                if (debouncedFilters?.dataRangeStart) params.start_date = debouncedFilters.dataRangeStart;
+                if (debouncedFilters?.dataRangeEnd) params.end_date = debouncedFilters.dataRangeEnd;
 
                 // Fetch Station District Summaries as per requirement
-                const results = await Promise.allSettled([
-                    api.rainfall.getStationDistrictWise(params)
-                ]);
+                const summaries = await api.rainfall.getStationDistrictWise(params, controller.signal);
 
-                const [stationSummaryResult] = results;
-                const combinedStats = {};
+                const normalizedSums = {};
+                const normalizedCounts = {};
+                const nameToNormalized = {};
 
                 // Process summaries
                 const processSummary = (summaryData) => {
@@ -43,21 +48,46 @@ export const useDistrictRainfall = (isActive, filters) => {
                         const distName = item.district || item.name || item.dist_name;
                         const avg = item.average_rainfall ?? item.avg_rainfall ?? item.rainfall;
                         if (distName && avg != null) {
-                            const key = normalizeDistrictName(distName);
-                            combinedStats[key] = parseFloat(avg);
+                            const val = parseFloat(avg);
+                            const normKey = normalizeDistrictName(distName);
+
+                            if (!normalizedSums[normKey]) {
+                                normalizedSums[normKey] = 0;
+                                normalizedCounts[normKey] = 0;
+                            }
+                            normalizedSums[normKey] += val;
+                            normalizedCounts[normKey] += 1;
+
+                            const upperName = distName.toString().toUpperCase().trim();
+                            if (!nameToNormalized[normKey]) nameToNormalized[normKey] = new Set();
+                            nameToNormalized[normKey].add(upperName);
                         }
                     });
                 };
 
-                if (stationSummaryResult.status === 'fulfilled') processSummary(stationSummaryResult.value);
+                processSummary(summaries);
 
-                // Simplified: use Station data exclusively. No village record fallback needed.
+                const combinedStats = {};
+                Object.keys(normalizedSums).forEach(normKey => {
+                    const avg = normalizedSums[normKey] / normalizedCounts[normKey];
+                    // Provide the average to the normalized key
+                    combinedStats[normKey] = avg;
+                    // AND provide it to all raw name variants found (crucial for SLD matching)
+                    if (nameToNormalized[normKey]) {
+                        nameToNormalized[normKey].forEach(rawName => {
+                            combinedStats[rawName] = avg;
+                        });
+                    }
+                });
 
                 if (!ignore) {
                     setDistrictRainfall(combinedStats);
                     setLoading(false);
                 }
             } catch (error) {
+                if (error.name === 'CanceledError' || error.name === 'AbortError') {
+                    return;
+                }
                 if (!ignore) {
                     console.error('[useDistrictRainfall] Error:', error);
                     setLoading(false);
@@ -66,8 +96,11 @@ export const useDistrictRainfall = (isActive, filters) => {
         };
 
         fetchData();
-        return () => { ignore = true; };
-    }, [isActive, filters?.startDate, filters?.endDate, filters?.dataRangeStart, filters?.dataRangeEnd]);
+        return () => {
+            ignore = true;
+            controller.abort();
+        };
+    }, [isActive, debouncedFilters]);
 
     return { data: districtRainfall, loading };
 };
@@ -80,7 +113,10 @@ export const useLocationRainfall = (isActive, filters, level) => {
     const [locationRainfall, setLocationRainfall] = useState({});
     const [loading, setLoading] = useState(false);
 
+    const debouncedFilters = useDebounce(filters, 500);
+
     useEffect(() => {
+
         let ignore = false;
         if (!isActive || !level || level === 'district') {
             setLocationRainfall({});
@@ -88,30 +124,30 @@ export const useLocationRainfall = (isActive, filters, level) => {
             return;
         }
 
+        const controller = new AbortController();
+
         const fetchData = async () => {
             setLoading(true);
             try {
                 const params = { level };
-                if (filters?.startDate) params.start_date = filters.startDate;
-                if (filters?.endDate) params.end_date = filters.endDate;
-                if (filters?.dataRangeStart) params.start_date = filters.dataRangeStart;
-                if (filters?.dataRangeEnd) params.end_date = filters.dataRangeEnd;
+                if (debouncedFilters?.startDate) params.start_date = debouncedFilters.startDate;
+                if (debouncedFilters?.endDate) params.end_date = debouncedFilters.endDate;
+                if (debouncedFilters?.dataRangeStart) params.start_date = debouncedFilters.dataRangeStart;
+                if (debouncedFilters?.dataRangeEnd) params.end_date = debouncedFilters.dataRangeEnd;
 
                 // For drill-down, filter by the active parent context
-                if (filters?.district) params.district = filters.district;
-                if (level !== 'block' && filters?.block) params.block = filters.block;
-                if (level === 'village' && filters?.gramPanchayat) params.gram_panchayat = filters.gramPanchayat;
+                if (debouncedFilters?.district) params.district = debouncedFilters.district;
+                if (level !== 'block' && debouncedFilters?.block) params.block = debouncedFilters.block;
+                if (level === 'village' && debouncedFilters?.gramPanchayat) params.gram_panchayat = debouncedFilters.gramPanchayat;
 
-                const results = await Promise.allSettled([
-                    api.rainfall.getStationLocationWise(params)
-                ]);
+                const results = await api.rainfall.getStationLocationWise(params, controller.signal);
 
                 const combinedStats = {};
 
                 // Helper to safely extract names and values
-                const processResult = (res) => {
-                    if (res.status === 'fulfilled' && Array.isArray(res.value)) {
-                        res.value.forEach(item => {
+                const processResult = (itemArray) => {
+                    if (Array.isArray(itemArray)) {
+                        itemArray.forEach(item => {
                             if (item.location && item.average_rainfall != null) {
                                 let keyName = item.location;
                                 // If parent exists, use composite key to match useMapProcessing/geoJSON maps
@@ -128,13 +164,16 @@ export const useLocationRainfall = (isActive, filters, level) => {
                 };
 
                 // Exclusively use Station data
-                processResult(results[0]);
+                processResult(results);
 
                 if (!ignore) {
                     setLocationRainfall(combinedStats);
                     setLoading(false);
                 }
             } catch (error) {
+                if (error.name === 'CanceledError' || error.name === 'AbortError') {
+                    return;
+                }
                 if (!ignore) {
                     console.error('[useLocationRainfall] Error:', error);
                     setLoading(false);
@@ -143,8 +182,11 @@ export const useLocationRainfall = (isActive, filters, level) => {
         };
 
         fetchData();
-        return () => { ignore = true; };
-    }, [isActive, level, filters?.district, filters?.block, filters?.gramPanchayat, filters?.startDate, filters?.endDate, filters?.dataRangeStart, filters?.dataRangeEnd]);
+        return () => {
+            ignore = true;
+            controller.abort();
+        };
+    }, [isActive, level, debouncedFilters]);
 
     return { data: locationRainfall, loading };
 };

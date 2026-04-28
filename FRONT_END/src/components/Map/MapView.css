@@ -7,10 +7,10 @@
 }
 
 .map-container {
-    flex: 1;
+    width: 100%;
+    height: 100%;
     position: relative;
     background: transparent;
-    /* Changed from #f8fafc to avoid white lines showing through */
     min-width: 0;
 }
 

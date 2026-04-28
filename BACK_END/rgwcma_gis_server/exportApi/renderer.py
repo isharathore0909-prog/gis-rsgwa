@@ -64,6 +64,16 @@ class MapRenderer:
                 target_obj = Block.objects.filter(name__iexact=block_name).first()
         elif dist_name and dist_name.lower() != 'rajasthan':
             target_obj = District.objects.filter(name__iexact=dist_name).first()
+        else:
+            # RAJASTHAN Fallback: If no district is selected, use the union of all districts as mask
+            from django.contrib.gis.db.models.aggregates import Union
+            target_geom = District.objects.aggregate(all_geom=Union('geometry'))['all_geom']
+            if target_geom:
+                import geopandas as gpd
+                gdf_target = normalize_to_3857(gpd.GeoDataFrame([{'geometry': load_wkb(bytes(target_geom.wkb))}]))
+                clip_mask = gdf_target.geometry.unary_union
+                bounds_3857 = gdf_target.total_bounds
+                return clip_mask, bounds_3857
 
         if target_obj and target_obj.geometry:
             import geopandas as gpd
@@ -166,7 +176,7 @@ class MapRenderer:
             if layer == 'groundwater_zones':
                 colors = []
                 for _, row in gdf.iterrows():
-                    status = str(row.get('GWDL') or row.get('Category') or row.get('Stage_of_G') or row.get('status') or '').lower()
+                    status = str(row.get('GWDL') or row.get('Category') or row.get('CATEGORY') or row.get('block_status') or row.get('Stage_of_G') or row.get('status') or '').lower()
                     color, label = GWRE_COLORS['default'], 'Default'
                     if 'safe' in status: color, label = GWRE_COLORS['safe'], 'Safe'
                     elif 'semi' in status: color, label = GWRE_COLORS['semi'], 'Semi Critical'

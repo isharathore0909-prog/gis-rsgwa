@@ -1,278 +1,191 @@
-import React, { useMemo, Suspense, lazy, useCallback } from 'react';
+import React, { useMemo, Suspense, lazy } from 'react';
 
 // Components
 import Header from './components/Header';
-import ControlsSidebar from './components/ControlsSidebar';
-import DataAnalysisSidebar from './components/DataAnalysisSidebar';
-import MapView from './components/Map/MapView';
+import LoadingOverlay from './components/common/LoadingOverlay';
 
-// Hooks
-import { useBoundaryHierarchy, useAppLogic, useDataAnalysis } from './hooks';
+// Lazy load heavy components
+const DashboardContainer = lazy(() => import('./components/Dashboard/DashboardContainer'));
+const MapView = lazy(() => import('./components/Map/MapView'));
+const PortalLayout = lazy(() => import('./components/GisPortal/PortalLayout'));
+import {
+    useBoundaryHierarchy, useAppLogic, useSpatialLayerStats
+} from './hooks';
 import { useMapDataFetch } from './hooks/data/useMapDataFetch';
+import { useAppAnalysis } from './hooks/ui/useAppAnalysis';
 
 // Styles
 import './App.css';
 
 // Context
 import { AppContextProvider, useAppContext } from './context/AppContext';
+import Highcharts from 'highcharts';
+import Highcharts3D from 'highcharts/highcharts-3d';
 
-// Utils
-import { getAttributeData } from './utils/dataProcessors';
-import { exportToCSV } from './utils/exportUtils';
+// Initialize 3D module globally
+if (typeof Highcharts3D === 'function') {
+    Highcharts3D(Highcharts);
+} else if (Highcharts3D && typeof Highcharts3D.default === 'function') {
+    Highcharts3D.default(Highcharts);
+}
 
-// Lazy load heavy components
-const AttributeTable = lazy(() => import('./components/AttributeTable'));
+// Global Highcharts configuration to suppress accessibility warning
+Highcharts.setOptions({
+    accessibility: { enabled: false }
+});
+
+// Removed old static imports and moved lazy imports up
+
 
 function AppContent() {
     const {
-        filters, layers, basemap,
-        clickedLocation, setClickedLocation,
-        isControlsSidebarCollapsed, setIsControlsSidebarCollapsed
+        filters, setFilters, clickedLocation, setClickedLocation, viewMode, setViewMode
     } = useAppContext();
 
+    // Initial routing for dashboard metrics - run once on mount
+    React.useEffect(() => {
+        const path = window.location.pathname.replace('/', '');
+        if (['gwre', 'rainfall', 'water-resources', 'water-quality', 'well-inventory', 'water_resources', 'water_quality', 'water_level'].includes(path)) {
+            setViewMode('dashboard');
+        }
+    }, []); // Only run on mount to set initial view
+
+    const isWaterResourcesActive = filters.type === 'Water Resources';
+
+    const { stats: canalStats, features: canalFeatures } = useSpatialLayerStats(viewMode === 'dashboard', 'canal', filters, isWaterResourcesActive);
+    const { stats: waterbodyStats, features: waterbodyFeatures } = useSpatialLayerStats(viewMode === 'dashboard', 'waterbody', filters, isWaterResourcesActive);
+
     const {
-        setFilters, handleLayerChange, handleFiltersApply, handleBasemapChange,
+        handleLayerChange, handleFiltersApply, handleBasemapChange,
         handleAddToTable, neighbors, setNeighbors, processedBlockData, rajasthanData,
-        rajasthanId, activeCategory, isProceedClicked, rainfallPoints, selectedDams,
+        rajasthanId, rainfallPoints, selectedDams,
         tableSelection, microData, selectedWellInventory,
         aquiferRecords, waterQualityRecords, rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading: parentWaterResourcesLoading,
+        rechargeRecords, rechargeLoading,
         rainfallDataSource, rainfallStations, rainfallStationRecords,
         handleRemoveRow, handleToggleSelection, handleToggleWellInventory, handleClearWellInventory,
         handleSetWellInventory, handleCoordinateSearch, searchCoordinates
     } = useAppLogic();
 
-    // Use hierarchical boundary hook
     const {
-        boundaries: dynamicBoundaries,
-        selectedBoundary,
-        selectedLevel,
         loading: boundariesLoading,
         currentLevel,
-        hierarchy
-    } = useBoundaryHierarchy(filters, rajasthanId);
+    } = useBoundaryHierarchy(filters);
 
     const {
-        aggregatedRainfallPoints, stationRainfallPoints,
-        damMarkers, canalData, waterbodyData, canalLoading, waterbodyLoading,
-        validatedBoundaries, validatedRajasthanData,
-        selectedDistrictData, validatedBlockData
+        canalLoading, waterbodyLoading,
+        damMarkers
     } = useMapDataFetch({
         filters, rainfallPoints, blockBoundaryData: processedBlockData, rajasthanData,
-        dynamicBoundaries, rainfallStations, rainfallStationRecords,
-        legendFeature: 'Category', isLoading: parentWaterResourcesLoading
+        dynamicBoundaries: null, rainfallStations, rainfallStationRecords,
+        legendFeature: filters.legendFeature || 'Category', isLoading: parentWaterResourcesLoading
     });
 
     const waterResourcesLoading = parentWaterResourcesLoading || canalLoading || waterbodyLoading;
 
-    // Lift analysis logic to share between Map and Sidebar
-    const analysisResults = useDataAnalysis({
-        globalFilters: filters,
-        clickedLocation,
-        neighbors,
-        selectedBoundary,
-        blockData: processedBlockData,
-        rainfallPoints,
-        rainfallStations,
-        rainfallStationRecords,
-        rainfallDataSource,
-        parentRainfallLoading: rainfallLoading,
-        parentWaterQualityLoading: waterQualityLoading,
-        parentAquiferLoading: aquiferLoading,
-        parentRechargeLoading: waterResourcesLoading,
-        rajasthanId // Pass the backend readiness signal
+    const {
+        analysisResults,
+        handleLocationClick
+    } = useAppAnalysis({
+        filters, clickedLocation, neighbors, selectedBoundary: null, processedBlockData,
+        rainfallPoints, rainfallStations, rainfallStationRecords, rainfallDataSource,
+        rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading,
+        rajasthanId, waterQualityRecords, aquiferRecords, selectedDams,
+        microData, tableSelection,
+        setClickedLocation, setNeighbors
     });
 
-    // Memoize attribute data
-    const attributeData = useMemo(() =>
-        getAttributeData(
-            filters, processedBlockData, neighbors, rainfallPoints,
-            waterQualityRecords, aquiferRecords, selectedDams,
-            canalData, waterbodyData, microData,
-            rainfallStations, rainfallStationRecords,
-            analysisResults?.intersectingStationIds,
-            analysisResults?.rainfallStats,
-            selectedBoundary,
-            analysisResults?.gwreFeatures
-        ),
-        [
-            filters, processedBlockData, neighbors, rainfallPoints,
-            waterQualityRecords, aquiferRecords, selectedDams,
-            canalData, waterbodyData, microData,
-            rainfallStations, rainfallStationRecords,
-            analysisResults?.intersectingStationIds,
-            analysisResults?.rainfallStats,
-            selectedBoundary,
-            analysisResults?.gwreFeatures
-        ]
-    );
-
-    const onExportData = useCallback(async () => {
-        if (!attributeData?.features?.length) {
-            alert("No data available to export.");
-            return;
-        }
-
-        let featuresToExport = attributeData.features;
-        if (tableSelection?.length) {
-            featuresToExport = attributeData.features.filter(f => tableSelection.includes(f.id));
-        }
-
-        const filename = filters?.type ? `${filters.type.replace(/\s+/g, '_')}_data.csv` : 'exported_data.csv';
-        await exportToCSV(featuresToExport, filename);
-    }, [attributeData, tableSelection, filters?.type]);
-
-    const hideTableForLayers = ['Aquifer', 'Recharge Structure'].includes(filters?.type);
-    const hideSidebarForLayers = filters?.type === 'Water Resources';
-
-    const handleLocationClick = useCallback((latlng, data) => {
-        setClickedLocation(latlng);
-
-        // Standardize data: markers often pass [record] instead of record
-        const rawItem = (Array.isArray(data) && data.length > 0) ? data[0] : (Array.isArray(data) ? null : data);
-
-        if (!rawItem) {
-            setNeighbors([]);
-            return;
-        }
-
-        // Resolve slim map markers to full historical records if available
-        let resolvedItem = rawItem;
-        const type = filters?.type;
-
-        if (type === 'Well Inventory' && aquiferRecords?.length > 0) {
-            const fullRecord = aquiferRecords.find(r =>
-                (r.id && r.id === rawItem.id) ||
-                (r.well_id && r.well_id === rawItem.well_id) ||
-                (r.well_id && r.well_id === rawItem.id) // Fallback for components that set id=well_id
-            );
-            if (fullRecord) {
-                resolvedItem = { ...fullRecord, type: 'well_inventory_well' };
-            }
-        } else if (type === 'Water Quality' && waterQualityRecords?.length > 0) {
-            const fullRecord = waterQualityRecords.find(r =>
-                (r.id && r.id === rawItem.id) ||
-                (r.well_id && r.well_id === rawItem.well_id)
-            );
-            if (fullRecord) {
-                resolvedItem = { ...fullRecord, type: 'water_quality_well' };
-            }
-        }
-
-        setNeighbors([resolvedItem]);
-    }, [setClickedLocation, setNeighbors, filters?.type, aquiferRecords, waterQualityRecords]);
-
-    // Calculate dynamic empty message for AttributeTable
-    const attributeTableEmptyMessage = useMemo(() => {
-        if (filters?.type === 'Water Resources') {
-            const hasSubLayer = filters.showDams || filters.showCanals || filters.showWaterbodies || filters.showMicro;
-            if (!hasSubLayer) return "please select any layer by clicking checkbox";
-        }
-        return "No features found.";
-    }, [filters]);
-
     const [exportTrigger, setExportTrigger] = React.useState(null);
+
+    const mapComponent = useMemo(() => (
+        <Suspense fallback={<LoadingOverlay message="Loading Map..." />}>
+            <MapView
+                onLocationClick={handleLocationClick}
+                blockBoundaryData={processedBlockData}
+                rajasthanData={rajasthanData}
+                currentLevel={currentLevel}
+                rainfallPoints={rainfallPoints}
+                rainfallDataSource={rainfallDataSource}
+                numClasses={5}
+                rainfallStations={rainfallStations}
+                rainfallStationRecords={rainfallStationRecords}
+                microData={microData}
+                onAddToTable={handleAddToTable}
+                isLoading={boundariesLoading || rainfallLoading || waterQualityLoading || aquiferLoading || waterResourcesLoading}
+                searchCoordinates={searchCoordinates}
+                selectedWellInventory={selectedWellInventory}
+                onToggleWellInventory={handleToggleWellInventory}
+                aquiferRecords={aquiferRecords}
+                waterQualityRecords={waterQualityRecords}
+                exportTrigger={exportTrigger}
+                onFiltersApply={handleFiltersApply}
+            />
+        </Suspense>
+    ), [
+        handleLocationClick, processedBlockData, rajasthanData, currentLevel,
+        rainfallPoints, rainfallDataSource, rainfallStations, rainfallStationRecords, microData,
+        handleAddToTable, boundariesLoading,
+        rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading,
+        searchCoordinates, selectedWellInventory, handleToggleWellInventory,
+        aquiferRecords, waterQualityRecords, exportTrigger, handleFiltersApply
+    ]);
 
     return (
         <div className="app-container">
             <Header />
-
-
-            <div className="main-layout">
-                {(!activeCategory || activeCategory.uiConfig.showControlsSidebar) && (
-                    <ControlsSidebar
-                        onLayerChange={handleLayerChange}
-                        onFiltersApply={handleFiltersApply}
-                        onBasemapChange={handleBasemapChange}
-                        handleExportData={onExportData}
-                        currentBasemap={basemap}
-                        onCoordinateSearch={handleCoordinateSearch}
-                        onMapExport={() => setExportTrigger(Date.now())}
-                    />
-                )}
-
-                <div className="workspace-main">
-                    <div className="map-viewport">
-                        <MapView
-                            onLocationClick={handleLocationClick}
-                            onAddToTable={handleAddToTable}
-                            onFiltersApply={handleFiltersApply}
-                            dynamicBoundaries={dynamicBoundaries}
-                            selectedBoundary={selectedBoundary}
-                            selectedLevel={selectedLevel}
-                            currentLevel={currentLevel}
-                            hierarchy={hierarchy}
-                            rainfallPoints={rainfallPoints}
-                            rainfallDataSource={rainfallDataSource}
+            <Suspense fallback={<LoadingOverlay message="Initializing Application..." />}>
+                {viewMode === 'dashboard' ? (
+                    <div className="main-layout dashboard-layout">
+                        <DashboardContainer
+                            mapComponent={mapComponent}
+                            analysisResults={analysisResults}
+                            rainfall={rainfallStationRecords}
                             rainfallStations={rainfallStations}
-                            rainfallStationRecords={rainfallStationRecords}
-                            selectedWellInventory={selectedWellInventory}
-                            onToggleWellInventory={handleToggleWellInventory}
-                            isDataAnalysisSidebarHidden={hideSidebarForLayers}
-                            isLoading={boundariesLoading || rainfallLoading || waterQualityLoading || aquiferLoading || waterResourcesLoading || analysisResults.gwreLoading}
-                            searchCoordinates={searchCoordinates}
-                            exportTrigger={exportTrigger}
-                            // Props that are still needed because MapView isn't fully context-ified yet
-                            basemap={basemap}
-                            filters={filters}
-                            blockBoundaryData={processedBlockData}
-                            rajasthanData={rajasthanData}
+                            rainfallPoints={rainfallPoints}
+                            gwre={processedBlockData}
+                            water_quality={waterQualityRecords}
+                            water_level={aquiferRecords}
+                            rechargeRecords={rechargeRecords}
+                            rechargeLoading={rechargeLoading}
+                            selectedDams={selectedDams}
+                            allDams={damMarkers}
+                            canalStats={canalStats}
+                            waterbodyStats={waterbodyStats}
+                            canalFeatures={canalFeatures}
+                            waterbodyFeatures={waterbodyFeatures}
                             microData={microData}
-                            canalData={canalData}
-                            waterbodyData={waterbodyData}
-                            aquiferRecords={aquiferRecords}
-                            waterQualityRecords={waterQualityRecords}
-                            aquiferPolygons={analysisResults.aquiferPolygons}
+                            filters={filters}
+                            setFilters={setFilters}
+                            setClickedLocation={setClickedLocation}
+                            setNeighbors={setNeighbors}
                         />
                     </div>
-
-                    {!hideTableForLayers && isProceedClicked && (
-                        <Suspense fallback={<div className="table-loading">Loading Table...</div>}>
-                            <AttributeTable
-                                data={attributeData}
-                                onRemoveRow={handleRemoveRow}
-                                selectedIds={tableSelection}
-                                onToggleSelection={(id) => handleToggleSelection(id, attributeData)}
-                                onExportData={onExportData}
-                                emptyMessage={attributeTableEmptyMessage}
-                                onRowClick={(feature) => {
-                                    if (feature.geometry?.type === 'Point') {
-                                        setClickedLocation({
-                                            lat: feature.geometry.coordinates[1],
-                                            lng: feature.geometry.coordinates[0]
-                                        });
-                                    }
-                                }}
-                            />
-                        </Suspense>
-                    )}
-                </div>
-
-                {!hideSidebarForLayers && (
-                    <DataAnalysisSidebar
-                        neighbors={neighbors}
-                        selectedBoundary={selectedBoundary}
-                        onAddToTable={handleAddToTable}
-                        selectedDams={selectedDams}
-                        rainfallPoints={rainfallPoints}
-                        onToggleWellInventory={handleToggleWellInventory}
-                        selectedWellInventory={selectedWellInventory}
-                        onClearWellInventory={handleClearWellInventory}
-                        onSetWellInventory={handleSetWellInventory}
-                        onFiltersApply={handleFiltersApply}
-                        blockData={processedBlockData}
-                        rainfallStations={rainfallStations}
-                        rainfallStationRecords={rainfallStationRecords}
-                        rainfallDataSource={rainfallDataSource}
-                        rainfallLoading={rainfallLoading}
-                        waterQualityLoading={waterQualityLoading}
-                        aquiferLoading={aquiferLoading}
-                        rechargeLoading={waterResourcesLoading}
-                        analysisResults={analysisResults}
-                        dynamicBoundaries={dynamicBoundaries}
-                    />
+                ) : (
+                    <div className="main-layout portal-layout-container">
+                        <PortalLayout
+                            mapComponent={mapComponent}
+                            analysisResults={analysisResults}
+                            neighbors={neighbors}
+                            selectedBoundary={null}
+                            processedBlockData={processedBlockData}
+                            rainfallPoints={rainfallPoints}
+                            rainfallStations={rainfallStations}
+                            rainfallStationRecords={rainfallStationRecords}
+                            rainfallDataSource={rainfallDataSource}
+                            handleLayerChange={handleLayerChange}
+                            handleFiltersApply={handleFiltersApply}
+                            handleBasemapChange={handleBasemapChange}
+                            handleCoordinateSearch={handleCoordinateSearch}
+                            handleToggleWellInventory={handleToggleWellInventory}
+                            handleClearWellInventory={handleClearWellInventory}
+                            handleSetWellInventory={handleSetWellInventory}
+                            rainfallLoading={rainfallLoading}
+                            waterQualityLoading={waterQualityLoading}
+                            aquiferLoading={aquiferLoading}
+                        />
+                    </div>
                 )}
-            </div>
-
+            </Suspense>
         </div>
     );
 }

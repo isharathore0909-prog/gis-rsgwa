@@ -1,3 +1,6 @@
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+
 export const handleExportData = async (data, filters) => {
     if (!data || !data.features || data.features.length === 0) {
         alert("No data available to export.");
@@ -55,7 +58,11 @@ export const exportToCSV = async (featuresToExport, filename) => {
         // Generic Header Collection
         const allHeaderSet = new Set();
         featuresToExport.forEach(f => {
-            Object.keys(f.properties).forEach(key => allHeaderSet.add(key));
+            if (f.properties) {
+                Object.keys(f.properties).forEach(key => allHeaderSet.add(key));
+            } else {
+                Object.keys(f).forEach(key => allHeaderSet.add(key));
+            }
         });
         headers = Array.from(allHeaderSet);
     }
@@ -65,7 +72,8 @@ export const exportToCSV = async (featuresToExport, filename) => {
 
     for (const feature of rows) {
         const values = headers.map(header => {
-            const val = feature.properties[header];
+            const properties = feature.properties || feature;
+            const val = properties[header];
             // Handle null/undefined and escape quotes
             const escaped = (val === null || val === undefined ? '' : '' + val).replace(/"/g, '""');
             return `"${escaped}"`;
@@ -130,3 +138,46 @@ export const downloadCSV = (data, filename = 'exported_data') => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 };
+
+export const downloadPDF = (data, filename = 'exported_data', title = 'Data Export') => {
+    if (!data || data.length === 0) return;
+
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    // Add Title
+    doc.setFontSize(18);
+    doc.setTextColor(40, 44, 52);
+    doc.text(title, 14, 20);
+
+    const headers = Object.keys(data[0]);
+    const body = data.map((row, index) => {
+        return headers.map(header => row[header] ?? '---');
+    });
+
+    autoTable(doc, {
+        head: [headers],
+        body: body,
+        startY: 30,
+        styles: {
+            fontSize: 8,
+            cellPadding: 2,
+        },
+        headStyles: {
+            fillColor: [41, 128, 185],
+            textColor: 255,
+            fontSize: 9,
+            fontStyle: 'bold',
+        },
+        alternateRowStyles: {
+            fillColor: [245, 245, 245],
+        },
+        margin: { top: 30 },
+    });
+
+    doc.save(`${filename}_${new Date().getTime()}.pdf`);
+};
+

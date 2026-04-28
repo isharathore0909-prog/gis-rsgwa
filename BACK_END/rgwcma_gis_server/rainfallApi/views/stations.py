@@ -213,7 +213,38 @@ class StationRainfallViewSet(viewsets.ReadOnlyModelViewSet):
         if level == 'district': group_field = 'station__district'
         elif level == 'station': group_field = 'station__name'
         else: return Response([])
-        data = queryset.values(group_field).annotate(average_rainfall=Avg('rainfall_mm')).order_by(group_field)
-        result = [{'location': d[group_field], 'average_rainfall': round(d['average_rainfall'] or 0, 2)} for d in data if d[group_field]]
+        data = queryset.values(group_field).annotate(
+            total_rainfall=Sum('rainfall_mm'),
+            unit_count=Count('station_id', distinct=True)
+        ).order_by(group_field)
+        
+        result = [
+            {
+                'location': d[group_field], 
+                'average_rainfall': round((d['total_rainfall'] / d['unit_count']) if d['unit_count'] > 0 else 0, 2)
+            } 
+            for d in data if d[group_field]
+        ]
+        cache.set(cache_key, result, 3600)
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def distribution(self, request):
+        """
+        Categorized distribution of rainfall (Excess, Normal, etc.) by location.
+        """
+        cache_key = build_cache_key("station_rainfall_distribution", request)
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+        
+        queryset = self.filter_queryset(self.get_queryset())
+        from ..utils import calculate_rainfall_distribution
+        normal = request.query_params.get('normal')
+        if normal:
+            try: normal = float(normal)
+            except: normal = None
+            
+        result = calculate_rainfall_distribution(queryset, normal_avg=normal, is_station_data=True)
+        
         cache.set(cache_key, result, 3600)
         return Response(result)

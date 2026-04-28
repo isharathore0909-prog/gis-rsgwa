@@ -5,12 +5,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 # Import viewsets from all apps
 from locationApi.views import (
     CountryViewSet, StateViewSet, DistrictViewSet, BlockViewSet, GPViewSet, VillageViewSet,
-    PincodeView, BoundaryByCodeView, BoundaryCollectionView, LocationCodeView, ExternalRequestProxyView
+    PincodeView, BoundaryByCodeView, BoundaryCollectionView, LocationCodeView, 
+    ExternalRequestProxyView, PointIdentifyView
 )
 from account_app.views import RegisterView
 from rainfallApi.views import RainfallViewSet, StationRainfallViewSet
 from raingaugeApi.views import RainGaugeViewSet
-from water_qualityApi.views import WaterQualityViewSet, ContourMapView
+from water_qualityApi.views import WaterQualityViewSet
 from waterquality_availabilityApi.views import WaterQualityAvailabilityViewSet
 from aquiferApi.views import AquiferDataViewSet
 from rechargeStructureApi.views import RechargeStructureViewSet
@@ -46,9 +47,6 @@ router.register(r'recharge-structure', RechargeStructureViewSet)
 router.register(r'spatial/layers', SpatialLayerViewSet)
 
 urlpatterns = [
-    # Water Quality Contour Route
-    path('water-quality/contour-map/', ContourMapView.as_view(), name='water-quality-contour'),
-    
     # Router URLs
     path('', include(router.urls)),
     
@@ -63,4 +61,5 @@ urlpatterns = [
     path('location/boundary-collection/', BoundaryCollectionView.as_view(), name='boundary-collection'),
     path('location/location-codes/', LocationCodeView.as_view(), name='location-codes'),
     path('location/external-proxy/<path:endpoint>/', ExternalRequestProxyView.as_view(), name='external-proxy'),
+    path('location/point-identify/', PointIdentifyView.as_view(), name='point-identify'),
 ]

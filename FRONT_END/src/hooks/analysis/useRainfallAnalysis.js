@@ -19,9 +19,12 @@ export const useRainfallAnalysis = ({
 }) => {
     const [rainfallStatsData, setRainfallStatsData] = useState(null);
     const [rainfallSummaryData, setRainfallSummaryData] = useState([]);
+    const [rainfallDistributionData, setRainfallDistributionData] = useState(null);
+    const [overallDistribution, setOverallDistribution] = useState(null);
     const [intersectingStationIds, setIntersectingStationIds] = useState([]);
     const [rainfallError, setRainfallError] = useState(null);
     const [isFetching, setIsFetching] = useState(false);
+    const [isDistFetching, setIsDistFetching] = useState(false);
     const [apiRetryCount, setApiRetryCount] = useState(0);
 
     const toTitleCase = (str) => {
@@ -60,6 +63,7 @@ export const useRainfallAnalysis = ({
         if (isRainfall && paramsChanged) {
             setRainfallStatsData(null);
             setRainfallSummaryData([]);
+            setRainfallDistributionData(null);
             setIntersectingStationIds([]);
             hasAttemptedFetch.current = false;
             lastParamsRef.current = currentParamsKey;
@@ -138,11 +142,51 @@ export const useRainfallAnalysis = ({
         rajasthanId, apiRetryCount, analysisLevel
     ]);
 
+    // Fetch sub-unit distribution data using optimized backend endpoint
+    useEffect(() => {
+        if (!isRainfall || !rajasthanId || !rainfallStatsData) return;
+
+        const fetchDistribution = async () => {
+            setIsDistFetching(true);
+            try {
+                const getDistMethod = rainfallDataSource === 'station'
+                    ? api.rainfall.getStationDistribution
+                    : api.rainfall.getDistribution;
+
+                const distParams = { ...baseParams, _v: Date.now() };
+                if (rainfallStatsData?.avg_station_total) {
+                    distParams.normal = rainfallStatsData.avg_station_total;
+                }
+
+                const data = await getDistMethod(distParams);
+                if (data) {
+                    setRainfallDistributionData(data.processed || []);
+                    if (data.overall) {
+                        // Backend returns percentage-based distribution
+                        setOverallDistribution({
+                            ...data.overall,
+                            departure: rainfallStatsData?.departure || 0,
+                            normal_avg: data.overall.normal_used || 600,
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Distribution fetch failed:", err);
+            } finally {
+                setIsDistFetching(false);
+            }
+        };
+
+        fetchDistribution();
+    }, [isRainfall, rajasthanId, analysisLevel, baseParams.district, baseParams.block, rainfallStatsData]);
+
     return {
         rainfallStatsData,
         rainfallSummaryData,
+        rainfallDistributionData,
+        overallDistribution,
         intersectingStationIds,
-        rainfallLoading: parentRainfallLoading || rainfallLoading,
+        rainfallLoading: parentRainfallLoading || rainfallLoading || isDistFetching,
         rainfallError
     };
 };

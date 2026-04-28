@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import * as Icons from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
 import './Header.css';
 
 const Header = () => {
+    const { viewMode, setViewMode } = useAppContext();
     // Simple localization state
     const [isScrolled, setIsScrolled] = useState(false);
 
@@ -37,6 +40,21 @@ const Header = () => {
 
     return (
         <div className={`header-container ${isScrolled ? 'scrolled' : ''}`}>
+            {/* Top Info Bar */}
+            <div className="header-top-bar">
+                <div className="container top-bar-content">
+
+                    <div className="top-nav">
+                        <a href="#about">About Us</a>
+                        <a href="#contact">Contact Us</a>
+                        <button className="login-btn">
+                            <Icons.User size={14} />
+                            Login
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             {/* Main Header */}
             <div className={`header-main ${isScrolled ? 'compact' : ''}`}>
                 <div className="container main-content">
@@ -55,6 +73,13 @@ const Header = () => {
                             </p>
                         </div>
                     </div>
+
+                    {/* Main Navigation Links */}
+                    <nav className="main-nav">
+
+
+                    </nav>
+
                     {/* Right Side Emblem */}
                     <div className="emblem-wrapper">
                         <img src="/logos/india-emblem.png" alt="Emblem of India" className="emblem-img" />

@@ -1,5 +1,6 @@
 import React from 'react';
-import { PiezometerMarker, AquiferWellMarker } from '../Markers';
+import { WMSTileLayer } from 'react-leaflet';
+import { PiezometerMarker } from '../Markers';
 
 export const PiezometerMarkersLayer = React.memo(({
     isActive,
@@ -28,29 +29,29 @@ export const PiezometerMarkersLayer = React.memo(({
     );
 });
 
-export const AquiferMarkersLayer = React.memo(({
+export const WaterLevelBubbleLayer = React.memo(({
     isActive,
-    records,
+    filters,
     onLocationClick
 }) => {
-    if (!isActive || !records.length) return null;
+    if (!isActive) return null;
+
+    const cql = null; // Removed CQL since aquifer_spatial_view lacks district/block properties. Leaflet's bounding box inherently filters the visible view area instead.
 
     return (
-        <>
-            {records.map((record) => (
-                record.latitude && record.longitude && (
-                    <AquiferWellMarker
-                        key={`aq-${record.well_id || record.id}`}
-                        record={record}
-                        onMarkerClick={(rec, latlng) => onLocationClick(latlng, [{
-                            ...rec,
-                            id: rec.well_id,
-                            location: rec.village_name || 'Unknown',
-                            type: 'well_inventory_well'
-                        }])}
-                    />
-                )
-            ))}
-        </>
+        <WMSTileLayer
+            key={`water-level-wms-${cql || 'state'}`}
+            url="http://localhost:8080/geoserver/rgwcma/wms"
+            layers="rgwcma:aquifer_spatial_view"
+            styles="well_bubbles"
+            format="image/png"
+            transparent={true}
+            zIndex={405}
+            params={{
+                ...(cql ? { cql_filter: cql } : {}),
+                version: '1.1.1',
+                env: "cellSize:40"
+            }}
+        />
     );
 });

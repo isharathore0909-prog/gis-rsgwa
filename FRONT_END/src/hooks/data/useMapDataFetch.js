@@ -1,21 +1,17 @@
 import { useMemo } from 'react';
 import {
     useDistrictRainfall,
-    useWaterQuality,
-    useAquiferData,
     usePiezometerData,
     useGeoJSONData,
-    useRainfallStatsByBlock,
     useRainfallStatsByDistrict,
     useAggregatedRainfallPoints,
     useDamMarkers,
-    useValidatedRajasthanData,
-    useSelectedDistrictData,
     useFilteredBlockData,
     useValidatedBlockData,
-    useValidatedBoundaries,
     useLocationRainfall,
-    useSpatialLayerData
+    useSelectedDistrictData,
+    useValidatedBoundaries,
+    useSelectedBoundaryGeometry
 } from '../index';
 import { RAJASTHAN_DAMS_DATA } from '../../data/damsData';
 import { reprojectGeoJSON } from '../../utils/reproject';
@@ -56,12 +52,15 @@ export const useMapDataFetch = ({
 
     const activeBlockStats = (drillLevel === 'block') ? dynamicRainfallStats : (blockRainfallStats || {});
 
-    const { data: gwreData, loading: gwreLoading } = useSpatialLayerData('groundwater_zone', filters?.type === 'Ground Water Resource Estimation', filters);
-    const { data: canalData, loading: canalLoading } = useSpatialLayerData('canal', filters?.type === 'Water Resources' && filters?.showCanals, filters);
-    const { data: waterbodyData, loading: waterbodyLoading } = useSpatialLayerData('waterbody', filters?.type === 'Water Resources' && filters?.showWaterbodies, filters);
-
+    const isDashboard = !filters?.type || filters?.type === '';
+    const { data: gwreData, loading: gwreLoading } = { data: null, loading: false };
+    const reprojectedGwreData = null;
     const { data: raingaugeStations, loading: raingaugeLoading } = useGeoJSONData('/Raingauge Stations.geojson', filters?.type === 'Rainfall');
-    const reprojectedGwreData = useMemo(() => gwreData ? reprojectGeoJSON(gwreData) : null, [gwreData]);
+
+    // WMS Migration: We no longer fetch large GeoJSON payloads for canals and waterbodies.
+    // They are rendered server-side via WMS.
+    const canalLoading = false;
+    const waterbodyLoading = false;
 
 
     const statsByDistrict = useRainfallStatsByDistrict(rainfallPoints);
@@ -102,25 +101,32 @@ export const useMapDataFetch = ({
         });
     }, [rainfallStations, rainfallStationRecords]);
 
-    const damMarkers = useDamMarkers(filters?.type === 'Water Resources', RAJASTHAN_DAMS_DATA, blockBoundaryData, filters?.district, filters?.block);
+    const damMarkers = useDamMarkers((filters?.type === 'Water Resources') || isDashboard, RAJASTHAN_DAMS_DATA, blockBoundaryData, filters?.district, filters?.block);
 
-    const validatedBoundaries = useValidatedBoundaries(dynamicBoundaries, filters, dynamicRainfallStats, drillLevel, legendFeature, stationRainfallPoints);
-    const validatedRajasthanData = useValidatedRajasthanData(rajasthanData, filters, mergedDistrictRainfall, legendFeature);
-    const selectedDistrictData = useSelectedDistrictData(rajasthanData, filters?.district, validatedBoundaries, blockBoundaryData, isLoading);
+    // Fetch the boundary geometry for the currently selected unit (District/Block/GP/Village)
+    // for exact camera centering and zoom operations.
+    const { boundary: selectedSelectionBoundary } = useSelectedBoundaryGeometry(filters);
+
     const filteredBlockData = useFilteredBlockData(blockBoundaryData, reprojectedGwreData, filters, rajasthanData, legendFeature);
     const validatedBlockData = useValidatedBlockData(filteredBlockData, filters, activeBlockStats, mergedDistrictRainfall, legendFeature);
 
+    // Zooming & High-precision Boundaries
+    const selectedDistrictData = useSelectedDistrictData(rajasthanData, filters?.district, selectedSelectionBoundary, blockBoundaryData, isLoading);
+    const selectedBoundary = useValidatedBoundaries(selectedSelectionBoundary, filters, dynamicRainfallStats, drillLevel, legendFeature, stationRainfallPoints);
+
     return {
-        districtRainfall, districtRainfallLoading,
+        districtRainfall: mergedDistrictRainfall, districtRainfallLoading,
         dynamicRainfallStats, dynamicRainfallLoading,
         piezometerRecords, piezometersLoading,
-        reprojectedGwreData, gwreLoading,
+        reprojectedGwreData,
+        gwreLoading,
         raingaugeStations, raingaugeLoading,
         aggregatedRainfallPoints, stationRainfallPoints,
         damMarkers,
-        canalData, canalLoading,
-        waterbodyData, waterbodyLoading,
-        validatedBoundaries, validatedRajasthanData,
-        selectedDistrictData, validatedBlockData
+        canalLoading,
+        waterbodyLoading,
+        validatedBlockData,
+        selectedDistrictData,
+        selectedBoundary
     };
 };

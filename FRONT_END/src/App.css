@@ -1,15 +1,18 @@
 :root {
     /* Core Color Palette - Professional GIS Design System */
-    --primary-blue: #005a9e;
-    /* Modern Microsoft/GIS Blue */
-    --secondary-blue: #0078d4;
-    --dark-blue: #004578;
-    --accent-cyan: #00e5ff;
+    --primary-blue: #234E84;
+    /* Medium Dark Blue */
+    --secondary-blue: #548ABE;
+    /* Medium Blue */
+    --dark-blue: #132448;
+    /* Darkest Navy */
+    --accent-cyan: #BFE6F7;
+    /* Pale Light Blue */
 
     --bg-main: #f0f2f5;
     --bg-surface: #ffffff;
     --bg-muted: #f8fafc;
-    --bg-active: #eff6ff;
+    --bg-active: var(--accent-cyan);
 
     --text-main: #111827;
     /* High contrast gray-900 */
@@ -65,10 +68,22 @@ body {
 .main-layout {
     display: flex;
     flex-direction: row;
-    height: calc(100vh - var(--header-height));
+    height: calc(100vh - 120px);
+    /* Adjust for new double-row header */
     width: 100%;
     overflow: hidden;
     background: var(--bg-main);
+}
+
+.main-layout.dashboard-layout {
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.portal-layout-container {
+    height: calc(100vh - 120px);
+    width: 100%;
+    overflow: hidden;
 }
 
 .workspace-container {
@@ -133,22 +148,26 @@ body {
 
 /* Status Indicators - Professional Semi-Bold */
 .status-safe {
-    color: #10b981;
+    color: #3b82f6;
+    /* Blue-500 */
     font-weight: 600;
 }
 
 .status-semi-critical {
-    color: #f59e0b;
+    color: #2563eb;
+    /* Blue-600 */
     font-weight: 600;
 }
 
 .status-critical {
-    color: #f97316;
+    color: #1d4ed8;
+    /* Blue-700 */
     font-weight: 600;
 }
 
 .status-over-exploited {
-    color: #ef4444;
+    color: #1e3a8a;
+    /* Blue-900 */
     font-weight: 600;
 }
 

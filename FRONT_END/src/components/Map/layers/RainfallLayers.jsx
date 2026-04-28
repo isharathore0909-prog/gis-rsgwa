@@ -1,7 +1,44 @@
-import React from 'react';
-import { GeoJSON, CircleMarker, Tooltip } from 'react-leaflet';
+import React, { useMemo } from 'react';
+import { GeoJSON, CircleMarker, Tooltip, WMSTileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import { BLUE_PALETTE } from '../../../constants/mapConstants';
+import { getFeatureColor } from '../../../utils/mapUtils';
+
+import { normalizeDistrictName } from '../../../utils/namingUtils';
+
+/**
+ * Rainfall District Choropleth Layer using WMS
+ * Renders district boundaries themed by average rainfall from the DB.
+ */
+export const RainfallDistrictChoroplethLayer = ({
+    isActive,
+    filters
+}) => {
+    if (!isActive) return null;
+
+    const cql = React.useMemo(() => {
+        if (filters?.district) {
+            return `name ILIKE '${filters.district.replace("'", "''")}'`;
+        }
+        return null;
+    }, [filters?.district]);
+
+    return (
+        <WMSTileLayer
+            key={`rainfall-wms-${cql || 'all'}`}
+            url="http://localhost:8080/geoserver/rgwcma/wms"
+            layers="rgwcma:rainfall_choropleth"
+            format="image/png"
+            transparent={true}
+            zIndex={420}
+            params={{
+                styles: '',
+                ...(cql ? { cql_filter: cql } : {})
+            }}
+        />
+    );
+};
+
 
 export const getRainfallColor = (mm) => {
     if (mm === null || mm === undefined) return '#cbd5e1';

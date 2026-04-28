@@ -28,15 +28,17 @@ export const useMapExport = (map, filters, exportTrigger) => {
             selectedLayers.push('groundwater_zones');
         } else if (filters?.type === 'Water Quality') {
             selectedLayers.push('water_quality');
-        } else {
-            if (filters?.district) selectedLayers.push('district');
-            else selectedLayers.push('state');
         }
 
-        if (filters?.district && !selectedLayers.includes('district')) selectedLayers.unshift('district');
-        if (!filters?.district && !selectedLayers.includes('state')) {
-            selectedLayers.unshift('state');
+        // Include relevant boundary layers
+        if (filters?.village) selectedLayers.push('village');
+        if (filters?.gramPanchayat || filters?.grampanchayat) selectedLayers.push('grampanchayat');
+        if (filters?.block) selectedLayers.push('block');
+        if (filters?.district) {
             if (!selectedLayers.includes('district')) selectedLayers.push('district');
+        } else {
+            selectedLayers.push('state');
+            selectedLayers.push('district'); // Include district outlines for state view
         }
 
         const payload = {
