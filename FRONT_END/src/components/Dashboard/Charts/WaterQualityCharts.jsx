@@ -139,7 +139,7 @@ const WaterQualityCharts = ({ data, analysisResults, metricColor }) => {
             </div>
 
             <div className="chart-item">
-                <h3>Fluoride vs Hardness Correlation</h3>
+                <h3>(Calcium + Magnesium) vs Total Hardness</h3>
                 <div style={{ height: '350px', width: '100%', padding: '10px' }}>
                     <div className="chart-container" style={{ height: '350px', background: 'white', padding: '10px', borderRadius: '12px', width: '100%' }}>
                         <HighchartsReact
@@ -155,7 +155,7 @@ const WaterQualityCharts = ({ data, analysisResults, metricColor }) => {
                                 xAxis: {
                                     title: {
                                         enabled: true,
-                                        text: 'Fluoride (mg/l)'
+                                        text: 'Calcium + Magnesium (mg/l)'
                                     },
                                     startOnTick: true,
                                     endOnTick: true,
@@ -163,7 +163,7 @@ const WaterQualityCharts = ({ data, analysisResults, metricColor }) => {
                                 },
                                 yAxis: {
                                     title: {
-                                        text: 'Hardness (mg/l)'
+                                        text: 'Total Hardness (mg/l)'
                                     }
                                 },
                                 legend: {
@@ -182,7 +182,7 @@ const WaterQualityCharts = ({ data, analysisResults, metricColor }) => {
                                         },
                                         tooltip: {
                                             headerFormat: '<b>{series.name}</b><br>',
-                                            pointFormat: 'Fluoride: {point.x} mg/l, Hardness: {point.y} mg/l'
+                                            pointFormat: 'Ca+Mg: {point.x} mg/l, Total Hardness: {point.y} mg/l'
                                         }
                                     }
                                 },
@@ -191,10 +191,15 @@ const WaterQualityCharts = ({ data, analysisResults, metricColor }) => {
                                     name: 'Stations',
                                     color: metricColor || '#2563eb',
                                     data: (data?.features || []).map(f => {
-                                        const fluoride = parseFloat(f.properties['Fluoride']);
+                                        const calcium = parseFloat(f.properties['Calcium']);
+                                        const magnesium = parseFloat(f.properties['Magnesium']);
                                         const hardness = parseFloat(f.properties['Hardness']);
-                                        if (!isNaN(fluoride) && !isNaN(hardness)) {
-                                            return [fluoride, hardness];
+
+                                        const caMgSum = (!isNaN(calcium) ? calcium : 0) + (!isNaN(magnesium) ? magnesium : 0);
+                                        const hasCaOrMg = !isNaN(calcium) || !isNaN(magnesium);
+
+                                        if (hasCaOrMg && !isNaN(hardness)) {
+                                            return [caMgSum, hardness];
                                         }
                                         return null;
                                     }).filter(d => d !== null)

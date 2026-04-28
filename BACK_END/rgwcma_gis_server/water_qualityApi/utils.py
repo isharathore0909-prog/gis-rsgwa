@@ -104,6 +104,13 @@ def calculate_water_quality_stats(queryset, model):
         'arsenic': (Avg('arsenic'), Count('id', filter=Q(arsenic__gt=WATER_QUALITY_LIMITS['arsenic']))),
         'uranium': (Avg('uranium'), Count('id', filter=Q(uranium__gt=WATER_QUALITY_LIMITS['uranium']))),
         'chloride': (Avg('chloride'), Count('id', filter=Q(chloride__gt=WATER_QUALITY_LIMITS['chloride']))),
+        'calcium': (Avg('calcium'), Count('id', filter=Q(calcium__gt=200))), # 200 mg/L limit
+        'magnesium': (Avg('magnesium'), Count('id', filter=Q(magnesium__gt=100))), # 100 mg/L limit
+        'sodium': (Avg('sodium'), Count('id', filter=Q(sodium__gt=200))), # 200 mg/L limit
+        'potassium': (Avg('potassium'), Count('id', filter=Q(potassium__gt=12))), # 12 mg/L limit
+        'carbonate': (Avg('carbonate'), Count('id', filter=Q(carbonate__gt=100))),
+        'bicarbonate': (Avg('bicarbonate'), Count('id', filter=Q(bicarbonate__gt=400))),
+        'sulphate': (Avg('sulphate'), Count('id', filter=Q(sulphate__gt=400))),
     }
 
     for field, (avg_agg, exc_agg) in optional_fields.items():

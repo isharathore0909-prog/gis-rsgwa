@@ -22,20 +22,34 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
         { id: 'post_monsoon', label: 'Post Water Level', color: '#0ea5e9' }
     ];
 
+    // Physical metrics that cannot be y_param in the backend
+    const physicalMetrics = ['water_level', 'rainfall'];
+
     useEffect(() => {
         const fetchCorrelation = async () => {
             setIsLoading(true);
             try {
+                // Normalise: backend requires y_param to be a WQ column.
+                // If the user put a physical metric on the Y axis, swap axes
+                // for the API call and flip the returned x/y when building points.
+                const yIsPhysical = physicalMetrics.includes(yParam);
+                const apiYParam = yIsPhysical ? xMetric : yParam;
+                const apiXMetric = yIsPhysical ? yParam : xMetric;
+
                 const res = await api.waterQuality.getCorrelation({
-                    x_metric: xMetric,
-                    y_param: yParam,
+                    x_metric: apiXMetric,
+                    y_param: apiYParam,
                     year: '2024',
                     radius_km: 20,
                     limit: 100
                 });
 
                 if (res.results) {
-                    const points = res.results.map(r => [r.x, r.y]);
+                    // If axes were swapped for the API, flip them back so the
+                    // chart always plots [xMetric, yParam] as [x, y].
+                    const points = res.results.map(r =>
+                        yIsPhysical ? [r.y, r.x] : [r.x, r.y]
+                    );
                     setCorrelationData(points);
                 }
             } catch (err) {
@@ -49,19 +63,34 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
         fetchCorrelation();
     }, [xMetric, yParam]);
 
-    const yParamLabels = {
+    const allParamLabels = {
+        // Water Quality Parameters
         ec: 'EC (µS/cm)',
-        fluoride: 'Fluoride (mg/l)',
-        nitrate: 'Nitrate (mg/l)',
         ph: 'pH',
         tds: 'TDS (mg/l)',
-        hardness: 'Hardness (mg/l)'
-    };
-
-    const xMetricLabels = {
+        hardness: 'Hardness (mg/l)',
+        alkalinity: 'Alkalinity (mg/l)',
+        fluoride: 'Fluoride (mg/l)',
+        nitrate: 'Nitrate (mg/l)',
+        chloride: 'Chloride (mg/l)',
+        sulphate: 'Sulphate (mg/l)',
+        bicarbonate: 'Bicarbonate (mg/l)',
+        carbonate: 'Carbonate (mg/l)',
+        calcium: 'Calcium (mg/l)',
+        magnesium: 'Magnesium (mg/l)',
+        sodium: 'Sodium (mg/l)',
+        potassium: 'Potassium (mg/l)',
+        iron: 'Iron (mg/l)',
+        arsenic: 'Arsenic (mg/l)',
+        uranium: 'Uranium (µg/l)',
+        // Physical Metrics
         water_level: 'Water Level (m.bgl)',
         rainfall: 'Annual Rainfall (mm)'
     };
+
+    // Keep these for axis label lookups
+    const yParamLabels = allParamLabels;
+    const xMetricLabels = allParamLabels;
 
     // 3. Potability & Sustainability Insights
     const qualityInsight = React.useMemo(() => {
@@ -194,7 +223,7 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                             onChange={(e) => setYParam(e.target.value)}
                             style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}
                         >
-                            {Object.entries(yParamLabels).map(([val, label]) => (
+                            {Object.entries(allParamLabels).map(([val, label]) => (
                                 <option key={val} value={val}>{label}</option>
                             ))}
                         </select>
@@ -204,7 +233,7 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                             onChange={(e) => setXMetric(e.target.value)}
                             style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}
                         >
-                            {Object.entries(xMetricLabels).map(([val, label]) => (
+                            {Object.entries(allParamLabels).map(([val, label]) => (
                                 <option key={val} value={val}>{label}</option>
                             ))}
                         </select>

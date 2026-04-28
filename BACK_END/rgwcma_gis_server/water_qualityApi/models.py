@@ -32,12 +32,25 @@ class WaterQuality(models.Model):
     
     # Water Quality Parameters
     ph = models.FloatField(null=True, blank=True, help_text="pH level")
-    hardness = models.FloatField(null=True, blank=True, help_text="Hardness in mg/L")
-    alkalinity = models.FloatField(null=True, blank=True, help_text="Alkalinity in mg/L")
-    nitrate = models.FloatField(null=True, blank=True, help_text="Nitrate in mg/L")
-    fluoride = models.FloatField(null=True, blank=True, help_text="Fluoride in mg/L")
     ec = models.FloatField(null=True, blank=True, help_text="Electrical Conductivity in µS/cm")
     tds = models.FloatField(null=True, blank=True, help_text="Total Dissolved Solids in mg/L")
+    hardness = models.FloatField(null=True, blank=True, help_text="Hardness in mg/L")
+    calcium = models.FloatField(null=True, blank=True, help_text="Calcium in mg/L")
+    magnesium = models.FloatField(null=True, blank=True, help_text="Magnesium in mg/L")
+    sodium = models.FloatField(null=True, blank=True, help_text="Sodium in mg/L")
+    potassium = models.FloatField(null=True, blank=True, help_text="Potassium in mg/L")
+    carbonate = models.FloatField(null=True, blank=True, help_text="Carbonate in mg/L")
+    bicarbonate = models.FloatField(null=True, blank=True, help_text="Bicarbonate in mg/L")
+    alkalinity = models.FloatField(null=True, blank=True, help_text="Alkalinity in mg/L")
+    sulphate = models.FloatField(null=True, blank=True, help_text="Sulphate in mg/L")
+    chloride = models.FloatField(null=True, blank=True, help_text="Chloride in mg/L")
+    fluoride = models.FloatField(null=True, blank=True, help_text="Fluoride in mg/L")
+    nitrate = models.FloatField(null=True, blank=True, help_text="Nitrate in mg/L")
+
+    # Additional contextual fields
+    aquifer_type = models.CharField(max_length=100, null=True, blank=True, help_text="Aquifer type/formation")
+    source = models.CharField(max_length=100, null=True, blank=True, help_text="Data source")
+    site_name = models.CharField(max_length=200, null=True, blank=True, help_text="Name of the measurement site")
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

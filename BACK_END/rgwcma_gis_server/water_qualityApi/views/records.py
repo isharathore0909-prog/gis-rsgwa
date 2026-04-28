@@ -123,202 +123,202 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def correlation(self, request):
-        """
-        Perform high-performance spatial join between Water Quality and other metrics (Water Level, Rainfall).
-        Uses PostGIS ST_Distance to find the nearest measurement within a specified radius.
-        """
+        import math
+
+        def safe_float(val):
+            if val is None:
+                return None
+            try:
+                val = float(val)
+                if math.isnan(val) or math.isinf(val):
+                    return None
+                return val
+            except:
+                return None
+
         x_metric = request.query_params.get('x_metric', 'water_level')
         y_param = request.query_params.get('y_param', 'ec')
         radius_km = float(request.query_params.get('radius_km', 20))
         year = request.query_params.get('year', '2024')
         limit = int(request.query_params.get('limit', 500))
         offset = int(request.query_params.get('offset', 0))
-        
-        # Validate y_param to prevent SQL injection
-        allowed_params = ['ph', 'hardness', 'alkalinity', 'nitrate', 'fluoride', 'ec', 'tds', 'iron', 'arsenic', 'uranium']
-        if y_param not in allowed_params:
-            return Response({'error': f'Invalid y_param. Must be one of: {", ".join(allowed_params)}'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Target table and value column logic
-        # ... (keep existing logic) ...
-        # Optimized KNN spatial join
-        # For water_level, we hit the table directly to use the "aquifer_spatial_idx"
-        # For rainfall, we pre-aggregate station data in a CTE and JOIN it inside the lateral part
-        # to ensure the spatial part can still hit the "rainfall_station_spatial_idx"
-        cte = ""
+        # ✅ Allowed parameters
+        wq_params = [
+            'ph', 'hardness', 'alkalinity', 'nitrate', 'fluoride', 'ec', 'tds',
+            'iron', 'arsenic', 'uranium', 'calcium', 'magnesium', 'sodium',
+            'potassium', 'carbonate', 'bicarbonate', 'sulphate', 'chloride'
+        ]
+
+        external_metrics = ['water_level', 'rainfall']
+        allowed_x = wq_params + external_metrics
+
+        # ✅ Validation
+        if y_param not in wq_params:
+            return Response({
+                'error': f'Invalid y_param "{y_param}". Must be a water quality parameter.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if x_metric not in allowed_x:
+            return Response({
+                'error': f'Invalid x_metric "{x_metric}".'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # ============================================================
+        # ✅ CASE 1: WQ vs WQ
+        # ============================================================
+        if x_metric in wq_params:
+            query = f"""
+                SELECT well_id, {y_param}, {x_metric}
+                FROM "water_qualityApi_waterquality"
+                WHERE {y_param} IS NOT NULL
+                AND {x_metric} IS NOT NULL
+                ORDER BY meta_date DESC
+                LIMIT %s OFFSET %s
+            """
+
+            with connection.cursor() as cursor:
+                cursor.execute(query, [limit, offset])
+                rows = cursor.fetchall()
+
+            data = [
+                {
+                    'well_id': str(r[0]),
+                    'y': safe_float(r[1]),
+                    'x': safe_float(r[2]),
+                }
+                for r in rows
+            ]
+
+            return Response({
+                'type': 'wq_vs_wq',
+                'x_metric': x_metric,
+                'y_param': y_param,
+                'count': len(data),
+                'results': data
+            })
+
+        # ============================================================
+        # ✅ CASE 2: WATER LEVEL
+        # ============================================================
         if x_metric == 'water_level':
-            target_table_expr = '"aquiferApi_aquiferdata"'
-            target_value_col = f"pre_{year}"
-            
-            # Validation
+
             valid_years = [str(y) for y in range(2015, 2025)]
             if year not in valid_years:
-                return Response({'error': f'Invalid year. Support 2015-2024.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        elif x_metric == 'rainfall':
-            # Use date range instead of EXTRACT(YEAR) to hit the index on 'date'
-            cte = f"""
-                WITH station_sums AS (
-                    SELECT 
-                        station_id,
-                        SUM(rainfall_mm) as rainfall_value
-                    FROM "rainfallApi_stationrainfall"
-                    WHERE date >= '{year}-01-01' AND date <= '{year}-12-31'
-                    GROUP BY station_id
-                )
-            """
-            # Use the existing 'geometry' column if possible, but keep fallback to functional index
-            target_table_expr = """
-                "rainfallApi_rainfallstation" rs
-                JOIN station_sums ss ON rs.id = ss.station_id
-            """
-            target_value_col = "ss.rainfall_value"
-        else:
-            return Response({'error': 'Unsupported x_metric. Use "water_level" or "rainfall".'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Invalid year (2015-2024 only)'}, status=400)
 
-        query = f"""
-            {cte}
-            SELECT 
-                wq.well_id,
-                wq.{y_param} as y_value,
-                target_join.target_value as x_value,
-                ST_Distance(
-                    ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)::geography,
-                    ST_SetSRID(ST_MakePoint(target_join.longitude, target_join.latitude), 4326)::geography
-                ) as distance_m,
-                wq.latitude, wq.longitude,
-                target_join.latitude as target_lat, target_join.longitude as target_lon,
-                wq.meta_date
-            FROM (
-                SELECT * FROM "water_qualityApi_waterquality"
-                WHERE {y_param} IS NOT NULL
-                  AND longitude IS NOT NULL
-                  AND latitude IS NOT NULL
-                ORDER BY meta_date DESC
-                LIMIT {limit} OFFSET {offset}
-            ) wq
-            CROSS JOIN LATERAL (
-                SELECT {target_value_col} as target_value, latitude, longitude
-                FROM {target_table_expr}
-                ORDER BY ST_SetSRID(ST_MakePoint(rs.longitude, rs.latitude), 4326) <-> ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)
-                IF {x_metric == 'water_level'} -- Just a reminder of logic
-                LIMIT 1
-            ) target_join -- Renamed for clarity
-            WHERE ST_DWithin(
-                ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)::geography,
-                ST_SetSRID(ST_MakePoint(target_join.longitude, target_join.latitude), 4326)::geography,
-                {radius_km * 1000}
-            )
-            ORDER BY distance_m ASC
-        """
-        
-        # Clean up the query string logic (remove my reminder comment)
-        if x_metric == 'water_level':
-            # Rewrite for water_level to be clean
             query = f"""
                 SELECT 
                     wq.well_id,
-                    wq.{y_param} as y_value,
-                    target.target_value as x_value,
+                    wq.{y_param},
+                    aq.pre_{year},
                     ST_Distance(
                         ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)::geography,
-                        ST_SetSRID(ST_MakePoint(target.longitude, target.latitude), 4326)::geography
-                    ) as distance_m,
-                    wq.latitude, wq.longitude,
-                    target.latitude as target_lat, target.longitude as target_lon,
-                    wq.meta_date
-                FROM (
-                    SELECT * FROM "water_qualityApi_waterquality"
-                    WHERE {y_param} IS NOT NULL
-                      AND longitude IS NOT NULL
-                      AND latitude IS NOT NULL
-                    ORDER BY meta_date DESC
-                    LIMIT {limit} OFFSET {offset}
-                ) wq
+                        ST_SetSRID(ST_MakePoint(aq.longitude, aq.latitude), 4326)::geography
+                    )
+                FROM "water_qualityApi_waterquality" wq
                 CROSS JOIN LATERAL (
-                    SELECT {target_value_col} as target_value, latitude, longitude
-                    FROM {target_table_expr}
-                    WHERE {target_value_col} IS NOT NULL
-                      AND longitude IS NOT NULL
-                      AND latitude IS NOT NULL
-                    ORDER BY ST_SetSRID(ST_MakePoint(longitude, latitude), 4326) <-> ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)
+                    SELECT latitude, longitude, pre_{year}
+                    FROM "aquiferApi_aquiferdata"
+                    WHERE pre_{year} IS NOT NULL
+                    ORDER BY ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)
+                    <-> ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)
                     LIMIT 1
-                ) target
-                WHERE ST_DWithin(
+                ) aq
+                WHERE wq.{y_param} IS NOT NULL
+                AND wq.latitude IS NOT NULL
+                AND wq.longitude IS NOT NULL
+                AND ST_DWithin(
                     ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)::geography,
-                    ST_SetSRID(ST_MakePoint(target.longitude, target.latitude), 4326)::geography,
-                    {radius_km * 1000}
+                    ST_SetSRID(ST_MakePoint(aq.longitude, aq.latitude), 4326)::geography,
+                    %s
                 )
-                ORDER BY distance_m ASC
+                LIMIT %s OFFSET %s
             """
-        else:
-             # Final check for rainfall query formatting:
-             # We use a nested subquery to find the nearest station ID FIRST (hitting the index)
-             # Then join with the pre-calculated sums.
-             query = f"""
-                {cte}
+
+            params = [radius_km * 1000, limit, offset]
+
+        # ============================================================
+        # ✅ CASE 3: RAINFALL
+        # ============================================================
+        elif x_metric == 'rainfall':
+
+            query = f"""
+                WITH station_sums AS (
+                    SELECT 
+                        station_id,
+                        SUM(
+                            CASE 
+                                WHEN rainfall_mm IS NOT NULL 
+                                    AND rainfall_mm != 'NaN'::float
+                                    AND rainfall_mm != 'Infinity'::float
+                                    AND rainfall_mm != '-Infinity'::float
+                                THEN rainfall_mm 
+                                ELSE 0 
+                            END
+                        ) AS rainfall_value
+                    FROM "rainfallApi_stationrainfall"
+                    WHERE date BETWEEN %s AND %s
+                    GROUP BY station_id
+                )
                 SELECT 
                     wq.well_id,
-                    wq.{y_param} as y_value,
-                    target.target_value as x_value,
+                    wq.{y_param},
+                    ss.rainfall_value,
                     ST_Distance(
                         ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)::geography,
-                        ST_SetSRID(ST_MakePoint(target.longitude, target.latitude), 4326)::geography
-                    ) as distance_m,
-                    wq.latitude, wq.longitude,
-                    target.latitude as target_lat, target.longitude as target_lon,
-                    wq.meta_date
-                FROM (
-                    SELECT * FROM "water_qualityApi_waterquality"
-                    WHERE {y_param} IS NOT NULL
-                      AND longitude IS NOT NULL
-                      AND latitude IS NOT NULL
-                    ORDER BY meta_date DESC
-                    LIMIT {limit} OFFSET {offset}
-                ) wq
+                        ST_SetSRID(ST_MakePoint(rs.longitude, rs.latitude), 4326)::geography
+                    )
+                FROM "water_qualityApi_waterquality" wq
                 CROSS JOIN LATERAL (
-                    SELECT ss.rainfall_value as target_value, rs_best.latitude, rs_best.longitude
-                    FROM (
-                        SELECT id, latitude, longitude
-                        FROM "rainfallApi_rainfallstation"
-                        ORDER BY ST_SetSRID(ST_MakePoint(longitude, latitude), 4326) <-> ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)
-                        LIMIT 1
-                    ) rs_best
-                    JOIN station_sums ss ON rs_best.id = ss.station_id
-                ) target
-                WHERE ST_DWithin(
+                    SELECT id, latitude, longitude
+                    FROM "rainfallApi_rainfallstation"
+                    ORDER BY ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)
+                    <-> ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)
+                    LIMIT 1
+                ) rs
+                JOIN station_sums ss ON rs.id = ss.station_id
+                WHERE wq.{y_param} IS NOT NULL
+                AND wq.latitude IS NOT NULL
+                AND wq.longitude IS NOT NULL
+                AND ss.rainfall_value IS NOT NULL
+                AND ST_DWithin(
                     ST_SetSRID(ST_MakePoint(wq.longitude, wq.latitude), 4326)::geography,
-                    ST_SetSRID(ST_MakePoint(target.longitude, target.latitude), 4326)::geography,
-                    {radius_km * 1000}
+                    ST_SetSRID(ST_MakePoint(rs.longitude, rs.latitude), 4326)::geography,
+                    %s
                 )
-                ORDER BY distance_m ASC
-             """
+                LIMIT %s OFFSET %s
+            """
 
+            params = [f"{year}-01-01", f"{year}-12-31", radius_km * 1000, limit, offset]
+
+        # ============================================================
+        # ✅ EXECUTION
+        # ============================================================
         try:
             with connection.cursor() as cursor:
-                cursor.execute(query)
+                cursor.execute(query, params)
                 rows = cursor.fetchall()
-                
-            data = []
-            for row in rows:
-                # Ensure all values are JSON serializable (convert Decimal/Date)
-                data.append({
-                    'well_id': str(row[0]),
-                    'y': float(row[1]) if row[1] is not None else None,
-                    'x': float(row[2]) if row[2] is not None else None,
-                    'distance_m': round(float(row[3]), 2),
-                    'coords': [float(row[4]), float(row[5])],
-                    'target_coords': [float(row[6]), float(row[7])],
-                    'date': row[8].isoformat() if hasattr(row[8], 'isoformat') else str(row[8]) if row[8] else None,
-                })
-            
+
+            data = [
+                {
+                    'well_id': str(r[0]),
+                    'y': safe_float(r[1]),
+                    'x': safe_float(r[2]),
+                    'distance_m': round(safe_float(r[3]) or 0, 2)
+                }
+                for r in rows
+            ]
+
             return Response({
+                'type': x_metric,
                 'x_metric': x_metric,
                 'y_param': y_param,
                 'year': year,
                 'count': len(data),
                 'results': data
             })
+
         except Exception as e:
             import traceback
             traceback.print_exc()
