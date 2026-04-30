@@ -20,7 +20,7 @@ class WaterQualityAvailabilityViewSet(viewsets.ModelViewSet):
         filters.SearchFilter, 
         filters.OrderingFilter
     ]
-    filterset_fields = ['type_of_well', 'village', 'well_id']
+    filterset_fields = ['type_of_well', 'well_id']
     search_fields = ['well_id', 'village__name']
     ordering_fields = ['well_id', 'pre_ph', 'post_ph', 'pre_tds', 'post_tds']
     ordering = ['well_id']

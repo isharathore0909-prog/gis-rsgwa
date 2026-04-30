@@ -5,7 +5,7 @@ import HydrographChart from '../../DataAnalysis/WellInventory/HydrographChart';
 import api from '../../../api';
 import * as Icons from 'lucide-react';
 
-const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor }) => {
+const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor, filters = {} }) => {
     // Dynamic Correlation State
     // Dynamic Correlation State
     const [yParam, setYParam] = useState('ec');
@@ -41,7 +41,11 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                     y_param: apiYParam,
                     year: '2024',
                     radius_km: 20,
-                    limit: 100
+                    limit: 100,
+                    district: filters.district || undefined,
+                    block: filters.block || filters.taluka || undefined,
+                    gp: filters.gramPanchayat || undefined,
+                    village: filters.village || undefined
                 });
 
                 if (res.results) {
@@ -61,7 +65,7 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
         };
 
         fetchCorrelation();
-    }, [xMetric, yParam]);
+    }, [xMetric, yParam, filters]);
 
     const allParamLabels = {
         // Water Quality Parameters

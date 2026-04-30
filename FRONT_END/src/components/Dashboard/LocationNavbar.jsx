@@ -14,6 +14,7 @@ const LocationNavbar = ({ metricId }) => {
         apiDistricts,
         apiBlocks,
         apiGPs,
+        apiVillages,
         loading
     } = useLocations(filters);
 

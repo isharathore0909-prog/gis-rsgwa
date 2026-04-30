@@ -229,6 +229,7 @@ const DashboardContainer = memo(({
                     waterQualityRaw={water_quality}
                     waterLevelRaw={water_level}
                     districtWaterLevelStats={districtWaterLevelStats}
+                    filters={filters}
                 />
             )}
         </div>

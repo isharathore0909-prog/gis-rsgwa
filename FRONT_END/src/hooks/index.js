@@ -30,7 +30,7 @@ export {
     useValidatedBlockData,
     useValidatedBoundaries,
     useSelectedBoundaryGeometry
-} from './geo/useGeoJSONProcessing';
+} from './geo';
 
 // Legend Hooks
 export {

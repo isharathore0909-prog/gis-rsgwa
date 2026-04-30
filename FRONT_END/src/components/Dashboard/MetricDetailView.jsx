@@ -9,7 +9,7 @@ import WaterLevelCharts from './Charts/WaterLevelCharts';
 import MetricDataTable from './MetricDataTable';
 import './MetricDetailView.css';
 
-const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecords = [], rechargeLoading = false, districtWaterLevelStats = [] }) => {
+const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecords = [], rechargeLoading = false, districtWaterLevelStats = [], filters = {} }) => {
     if (!metric) return null;
 
     const isWaterLevelView = metric.id === 'water_level';
@@ -98,6 +98,7 @@ const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecor
                         analysisResults={analysisResults}
                         districtWaterLevelData={districtWaterLevelData}
                         metricColor={metric.color}
+                        filters={filters}
                     />
                 );
             default:

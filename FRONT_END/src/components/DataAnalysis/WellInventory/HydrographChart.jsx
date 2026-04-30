@@ -12,7 +12,7 @@ import {
     LabelList
 } from 'recharts';
 import SmartChartContainer from '../Common/SmartChartContainer';
-import { calculateRobustTrendLine } from '../../../utils/statsUtils';
+import { calculateLinearTrendLine } from '../../../utils/statsUtils';
 
 const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpanded, showRainfall = true }) => {
     const processedData = useMemo(() => {
@@ -23,8 +23,8 @@ const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpa
             [dataKey]: d[dataKey] ?? null
         }));
 
-        const levelTrend = calculateRobustTrendLine(baseData, dataKey);
-        const rainTrend = showRainfall ? calculateRobustTrendLine(baseData, 'Annual Rainfall') : null;
+        const levelTrend = calculateLinearTrendLine(baseData, dataKey);
+        const rainTrend = showRainfall ? calculateLinearTrendLine(baseData, 'Annual Rainfall') : null;
 
         return baseData.map((d, i) => ({
             ...d,

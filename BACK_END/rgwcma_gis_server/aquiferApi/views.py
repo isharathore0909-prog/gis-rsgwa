@@ -24,7 +24,7 @@ class AquiferDataViewSet(viewsets.ModelViewSet):
         filters.SearchFilter, 
         filters.OrderingFilter
     ]
-    filterset_fields = ['aquifer', 'village']
+    filterset_fields = ['aquifer']
     search_fields = ['well_id', 'village__name', 'aquifer']
     ordering_fields = ['well_id', 'well_depth']
     ordering = ['well_id']

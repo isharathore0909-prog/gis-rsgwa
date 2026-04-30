@@ -67,15 +67,15 @@ if os.name == 'nt':
             GEOS_LIBRARY_PATH = sorted(geos_c_libs or geos_libs, reverse=True)[0]
 
         # 4. Handle PROJ_LIB Consistency
-        if "PROJ_LIB" not in os.environ:
-            os.environ["PROJ_LIB"] = found_proj
-    else:
-        # Fallback to pyproj if no system GIS installation is found
+        # The QGIS/OSGeo4W GDAL DLL might expect a newer proj.db layout (>= 4) 
+        # but ships with an old proj.db (layout 1/2), causing GDAL_ERROR 1.
+        # pyproj always ships with a valid modern proj.db, use it if possible.
         try:
             import pyproj
             os.environ["PROJ_LIB"] = pyproj.datadir.get_data_dir()
         except (ImportError, AttributeError):
-            pass
+            if found_proj:
+                os.environ["PROJ_LIB"] = found_proj
 
 from datetime import timedelta
 from dotenv import load_dotenv

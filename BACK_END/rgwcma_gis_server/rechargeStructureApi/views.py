@@ -69,9 +69,10 @@ class RechargeStructureViewSet(viewsets.ModelViewSet):
         filters.SearchFilter,
         filters.OrderingFilter
     ]
-    filterset_fields = ['village', 'structure_type']
+    filterset_fields = ['structure_type']
     search_fields = ['structure_type', 'other_recharge_structures', 'village__name']
     ordering_fields = ['storage_capacity', 'created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         """
