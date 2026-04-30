@@ -7,10 +7,12 @@ export const useBaseMapLoader = (initRetry, setInitRetry) => {
     const [rajasthanId, setRajasthanId] = useState(null);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         const fetchCached = async (url) => {
             if (window._staticCache && window._staticCache[url]) return window._staticCache[url];
-            const res = await fetch(url);
+            const res = await fetch(url, { signal });
             if (!res.ok) throw new Error(`Status ${res.status}`);
             const data = await res.json();
             if (!window._staticCache) window._staticCache = {};
@@ -21,29 +23,30 @@ export const useBaseMapLoader = (initRetry, setInitRetry) => {
         const initializeMapBase = async () => {
             try {
                 const localData = await fetchCached('/district.geojson');
-                if (!ignore && localData) {
+                if (!signal.aborted && localData) {
                     const reprojected = reprojectGeoJSON(localData);
                     setRajasthanData(reprojected || localData);
                 }
 
                 if (!rajasthanId) {
-                    const states = await api.location.getStates({ name: 'Rajasthan' });
+                    const states = await api.location.getStates({ name: 'Rajasthan' }, signal);
                     const stateObj = (states.results || states)?.[0];
-                    if (stateObj && !ignore) setRajasthanId(stateObj.id);
+                    if (stateObj && !signal.aborted) setRajasthanId(stateObj.id);
                 }
             } catch (err) {
+                if (err.name === 'AbortError') return;
                 console.error('× Error initializing map base:', err);
-                if (!ignore && !rajasthanId) {
+                if (!signal.aborted && !rajasthanId) {
                     const nextWait = Math.min(Math.pow(2, initRetry) * 2000, 30000);
                     setTimeout(() => {
-                        if (!ignore) setInitRetry(prev => prev + 1);
+                        if (!signal.aborted) setInitRetry(prev => prev + 1);
                     }, nextWait);
                 }
             }
         };
 
         initializeMapBase();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [initRetry, rajasthanId, setInitRetry]);
 
     return { rajasthanData, setRajasthanData, rajasthanId, setRajasthanId };

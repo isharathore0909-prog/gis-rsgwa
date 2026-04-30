@@ -41,7 +41,8 @@ export const useRechargeAnalysis = ({
     }, [isRechargeStructure, paramsChanged, currentParamsKey]);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
 
         // If not the active section, clear stats and stop loading
         if (!isRechargeStructure) {
@@ -71,32 +72,33 @@ export const useRechargeAnalysis = ({
             setIsFetching(true);
 
             try {
-                const data = await api.rechargeStructure.getStatistics(params);
-                if (!ignore) {
+                const data = await api.rechargeStructure.getStatistics(params, signal);
+                if (!signal.aborted) {
                     setRechargeStats(prev => {
                         if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
                         return data;
                     });
                 }
             } catch (err) {
-                if (!ignore) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     console.error('Failed to fetch recharge stats:', err);
                     if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error'))) {
                         const delay = 5000 * (apiRetryCount + 1);
                         setTimeout(() => {
-                            if (!ignore) setApiRetryCount(prev => prev + 1);
+                            if (!signal.aborted) setApiRetryCount(prev => prev + 1);
                         }, delay);
                     } else {
                         setRechargeStats(null);
                     }
                 }
             } finally {
-                if (!ignore) setIsFetching(false);
+                if (!signal.aborted) setIsFetching(false);
             }
         };
 
         fetchRechargeStats();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [
         isRechargeStructure,
         analysisLevel,

@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import * as Icons from 'lucide-react';
 import Pagination from '../Common/Pagination';
 import { downloadCSV, downloadPDF } from '../../utils/exportUtils';
 import './WaterResourcesTables.css';
 
-const TableCard = ({ title, data = [], columns = [], loading = false }) => {
+const TableCard = React.memo(({ title, data = [], columns = [], loading = false }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
 
@@ -13,20 +13,22 @@ const TableCard = ({ title, data = [], columns = [], loading = false }) => {
         setCurrentPage(1);
     }, [data.length]);
 
-    const paginatedItems = data.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    const paginatedItems = useMemo(() => {
+        return data.slice(
+            (currentPage - 1) * itemsPerPage,
+            currentPage * itemsPerPage
+        );
+    }, [data, currentPage, itemsPerPage]);
 
-    const handleExportCSV = () => {
+    const handleExportCSV = useCallback(() => {
         const flatData = data.map(item => item.properties || item);
         downloadCSV(flatData, `${title}_Data_Export`);
-    };
+    }, [data, title]);
 
-    const handleExportPDF = () => {
+    const handleExportPDF = useCallback(() => {
         const flatData = data.map(item => item.properties || item);
         downloadPDF(flatData, `${title}_Data_PDF`, `${title} Data Inventory`);
-    };
+    }, [data, title]);
 
     return (
         <div className="table-card">
@@ -60,13 +62,18 @@ const TableCard = ({ title, data = [], columns = [], loading = false }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginatedItems.map((row, idx) => (
-                                    <tr key={(currentPage - 1) * itemsPerPage + idx}>
-                                        {columns.map(col => (
-                                            <td key={col.key}>{row.properties?.[col.key] || row[col.key] || '---'}</td>
-                                        ))}
-                                    </tr>
-                                ))}
+                                {paginatedItems.map((row, idx) => {
+                                    const rowKey = row.id || row.ID || `row-${(currentPage - 1) * itemsPerPage + idx}`;
+                                    return (
+                                        <tr key={rowKey}>
+                                            {columns.map(col => (
+                                                <td key={`${rowKey}-${col.key}`}>
+                                                    {row.properties?.[col.key] || row[col.key] || '---'}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                         <Pagination
@@ -80,7 +87,7 @@ const TableCard = ({ title, data = [], columns = [], loading = false }) => {
             </div>
         </div>
     );
-};
+});
 
 const WaterResourcesTables = ({
     dams = [],

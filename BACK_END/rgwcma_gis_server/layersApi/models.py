@@ -44,3 +44,4 @@ class SpatialLayer(models.Model):
     class Meta:
         verbose_name = "Spatial Layer"
         verbose_name_plural = "Spatial Layers"
+        ordering = ['-created_at']

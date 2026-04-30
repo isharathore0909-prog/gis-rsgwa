@@ -34,7 +34,8 @@ export const useGWREAnalysis = ({
 
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
 
         lastParams.current = {
             displayRegion,
@@ -62,8 +63,8 @@ export const useGWREAnalysis = ({
                 if (displayBlock) params.block = displayBlock;
                 if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
 
-                const data = await api.spatialLayer.getStatistics(params);
-                if (!ignore) {
+                const data = await api.spatialLayer.getStatistics(params, signal);
+                if (!signal.aborted) {
                     setGwreStats(prev => {
                         const nextStr = JSON.stringify(data);
                         if (JSON.stringify(prev) === nextStr) return prev;
@@ -71,24 +72,25 @@ export const useGWREAnalysis = ({
                     });
                 }
             } catch (err) {
-                if (!ignore) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     console.error('Failed to fetch GWRE stats:', err);
                     if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK' || err.message.includes('Network Error'))) {
                         const delay = 5000 * (apiRetryCount + 1);
                         setTimeout(() => {
-                            if (!ignore) setApiRetryCount(prev => prev + 1);
+                            if (!signal.aborted) setApiRetryCount(prev => prev + 1);
                         }, delay);
                     } else {
                         setGwreStats(null);
                     }
                 }
             } finally {
-                if (!ignore) setIsFetching(false);
+                if (!signal.aborted) setIsFetching(false);
             }
         };
 
         fetchGWRE();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, rajasthanId, apiRetryCount, analysisLevel]);
 
     const pieData = useMemo(() => {
@@ -136,7 +138,9 @@ export const useGWREAnalysis = ({
 
     // Fetch GWRE Features for Attribute Table
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         if (!activeMode) {
             setGwreFeatures(null);
             return;
@@ -151,21 +155,22 @@ export const useGWREAnalysis = ({
 
                 const hasLocationFilter = params.district || params.block || params.grampanchayat;
                 const data = hasLocationFilter
-                    ? await api.spatialLayer.getIntersect(params)
-                    : await api.spatialLayer.getLayers(params);
+                    ? await api.spatialLayer.getIntersect(params, signal)
+                    : await api.spatialLayer.getLayers(params, signal);
 
-                if (!ignore) {
+                if (!signal.aborted) {
                     setGwreFeatures(data);
                 }
             } catch (err) {
-                if (!ignore) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     console.error('Failed to fetch GWRE features:', err);
                 }
             }
         };
 
         fetchFeatures();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, analysisLevel]);
 
     return {

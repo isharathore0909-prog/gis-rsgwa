@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useBaseMapLoader } from './loaders/useBaseMapLoader';
 import { useRainfallLoader } from './loaders/useRainfallLoader';
 import { useWaterQualityLoader } from './loaders/useWaterQualityLoader';
 import { useAquiferLoader } from './loaders/useAquiferLoader';
 import { useRechargeLoader } from './loaders/useRechargeLoader';
 import { useSecondaryLoader } from './loaders/useSecondaryLoader';
+import useDebounce from './useDebounce';
 
 /**
  * Handles all core application data fetching (Map Base, Rainfall, Overlays)
@@ -13,12 +14,15 @@ import { useSecondaryLoader } from './loaders/useSecondaryLoader';
 export const useDataLoading = (filters, neighbors) => {
     const [initRetry, setInitRetry] = useState(0);
 
+    // Debounce filters to prevent rapid API calls during navigation/selection
+    const debouncedFilters = useDebounce(filters, 400);
+
     const baseMap = useBaseMapLoader(initRetry, setInitRetry);
-    const rainfall = useRainfallLoader(filters);
-    const waterQuality = useWaterQualityLoader(filters, neighbors);
-    const aquifer = useAquiferLoader(filters);
-    const recharge = useRechargeLoader(filters);
-    const secondary = useSecondaryLoader(filters);
+    const rainfall = useRainfallLoader(debouncedFilters);
+    const waterQuality = useWaterQualityLoader(debouncedFilters, neighbors);
+    const aquifer = useAquiferLoader(debouncedFilters);
+    const recharge = useRechargeLoader(debouncedFilters);
+    const secondary = useSecondaryLoader(debouncedFilters);
 
     // Sync block data when district selection changes (matching original logic)
     useEffect(() => {

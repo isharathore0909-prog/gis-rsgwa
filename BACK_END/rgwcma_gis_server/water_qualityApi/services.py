@@ -23,22 +23,17 @@ class CorrelationService:
             metrics = ['ph', 'tds', 'ec', 'hardness', 'nitrate', 'fluoride']
         
         limit = int(request.query_params.get('limit', 1000))
+        include_points = request.query_params.get('include_points', 'true').lower() == 'true'
         
-        # 1. Fetch data for all metrics
+        # 1. Fetch data for all metrics using iterator for efficiency
         filtered_wq = queryset_filter_func(get_queryset_func())
-        
-        # We need to align data by well and date to get meaningful correlations
-        # For simplicity in this GIS context, we'll take the latest reading for each well
-        # that has at least some of these metrics.
-        
-        # Build initial queryset with filters
         query = filtered_wq.values('well_id', *[m for m in metrics if m not in ['water_level', 'rainfall']])
         
         # Prepare data structure for alignment
         well_data = {} # {well_id: {metric: value}}
         
-        # Fetch WQ metrics
-        for row in query:
+        # Use iterator to handle memory pressure if table grows
+        for row in query.iterator(chunk_size=2000):
             wid = str(row['well_id'])
             if wid not in well_data:
                 well_data[wid] = {}
@@ -48,15 +43,6 @@ class CorrelationService:
                     if val is not None:
                         well_data[wid][m] = val
 
-        # Handle physical metrics if requested (water_level, rainfall)
-        # For simplicity, if water_level is requested, we'll fetch the latest aquifer data 
-        # and join spatially or by well_id if possible. 
-        # In this project, wells in WQ and Wells in Aquifer might have different IDs but similar locations.
-        # However, many wells share IDs or the user assumes they are linked.
-        
-        # For this implementation, we'll focus on WQ metrics first as they are in the same table.
-        # If water_level is requested, we'd need a more complex spatial join similar to get_correlation_data.
-        
         # 2. Convert well_data to a list of aligned points
         aligned_points = []
         for wid, values in well_data.items():
@@ -64,7 +50,6 @@ class CorrelationService:
                 aligned_points.append(values)
         
         # 3. Calculate Correlation Matrix (Pearson)
-        # Using a simple manual calculation or numpy if available
         matrix = {}
         for m1 in metrics:
             matrix[m1] = {}
@@ -73,17 +58,16 @@ class CorrelationService:
                     matrix[m1][m2] = 1.0
                     continue
                 
-                # Get pairs of (m1, m2) where both exist
+                # Get pairs where both exist
                 pairs = [(p[m1], p[m2]) for p in aligned_points if m1 in p and m2 in p]
-                
-                if len(pairs) < 5: # Minimum points for correlation
+                if len(pairs) < 5:
                     matrix[m1][m2] = None
                     continue
                 
                 x = [p[0] for p in pairs]
                 y = [p[1] for p in pairs]
                 
-                # Pearson correlation coefficient
+                # Pearson 
                 n = len(pairs)
                 sum_x = sum(x)
                 sum_y = sum(y)
@@ -91,13 +75,11 @@ class CorrelationService:
                 sum_y2 = sum(i*i for i in y)
                 sum_xy = sum(i*j for i, j in pairs)
                 
-                numerator = (n * sum_xy) - (sum_x * sum_y)
                 denominator = math.sqrt(((n * sum_x2) - (sum_x**2)) * ((n * sum_y2) - (sum_y**2)))
-                
                 if denominator == 0:
                     matrix[m1][m2] = 0
                 else:
-                    matrix[m1][m2] = round(numerator / denominator, 3)
+                    matrix[m1][m2] = round(((n * sum_xy) - (sum_x * sum_y)) / denominator, 3)
 
         # 4. Generate Histogram data
         histograms = {}
@@ -110,7 +92,6 @@ class CorrelationService:
             min_v, max_v = min(vals), max(vals)
             bins_count = 10
             bin_size = (max_v - min_v) / bins_count if max_v > min_v else 1
-            
             bins = [0] * bins_count
             for v in vals:
                 idx = min(int((v - min_v) / bin_size), bins_count - 1) if bin_size > 0 else 0
@@ -118,16 +99,14 @@ class CorrelationService:
             
             histograms[m] = {
                 'bins': bins,
-                'min': round(min_v, 2),
-                'max': round(max_v, 2),
-                'bin_size': round(bin_size, 2)
+                'min': round(min_v, 2), 'max': round(max_v, 2), 'bin_size': round(bin_size, 2)
             }
 
         return {
             'metrics': metrics,
             'matrix': matrix,
             'histograms': histograms,
-            'data_points': aligned_points[:limit], # Sample for scatter plots
+            'data_points': aligned_points[:limit] if include_points else [],
             'count': len(aligned_points)
         }
 

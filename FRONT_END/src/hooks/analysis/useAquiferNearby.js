@@ -10,7 +10,9 @@ export const useAquiferNearby = ({
     const [nearbyLoading, setNearbyLoading] = useState(false);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         if (!clickedLocation || !isWellInventory || (neighbor && neighbor.type === 'well_inventory_well')) {
             setNearbyData(null);
             return;
@@ -23,17 +25,18 @@ export const useAquiferNearby = ({
                     latitude: clickedLocation.lat,
                     longitude: clickedLocation.lng,
                     radius_km: 10
-                });
-                if (!ignore) setNearbyData(response && response.averages ? response : null);
+                }, signal);
+                if (!signal.aborted) setNearbyData(response && response.averages ? response : null);
             } catch (err) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
                 console.error("Error fetching nearby aquifer data:", err);
             } finally {
-                if (!ignore) setNearbyLoading(false);
+                if (!signal.aborted) setNearbyLoading(false);
             }
         };
 
         fetchNearby();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [clickedLocation, isWellInventory, neighbor]);
 
     return {

@@ -8,15 +8,24 @@ const MetricDataTable = ({ data, analysisResults, title }) => {
     const itemsPerPage = 10;
     const items = data?.features || (Array.isArray(data) ? data : []);
 
+    // 1. Memoize Headers (detect once from the first available item)
+    const headers = useMemo(() => {
+        const firstItem = items[0]?.properties || items[0];
+        if (!firstItem) return [];
+        return Object.keys(firstItem).slice(0, 10); // Show up to 10 columns for dashboard view
+    }, [items]);
+
     // Reset to first page when data changes
     React.useEffect(() => {
         setCurrentPage(1);
     }, [items.length]);
 
-    const paginatedItems = items.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    const paginatedItems = useMemo(() => {
+        return items.slice(
+            (currentPage - 1) * itemsPerPage,
+            currentPage * itemsPerPage
+        );
+    }, [items, currentPage, itemsPerPage]);
 
     const handleExport = () => {
         const flatData = items.map(item => item.properties || item);
@@ -51,13 +60,10 @@ const MetricDataTable = ({ data, analysisResults, title }) => {
                 <table className="detail-table">
                     <thead>
                         <tr>
-                            <th>S.No</th>
-                            {/* Detect headers from first feature or first array item */}
-                            {(data?.features?.[0]?.properties || data?.[0]) &&
-                                Object.keys(data?.features?.[0]?.properties || data?.[0] || {}).slice(0, 7).map(header => (
-                                    <th key={header}>{header}</th>
-                                ))
-                            }
+                            <th style={{ width: '50px' }}>S.No</th>
+                            {headers.map(header => (
+                                <th key={header}>{header.replace(/_/g, ' ')}</th>
+                            ))}
                         </tr>
                     </thead>
                     <tbody>
@@ -65,18 +71,17 @@ const MetricDataTable = ({ data, analysisResults, title }) => {
                             paginatedItems.map((item, index) => {
                                 const globalIdx = (currentPage - 1) * itemsPerPage + index;
                                 const properties = item.properties || item;
-                                const headers = Object.keys(properties).slice(0, 7);
                                 return (
-                                    <tr key={item.id || globalIdx}>
-                                        <td>{globalIdx + 1}</td>
+                                    <tr key={item.id || item.ID || globalIdx}>
+                                        <td style={{ fontWeight: 600, color: '#64748b' }}>{globalIdx + 1}</td>
                                         {headers.map(header => (
-                                            <td key={`${index}-${header}`}>
-                                                {header === 'Category' ? (
-                                                    <span className={`badge ${properties[header]?.toLowerCase().replace(/\s+/g, '-')}`}>
+                                            <td key={`${globalIdx}-${header}`}>
+                                                {header.toLowerCase().includes('category') || header.toLowerCase().includes('status') ? (
+                                                    <span className={`badge ${String(properties[header] || 'unknown').toLowerCase().replace(/\s+/g, '-')}`}>
                                                         {properties[header]}
                                                     </span>
                                                 ) : (
-                                                    String(properties[header] || '---')
+                                                    String(properties[header] ?? '---')
                                                 )}
                                             </td>
                                         ))}

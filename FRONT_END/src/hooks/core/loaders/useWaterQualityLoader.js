@@ -6,11 +6,13 @@ export const useWaterQualityLoader = (filters, neighbors) => {
     const [waterQualityLoading, setWaterQualityLoading] = useState(false);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         const fetchWQ = async () => {
             setWaterQualityLoading(true);
             const timeoutId = setTimeout(() => {
-                if (!ignore) setWaterQualityLoading(false);
+                if (!signal.aborted) setWaterQualityLoading(false);
             }, 15000);
 
             try {
@@ -23,18 +25,18 @@ export const useWaterQualityLoader = (filters, neighbors) => {
                     gp_id: filters.gp_id,
                     grampanchayat: filters.gramPanchayat || neighbor?.grampanchayat || neighbor?.properties?.grampanchayat,
                     village_id: filters.village_id,
-                    village_name: filters.village || neighbor?.village || neighbor?.properties?.village
+                    village_name: filters.village || neighbor?.village || neighbor?.properties?.village,
+                    detailed: 'true'
                 };
 
-                params.detailed = 'true';
-
-                const response = await api.waterQuality.getRecords(params);
-                if (!ignore) {
+                const response = await api.waterQuality.getRecords(params, signal);
+                if (!signal.aborted) {
                     setWaterQualityRecords(response.results || response || []);
                     setWaterQualityLoading(false);
                 }
             } catch (err) {
-                if (!ignore) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     setWaterQualityRecords([]);
                     setWaterQualityLoading(false);
                 }
@@ -43,7 +45,7 @@ export const useWaterQualityLoader = (filters, neighbors) => {
             }
         };
         fetchWQ();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [filters?.type, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village, neighbors]);
 
     return { waterQualityRecords, setWaterQualityRecords, waterQualityLoading, setWaterQualityLoading };

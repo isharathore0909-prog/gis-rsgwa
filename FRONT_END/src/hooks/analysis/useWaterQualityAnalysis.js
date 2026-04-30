@@ -66,7 +66,8 @@ export const useWaterQualityAnalysis = ({
     }, [displayRegion, waterQualityStats]);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
 
         if (!isWaterQuality) {
             hasAttemptedFetch.current = false;
@@ -100,11 +101,11 @@ export const useWaterQualityAnalysis = ({
                 }
 
                 const [stats, availability] = await Promise.all([
-                    api.waterQuality.getStatistics(params),
-                    api.waterQuality.getAvailabilityStatistics(params).catch(() => null)
+                    api.waterQuality.getStatistics(params, signal),
+                    api.waterQuality.getAvailabilityStatistics(params, signal).catch(() => null)
                 ]);
 
-                if (!ignore) {
+                if (!signal.aborted) {
                     setWaterQualityStats(prev => {
                         if (JSON.stringify(prev) === JSON.stringify(stats)) return prev;
                         return stats;
@@ -115,13 +116,14 @@ export const useWaterQualityAnalysis = ({
                     });
                 }
             } catch (error) {
-                if (!ignore) {
+                if (error.name === 'AbortError' || error.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     console.error('Error fetching water quality data:', error);
                     // If backend returned connection error, retry after a delay
                     if (apiRetryCount < 3 && (!error.response || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error'))) {
                         const delay = 5000 * (apiRetryCount + 1);
                         setTimeout(() => {
-                            if (!ignore) setApiRetryCount(prev => prev + 1);
+                            if (!signal.aborted) setApiRetryCount(prev => prev + 1);
                         }, delay);
                     } else {
                         setWaterQualityError(error.message);
@@ -129,14 +131,14 @@ export const useWaterQualityAnalysis = ({
                     }
                 }
             } finally {
-                if (!ignore) {
+                if (!signal.aborted) {
                     setIsFetching(false);
                 }
             }
         };
 
         fetchWaterQuality();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [isWaterQuality, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, neighbor?.well_id, rajasthanId, apiRetryCount]);
 
     const blockWaterQualityData = useMemo(() => {

@@ -29,7 +29,9 @@ export const useAquiferApiStats = ({
     }, [activeMode, paramsChanged]);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         if (!activeMode) {
             hasAttemptedStatsFetch.current = false;
             setIsFetchingStats(false);
@@ -57,15 +59,15 @@ export const useAquiferApiStats = ({
                 else if (globalFilters?.village) params.village_name = globalFilters.village;
 
                 // 1. Fetch Main Statistics
-                const statsPromise = api.aquifer.getStatistics(params);
+                const statsPromise = api.aquifer.getStatistics(params, signal);
 
                 // 2. Fetch Yearly Trends and Detailed Records if needed
                 let extraPromises = [Promise.resolve(null), Promise.resolve([])];
                 if (isWellInventory || true) { // Force fetching for dashboard support
                     const yearlyParams = { ...params };
                     extraPromises = [
-                        api.aquifer.getYearlyStatistics(yearlyParams).catch(() => null),
-                        api.aquifer.getRecords({ ...params, detailed: 'true' }).catch(() => [])
+                        api.aquifer.getYearlyStatistics(yearlyParams, signal).catch(() => null),
+                        api.aquifer.getRecords({ ...params, detailed: 'true' }, signal).catch(() => [])
                     ];
                 }
 
@@ -74,7 +76,7 @@ export const useAquiferApiStats = ({
                     ...extraPromises
                 ]);
 
-                if (!ignore) {
+                if (!signal.aborted) {
                     setAquiferStats(stats);
                     if (isWellInventory || true) {
                         setYearlyTrends(trends);
@@ -82,19 +84,20 @@ export const useAquiferApiStats = ({
                     }
                 }
             } catch (error) {
-                if (!ignore) {
+                if (error.name === 'AbortError' || error.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     console.error('Error fetching aquifer data:', error);
                     if (apiRetryCount < 3 && (!error.response || error.code === 'ERR_NETWORK')) {
-                        setTimeout(() => { if (!ignore) setApiRetryCount(prev => prev + 1); }, 5000);
+                        setTimeout(() => { if (!signal.aborted) setApiRetryCount(prev => prev + 1); }, 5000);
                     }
                 }
             } finally {
-                if (!ignore) setIsFetchingStats(false);
+                if (!signal.aborted) setIsFetchingStats(false);
             }
         };
 
         fetchAquiferData();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [activeMode, isWellInventory, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, globalFilters?.year, rajasthanId, apiRetryCount, hasAttemptedStatsFetch]);
 
     return {

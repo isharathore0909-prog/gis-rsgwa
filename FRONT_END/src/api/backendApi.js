@@ -11,8 +11,9 @@ class BackendAPIClient {
             timeout: API_CONFIG.TIMEOUT,
         });
 
-        // Simple cache for GET requests
+        // Persistent Cache for GET requests
         this.cache = new Map();
+        this._loadCache();
 
         // Request Interceptor
         this.client.interceptors.request.use(
@@ -21,10 +22,6 @@ class BackendAPIClient {
                 if (token && !config.headers['X-Auth-Key']) {
                     config.headers['Authorization'] = `Bearer ${token}`;
                 }
-
-                // If this is a GET request and we have it in cache, we'll handle it in the response interceptor
-                // or by returning a special config but Axios doesn't support returning data from request interceptor easily.
-                // We'll use a helper method instead.
                 return config;
             },
             (error) => Promise.reject(error)
@@ -36,10 +33,12 @@ class BackendAPIClient {
                 // Cache successful GET requests
                 if (response.config.method === 'get') {
                     const cacheKey = response.config.url + JSON.stringify(response.config.params || {});
-                    this.cache.set(cacheKey, {
+                    const cacheEntry = {
                         data: response.data,
                         timestamp: Date.now()
-                    });
+                    };
+                    this.cache.set(cacheKey, cacheEntry);
+                    this._saveToPersistentCache(cacheKey, cacheEntry);
                 }
                 return response.data;
             },
@@ -228,7 +227,55 @@ class BackendAPIClient {
     }
 
     register(userData) { return this.client.post(BACKEND_API.ENDPOINTS.REGISTER, userData); }
-    logout() { this.clearTokens(); }
+    /**
+     * Cache persistence helpers
+     */
+    _loadCache() {
+        try {
+            const stored = sessionStorage.getItem('gis_api_cache');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                Object.entries(parsed).forEach(([key, val]) => {
+                    // Only load entries less than 30 minutes old
+                    if (Date.now() - val.timestamp < 1800000) {
+                        this.cache.set(key, val);
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('Failed to load API cache from sessionStorage', e);
+        }
+    }
+
+    _saveToPersistentCache(key, entry) {
+        try {
+            const stored = sessionStorage.getItem('gis_api_cache');
+            const cacheObj = stored ? JSON.parse(stored) : {};
+            cacheObj[key] = entry;
+
+            // Simple cleanup: if cache size grows too large, clear it
+            if (Object.keys(cacheObj).length > 100) {
+                const sortedKeys = Object.keys(cacheObj).sort((a, b) => cacheObj[a].timestamp - cacheObj[b].timestamp);
+                delete cacheObj[sortedKeys[0]];
+            }
+
+            sessionStorage.setItem('gis_api_cache', JSON.stringify(cacheObj));
+        } catch (e) {
+            // Probably QuotaExceededError or security restriction
+        }
+    }
+
+    _clearPersistentCache() {
+        try {
+            sessionStorage.removeItem('gis_api_cache');
+            this.cache.clear();
+        } catch (e) { }
+    }
+
+    logout() {
+        this.clearTokens();
+        this._clearPersistentCache();
+    }
 }
 
 export default new BackendAPIClient();

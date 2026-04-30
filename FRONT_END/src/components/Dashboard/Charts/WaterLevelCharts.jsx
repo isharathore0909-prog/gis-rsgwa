@@ -27,6 +27,9 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
     const physicalMetrics = ['water_level', 'rainfall'];
 
     useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         const fetchCorrelation = async () => {
             setIsLoading(true);
             try {
@@ -47,9 +50,9 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                     block: filters.block || filters.taluka || undefined,
                     gp: filters.gramPanchayat || undefined,
                     village: filters.village || undefined
-                });
+                }, signal);
 
-                if (res.results) {
+                if (!signal.aborted && res.results) {
                     // If axes were swapped for the API, flip them back so the
                     // chart always plots [xMetric, yParam] as [x, y].
                     const points = res.results.map(r =>
@@ -58,14 +61,20 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                     setCorrelationData(points);
                 }
             } catch (err) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
                 console.error("Failed to fetch correlation:", err);
-                setCorrelationData([]);
+                if (!signal.aborted) {
+                    setCorrelationData([]);
+                }
             } finally {
-                setIsLoading(false);
+                if (!signal.aborted) {
+                    setIsLoading(false);
+                }
             }
         };
 
         fetchCorrelation();
+        return () => controller.abort();
     }, [xMetric, yParam, filters]);
 
     // Regression Calculation

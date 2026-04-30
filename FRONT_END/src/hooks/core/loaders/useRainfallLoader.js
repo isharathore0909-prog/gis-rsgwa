@@ -16,7 +16,8 @@ export const useRainfallLoader = (filters) => {
     const lastFetchedDistrict = useRef(null);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
 
         const fetchStationRainfall = async () => {
             const shouldLoad = rainfallStations.length === 0;
@@ -26,7 +27,7 @@ export const useRainfallLoader = (filters) => {
                 const params = { limit: 10000 };
                 if (filters?.district) {
                     if (lastFetchedDistrict.current === filters.district) {
-                        if (!ignore && shouldLoad) setRainfallLoading(false);
+                        if (!signal.aborted && shouldLoad) setRainfallLoading(false);
                         return;
                     }
                     params.district = toTitleCase(filters.district);
@@ -34,30 +35,31 @@ export const useRainfallLoader = (filters) => {
                 }
 
                 const [stations, records] = await Promise.all([
-                    api.rainfall.getStations(params),
-                    api.rainfall.getStationRecords(params)
+                    api.rainfall.getStations(params, signal),
+                    api.rainfall.getStationRecords(params, signal)
                 ]);
-                if (!ignore) {
+                if (!signal.aborted) {
                     setRainfallStations(Array.isArray(stations) ? stations : []);
                     setRainfallStationRecords(Array.isArray(records?.results) ? records.results : (Array.isArray(records) ? records : []));
                 }
             } catch (err) {
-                if (!ignore) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     setRainfallStations([]);
                     setRainfallStationRecords([]);
                 }
             } finally {
-                if (!ignore && shouldLoad) setRainfallLoading(false);
+                if (!signal.aborted && shouldLoad) setRainfallLoading(false);
             }
         };
 
         const safetyTimeout = setTimeout(() => {
-            if (!ignore) setRainfallLoading(false);
+            if (!signal.aborted) setRainfallLoading(false);
         }, 15000);
 
         fetchStationRainfall();
         return () => {
-            ignore = true;
+            controller.abort();
             clearTimeout(safetyTimeout);
         };
     }, [filters?.type, filters?.district]);

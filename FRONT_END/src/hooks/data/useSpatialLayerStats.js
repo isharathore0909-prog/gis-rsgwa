@@ -11,7 +11,8 @@ export const useSpatialLayerStats = (isActive, layerType, filters = {}, includeF
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
 
         if (!isActive || !layerType) {
             setStats(null);
@@ -31,25 +32,26 @@ export const useSpatialLayerStats = (isActive, layerType, filters = {}, includeF
                 if (filters.village) params.village = filters.village;
 
                 const [statsData, featuresData] = await Promise.all([
-                    api.spatialLayer.getStatistics(params),
+                    api.spatialLayer.getStatistics(params, signal),
                     includeFeatures
-                        ? api.spatialLayer.getIntersect(params).catch(() => ({ type: 'FeatureCollection', features: [] }))
+                        ? api.spatialLayer.getIntersect(params, signal).catch(() => ({ type: 'FeatureCollection', features: [] }))
                         : Promise.resolve(null)
                 ]);
 
-                if (!ignore) {
+                if (!signal.aborted) {
                     setStats(statsData);
                     if (featuresData) {
                         setFeatures(featuresData.features || []);
                     }
                 }
             } catch (err) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
                 console.error(`[useSpatialLayerStats] Failed to fetch stats for ${layerType}:`, err);
-                if (!ignore) {
+                if (!signal.aborted) {
                     setError(err);
                 }
             } finally {
-                if (!ignore) {
+                if (!signal.aborted) {
                     setLoading(false);
                 }
             }
@@ -57,9 +59,7 @@ export const useSpatialLayerStats = (isActive, layerType, filters = {}, includeF
 
         fetchStats();
 
-        return () => {
-            ignore = true;
-        };
+        return () => controller.abort();
     }, [isActive, layerType, JSON.stringify(filters), includeFeatures]);
 
     return { stats, features, loading, error };

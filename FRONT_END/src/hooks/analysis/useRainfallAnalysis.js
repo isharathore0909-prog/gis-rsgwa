@@ -71,8 +71,8 @@ export const useRainfallAnalysis = ({
     }, [isRainfall, paramsChanged, currentParamsKey]);
 
     useEffect(() => {
-        let ignore = false;
-        let controller = new AbortController();
+        const controller = new AbortController();
+        const signal = controller.signal;
 
         if (!isRainfall) {
             setRainfallStatsData(null);
@@ -91,7 +91,7 @@ export const useRainfallAnalysis = ({
             if (hasAttemptedFetch.current) {
                 await new Promise(resolve => setTimeout(resolve, 300));
             }
-            if (ignore) return;
+            if (signal.aborted) return;
 
             hasAttemptedFetch.current = true;
             setIsFetching(true);
@@ -100,11 +100,11 @@ export const useRainfallAnalysis = ({
                 // The backend now handles the spatial selection of stations 
                 // based on the administrative parameters (district, block, gp)
                 const [stats, summary] = await Promise.all([
-                    api.rainfall.getStationStatistics(baseParams),
-                    api.rainfall.getStationSummary({ ...baseParams, timestep: globalFilters?.timestep || 'monthly' })
+                    api.rainfall.getStationStatistics(baseParams, signal),
+                    api.rainfall.getStationSummary({ ...baseParams, timestep: globalFilters?.timestep || 'monthly' }, signal)
                 ]);
 
-                if (!ignore) {
+                if (!signal.aborted) {
                     setRainfallStatsData(stats);
                     setRainfallSummaryData(summary || []);
                     // Extract station IDs from results if returned by backend
@@ -113,27 +113,25 @@ export const useRainfallAnalysis = ({
                     setRainfallError(null);
                 }
             } catch (err) {
-                if (!ignore) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     console.error('Rainfall fetch failed:', err);
                     if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK')) {
                         setTimeout(() => {
-                            if (!ignore) setApiRetryCount(prev => prev + 1);
+                            if (!signal.aborted) setApiRetryCount(prev => prev + 1);
                         }, 5000);
                     } else {
                         setRainfallError(err.message);
                     }
                 }
             } finally {
-                if (!ignore) setIsFetching(false);
+                if (!signal.aborted) setIsFetching(false);
             }
         };
 
         fetchRainfallStats();
 
-        return () => {
-            ignore = true;
-            controller.abort();
-        };
+        return () => controller.abort();
     }, [
         isRainfall, baseParams.district, baseParams.block, baseParams.block_id,
         baseParams.gram_panchayat, baseParams.gp_id,
@@ -144,6 +142,9 @@ export const useRainfallAnalysis = ({
 
     // Fetch sub-unit distribution data using optimized backend endpoint
     useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         if (!isRainfall || !rajasthanId || !rainfallStatsData) return;
 
         const fetchDistribution = async () => {
@@ -158,8 +159,8 @@ export const useRainfallAnalysis = ({
                     distParams.normal = rainfallStatsData.avg_station_total;
                 }
 
-                const data = await getDistMethod(distParams);
-                if (data) {
+                const data = await getDistMethod(distParams, signal);
+                if (!signal.aborted && data) {
                     setRainfallDistributionData(data.processed || []);
                     if (data.overall) {
                         // Backend returns percentage-based distribution
@@ -171,13 +172,15 @@ export const useRainfallAnalysis = ({
                     }
                 }
             } catch (err) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
                 console.error("Distribution fetch failed:", err);
             } finally {
-                setIsDistFetching(false);
+                if (!signal.aborted) setIsDistFetching(false);
             }
         };
 
         fetchDistribution();
+        return () => controller.abort();
     }, [isRainfall, rajasthanId, analysisLevel, baseParams.district, baseParams.block, rainfallStatsData]);
 
     return {

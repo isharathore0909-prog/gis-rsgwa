@@ -27,7 +27,9 @@ export const useAquiferSpatialStats = ({
     }, [activeMode, paramsChanged]);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         if (!activeMode || !rajasthanId) {
             if (!activeMode) {
                 setAquiferSpatialStats(null);
@@ -63,14 +65,14 @@ export const useAquiferSpatialStats = ({
 
                 // Call the optimized backend statistics endpoint
                 const [stats, features] = await Promise.all([
-                    api.spatialLayer.getStatistics(params),
+                    api.spatialLayer.getStatistics(params, signal),
                     // If we have a specific region, also fetch the polygons for map display
                     (params.district || params.block)
-                        ? api.spatialLayer.getIntersect(params).catch(() => ({ type: 'FeatureCollection', features: [] }))
+                        ? api.spatialLayer.getIntersect(params, signal).catch(() => ({ type: 'FeatureCollection', features: [] }))
                         : Promise.resolve(null)
                 ]);
 
-                if (!ignore) {
+                if (!signal.aborted) {
                     if (stats) {
                         setAquiferSpatialStats(stats);
                     }
@@ -79,14 +81,15 @@ export const useAquiferSpatialStats = ({
                     }
                 }
             } catch (err) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
                 console.error('[AquiferStats] Backend computation failed:', err);
             } finally {
-                if (!ignore) setIsFetchingSpatial(false);
+                if (!signal.aborted) setIsFetchingSpatial(false);
             }
         };
 
         fetchSpatialStats();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, hasAttemptedSpatialFetch, analysisLevel, rajasthanId]);
 
     return {

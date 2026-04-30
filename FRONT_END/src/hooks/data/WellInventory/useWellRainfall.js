@@ -6,7 +6,9 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
     const [rainfallLoading, setRainfallLoading] = useState(false);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         const fetchRainfall = async () => {
             setRainfallLoading(true);
             try {
@@ -35,11 +37,12 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
                 let response = [];
                 try {
                     // Attempt 1: Specific Village/Block/District fetch
-                    response = await api.rainfall.getStationSummary(params);
+                    response = await api.rainfall.getStationSummary(params, signal);
 
                     // Fallback Attempt: If no data for specific village/station context, 
                     // try a broader Block/District fetch to get regional average.
                     if (selectedWell && (!response || !Array.isArray(response) || response.length === 0)) {
+                        if (signal.aborted) return;
                         const fallbackParams = {
                             timestep: params.timestep,
                             start_date: params.start_date,
@@ -47,21 +50,23 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
                             block: params.block,
                             district: params.district
                         };
-                        response = await api.rainfall.getStationSummary(fallbackParams);
+                        response = await api.rainfall.getStationSummary(fallbackParams, signal);
                     }
 
                     // Secondary fallback to standard rainfall records if stations are empty
                     if (!response || !Array.isArray(response) || response.length === 0) {
+                        if (signal.aborted) return;
                         const genParams = { ...params };
                         if (globalFilters?.gramPanchayat) genParams.gram_panchayat = globalFilters.gramPanchayat;
-                        response = await api.rainfall.getSummary(genParams);
+                        response = await api.rainfall.getSummary(genParams, signal);
                     }
                 } catch (err) {
+                    if (err.name === 'AbortError' || err.name === 'CanceledError') return;
                     console.error("Rainfall fetch failed", err);
                     response = [];
                 }
 
-                if (!ignore && Array.isArray(response)) {
+                if (!signal.aborted && Array.isArray(response)) {
                     const rainMap = {};
                     response.forEach(r => {
                         let yrVal = r.year || r.name || r.date;
@@ -80,18 +85,19 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
                         }
                     });
                     setRainfallData(rainMap);
-                } else if (!ignore) {
+                } else if (!signal.aborted) {
                     setRainfallData({});
                 }
             } catch (err) {
-                if (!ignore) console.error("Error fetching rainfall for well inventory:", err);
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (!signal.aborted) console.error("Error fetching rainfall for well inventory:", err);
             } finally {
-                if (!ignore) setRainfallLoading(false);
+                if (!signal.aborted) setRainfallLoading(false);
             }
         };
 
         fetchRainfall();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [selectedWell, displayRegion, displayBlock, globalFilters, rainfallStations]);
 
     return { rainfallData, rainfallLoading };

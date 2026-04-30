@@ -11,11 +11,12 @@ export const useSecondaryLoader = (filters) => {
 
     // Initial fetch for micro-data and block boundaries
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
 
         const fetchCached = async (url) => {
             if (window._staticCache && window._staticCache[url]) return window._staticCache[url];
-            const res = await fetch(url);
+            const res = await fetch(url, { signal });
             if (!res.ok) throw new Error(`Status ${res.status}`);
             const data = await res.json();
             if (!window._staticCache) window._staticCache = {};
@@ -24,36 +25,51 @@ export const useSecondaryLoader = (filters) => {
         };
 
         fetchCached('/block_boundary_updated.json').then(data => {
-            if (!ignore) {
+            if (!signal.aborted) {
                 const reprojected = data._reprojected || reprojectGeoJSON(data);
                 originalStaticBlockDataRef.current = reprojected || data;
                 setProcessedBlockData(reprojected || data);
             }
-        }).catch(err => console.warn("Failed to load initial block boundaries:", err));
+        }).catch(err => {
+            if (err.name === 'AbortError') return;
+            console.warn("Failed to load initial block boundaries:", err);
+        });
 
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, []);
 
     useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         if (filters?.type === 'Water Resources') {
             const fetches = [];
             if (!microData) {
                 fetches.push(
-                    fetch('/micro.json')
+                    fetch('/micro.json', { signal })
                         .then(res => res.json())
-                        .then(data => setMicroData(data || { features: [] }))
-                        .catch(() => setMicroData({ features: [] }))
+                        .then(data => {
+                            if (!signal.aborted) setMicroData(data || { features: [] });
+                        })
+                        .catch(err => {
+                            if (err.name === 'AbortError') return;
+                            setMicroData({ features: [] });
+                        })
                 );
             }
             if (fetches.length > 0) {
                 setWaterResourcesLoading(true);
-                Promise.all(fetches).finally(() => setWaterResourcesLoading(false));
+                Promise.all(fetches).finally(() => {
+                    if (!signal.aborted) setWaterResourcesLoading(false);
+                });
             } else {
                 setWaterResourcesLoading(false);
             }
         } else {
             setWaterResourcesLoading(false);
         }
+
+        return () => controller.abort();
     }, [filters?.type, microData]);
 
     return {

@@ -36,25 +36,49 @@ const DetailedAnalysisView = ({ metricId, filters, metricColor }) => {
     useEffect(() => {
         if (selectedMetrics.length < 2) return;
 
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         const fetchMatrix = async () => {
             setIsLoading(true);
             try {
-                const res = await api.waterQuality.getCorrelationMatrix({
+                // Phase 1: Matrix & Histograms (Fast)
+                const matrixRes = await api.waterQuality.getCorrelationMatrix({
                     'metrics[]': selectedMetrics,
                     district: filters.district || undefined,
                     block: filters.block || undefined,
+                    include_points: 'false'
+                }, signal);
+                setMatrixData(matrixRes);
+
+                // Phase 2: Full Data with Scatter Points (Background)
+                const fullRes = await api.waterQuality.getCorrelationMatrix({
+                    'metrics[]': selectedMetrics,
+                    district: filters.district || undefined,
+                    block: filters.block || undefined,
+                    include_points: 'true',
                     limit: 500
-                });
-                setMatrixData(res);
+                }, signal);
+
+                // Update with points
+                setMatrixData(fullRes);
             } catch (err) {
+                if (err.name === 'AbortError' || err.message === 'canceled') {
+                    return;
+                }
                 console.error("Failed to fetch matrix data:", err);
             } finally {
-                setIsLoading(false);
+                if (!signal.aborted) {
+                    setIsLoading(false);
+                }
             }
         };
 
         const timer = setTimeout(fetchMatrix, 500);
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
     }, [selectedMetrics, filters]);
 
     const toggleMetric = (m) => {
@@ -83,8 +107,8 @@ const DetailedAnalysisView = ({ metricId, filters, metricColor }) => {
                 if (seen.has(pairKey)) return;
                 seen.add(pairKey);
 
-                const r = matrixData.matrix[m1][m2];
-                if (r !== null && Math.abs(r) >= 0.5) {
+                const r = matrixData.matrix[m1] ? matrixData.matrix[m1][m2] : null;
+                if (r !== undefined && r !== null && Math.abs(r) >= 0.5) {
                     const strength = Math.abs(r) >= 0.8 ? 'strong' : 'moderate';
                     const direction = r > 0 ? 'positive' : 'negative';
                     results.push({

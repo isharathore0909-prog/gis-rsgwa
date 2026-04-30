@@ -6,11 +6,13 @@ export const useRechargeLoader = (filters) => {
     const [rechargeLoading, setRechargeLoading] = useState(false);
 
     useEffect(() => {
-        let ignore = false;
+        const controller = new AbortController();
+        const signal = controller.signal;
+
         const fetchRecharge = async () => {
             setRechargeLoading(true);
             const timeoutId = setTimeout(() => {
-                if (!ignore) setRechargeLoading(false);
+                if (!signal.aborted) setRechargeLoading(false);
             }, 15000);
 
             try {
@@ -25,13 +27,14 @@ export const useRechargeLoader = (filters) => {
                     village_name: filters.village,
                     detailed: 'true'
                 };
-                const data = await api.rechargeStructure.getRecords(params);
-                if (!ignore) {
+                const data = await api.rechargeStructure.getRecords(params, signal);
+                if (!signal.aborted) {
                     setRechargeRecords(data.results || data || []);
                     setRechargeLoading(false);
                 }
             } catch (err) {
-                if (!ignore) {
+                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (!signal.aborted) {
                     setRechargeRecords([]);
                     setRechargeLoading(false);
                 }
@@ -40,7 +43,7 @@ export const useRechargeLoader = (filters) => {
             }
         };
         fetchRecharge();
-        return () => { ignore = true; };
+        return () => controller.abort();
     }, [filters?.type, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
 
     return { rechargeRecords, setRechargeRecords, rechargeLoading, setRechargeLoading };
