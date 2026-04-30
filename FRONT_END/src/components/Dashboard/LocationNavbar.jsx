@@ -1,10 +1,10 @@
-import { Map, Home, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Map, Home, ChevronRight, ArrowLeft, BarChart2 } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { useLocations } from '../../hooks/ui/useLocations';
 import { toTitleCase } from '../../utils/namingUtils';
 import './LocationNavbar.css';
 
-const LocationNavbar = ({ metricId }) => {
+const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetailedAnalysisBtn }) => {
     const { filters, updateFilters, setViewMode, viewMode, setFilters } = useAppContext();
     const {
         availableDistricts,
@@ -280,7 +280,34 @@ const LocationNavbar = ({ metricId }) => {
                     </button>
                 )}
 
+                {showDetailedAnalysisBtn && (
+                    <button
+                        className={`detailed-analysis-btn ${isDetailedView ? 'active' : ''}`}
+                        onClick={() => setIsDetailedView(!isDetailedView)}
+                        title={isDetailedView ? "Back to Charts" : "Switch to Detailed Analysis"}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 16px',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            background: isDetailedView ? 'var(--metric-color, #2563eb)' : 'white',
+                            color: isDetailedView ? 'white' : '#64748b',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}
+                    >
+                        <BarChart2 size={18} />
+                        <span>Detailed Analysis</span>
+                    </button>
+                )}
+
                 {viewMode !== 'gis' && (
+
                     <button
                         className="gis-view-btn"
                         onClick={handleMapViewClick}

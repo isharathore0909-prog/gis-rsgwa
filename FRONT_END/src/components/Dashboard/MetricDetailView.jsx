@@ -7,12 +7,22 @@ import GWRECharts from './Charts/GWRECharts';
 import WaterQualityCharts from './Charts/WaterQualityCharts';
 import WaterLevelCharts from './Charts/WaterLevelCharts';
 import MetricDataTable from './MetricDataTable';
+import DetailedAnalysisView from './DetailedAnalysisView';
 import './MetricDetailView.css';
+
 
 const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecords = [], rechargeLoading = false, districtWaterLevelStats = [], filters = {} }) => {
     if (!metric) return null;
 
+    const [isDetailedView, setIsDetailedView] = React.useState(false);
     const isWaterLevelView = metric.id === 'water_level';
+    const isWaterQualityView = metric.id === 'water_quality';
+
+    // Reset detailed view when metric changes
+    React.useEffect(() => {
+        setIsDetailedView(false);
+    }, [metric.id]);
+
 
     // 1. District-wise Water Level Averages for Chart 2
     const districtWaterLevelData = React.useMemo(() => {
@@ -129,7 +139,13 @@ const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecor
             </div>
 
             <div className="detail-content">
-                <LocationNavbar metricId={metric.id} />
+                <LocationNavbar
+                    metricId={metric.id}
+                    isDetailedView={isDetailedView}
+                    setIsDetailedView={setIsDetailedView}
+                    showDetailedAnalysisBtn={isWaterLevelView || isWaterQualityView}
+                />
+
 
                 {metric.id === 'water_resources' ? (
                     <WaterResourcesTables
@@ -148,9 +164,17 @@ const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecor
                     />
                 ) : (
                     <>
-                        <div className="charts-grid">
-                            {renderMetricCharts()}
-                        </div>
+                        {isDetailedView ? (
+                            <DetailedAnalysisView
+                                metricId={metric.id}
+                                filters={filters}
+                                metricColor={metric.color}
+                            />
+                        ) : (
+                            <div className="charts-grid">
+                                {renderMetricCharts()}
+                            </div>
+                        )}
                         <MetricDataTable
                             data={data}
                             analysisResults={analysisResults}
@@ -158,8 +182,9 @@ const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecor
                         />
                     </>
                 )}
+
             </div>
-        </div>
+        </div >
     );
 };
 

@@ -123,6 +123,15 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
         cache.set(cache_key, res, 3600)
         return Response(res)
 
+    @action(detail=False, methods=['get'], url_path='correlation-matrix')
+    def correlation_matrix(self, request):
+        result = CorrelationService.get_correlation_matrix_data(
+            request, 
+            self.filter_queryset, 
+            self.get_queryset
+        )
+        return Response(result)
+
     @action(detail=False, methods=['get'])
     def correlation(self, request):
         result = CorrelationService.get_correlation_data(

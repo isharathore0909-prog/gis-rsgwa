@@ -12,6 +12,7 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
     const [xMetric, setXMetric] = useState('water_level');
     const [correlationData, setCorrelationData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [showTrendLine, setShowTrendLine] = useState(true);
 
     // Hydrograph Selection State
     const [hydrographType, setHydrographType] = useState('average');
@@ -66,6 +67,44 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
 
         fetchCorrelation();
     }, [xMetric, yParam, filters]);
+
+    // Regression Calculation
+    const trendLine = React.useMemo(() => {
+        if (!correlationData || correlationData.length < 2) return null;
+
+        const points = correlationData.filter(p => p[0] !== null && p[1] !== null);
+        const n = points.length;
+        if (n < 2) return null;
+
+        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+        for (const [x, y] of points) {
+            sumX += x;
+            sumY += y;
+            sumXY += x * y;
+            sumX2 += x * x;
+            sumY2 += y * y;
+        }
+
+        const denominator = (n * sumX2 - sumX * sumX);
+        if (denominator === 0) return null;
+
+        const slope = (n * sumXY - sumX * sumY) / denominator;
+        const intercept = (sumY - slope * sumX) / n;
+
+        const rNum = (n * sumXY - sumX * sumY);
+        const rDen = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+        const rSquared = rDen === 0 ? 0 : Math.pow(rNum / rDen, 2);
+
+        const xValues = points.map(p => p[0]);
+        const minX = Math.min(...xValues);
+        const maxX = Math.max(...xValues);
+
+        return {
+            points: [[minX, slope * minX + intercept], [maxX, slope * maxX + intercept]],
+            rSquared: rSquared.toFixed(3),
+            slope: slope.toFixed(4)
+        };
+    }, [correlationData]);
 
     const allParamLabels = {
         // Water Quality Parameters
@@ -220,27 +259,85 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
             {/* Middle Section: Correlation Analysis */}
             <div className="chart-item full-width">
                 <div className="chart-header-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3>Parameter Correlation Analysis</h3>
-                    <div className="selectors" style={{ display: 'flex', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '15px' }}>Parameter Correlation Analysis</h3>
+                    <div className="selectors" style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', alignItems: 'center' }}>
                         <select
                             value={yParam}
                             onChange={(e) => setYParam(e.target.value)}
-                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: 'white',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: '#1e293b',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
                         >
                             {Object.entries(allParamLabels).map(([val, label]) => (
                                 <option key={val} value={val}>{label}</option>
                             ))}
                         </select>
-                        <span style={{ display: 'flex', alignItems: 'center', color: '#64748b' }}>vs</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: '0 4px', textTransform: 'uppercase' }}>vs</span>
                         <select
                             value={xMetric}
                             onChange={(e) => setXMetric(e.target.value)}
-                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: 'white',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: '#1e293b',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
                         >
                             {Object.entries(allParamLabels).map(([val, label]) => (
                                 <option key={val} value={val}>{label}</option>
                             ))}
                         </select>
+
+                        <div style={{ padding: '0 2px', width: '1px', background: '#cbd5e1', height: '20px', margin: '0 4px' }}></div>
+
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            background: showTrendLine ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                            transition: 'all 0.2s',
+                            cursor: 'pointer'
+                        }}
+                            onClick={() => setShowTrendLine(!showTrendLine)}
+                        >
+                            <input
+                                type="checkbox"
+                                id="trendline-toggle"
+                                checked={showTrendLine}
+                                onChange={(e) => { e.stopPropagation(); setShowTrendLine(e.target.checked); }}
+                                style={{ cursor: 'pointer', accentColor: '#ef4444' }}
+                            />
+                            <label
+                                htmlFor="trendline-toggle"
+                                style={{
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: showTrendLine ? '#ef4444' : '#64748b',
+                                    cursor: 'pointer',
+                                    userSelect: 'none'
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                Trend Line
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -276,11 +373,31 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                                             }
                                         }
                                     },
-                                    series: [{
-                                        name: 'Matched Stations',
-                                        color: metricColor || '#3b82f6',
-                                        data: correlationData
-                                    }],
+                                    series: [
+                                        {
+                                            name: 'Matched Stations',
+                                            type: 'scatter',
+                                            color: metricColor || '#3b82f6',
+                                            data: correlationData,
+                                            marker: { radius: 4 },
+                                            zIndex: 1
+                                        },
+                                        ...(showTrendLine && trendLine ? [{
+                                            name: `Trend Line (R²: ${trendLine.rSquared})`,
+                                            type: 'line',
+                                            data: trendLine.points,
+                                            color: '#ef4444',
+                                            dashStyle: 'Dash',
+                                            lineWidth: 2,
+                                            marker: { enabled: false },
+                                            states: { hover: { lineWidth: 3 } },
+                                            enableMouseTracking: true,
+                                            tooltip: {
+                                                pointFormat: `Correlation Trend Line<br/>R²: ${trendLine.rSquared}`
+                                            },
+                                            zIndex: 2
+                                        }] : [])
+                                    ],
                                     credits: { enabled: false }
                                 }}
                             />

@@ -201,6 +201,8 @@ class BackendAPIClient {
     getWaterQualityRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY, params, signal); }
     getWaterQualityStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params, signal); }
     getWaterQualityCorrelation(params = {}, signal = null) { return this.getWithApiKey('water-quality/correlation/', params, signal); }
+    getWaterQualityCorrelationMatrix(params = {}, signal = null) { return this.getWithApiKey('water-quality/correlation-matrix/', params, signal); }
+
     getWaterQualityAvailabilityStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY_STATISTICS, params, signal); }
 
     getAquiferRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER, params, signal); }

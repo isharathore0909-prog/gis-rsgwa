@@ -62,6 +62,8 @@ export default {
         getRecords: (params) => backendApi.getWaterQualityRecords(params),
         getStatistics: (params) => backendApi.getWaterQualityStatistics(params),
         getCorrelation: (params) => backendApi.getWaterQualityCorrelation(params),
+        getCorrelationMatrix: (params) => backendApi.getWaterQualityCorrelationMatrix(params),
+
         getAvailabilityRecords: (params) => backendApi.getWaterQualityAvailabilityRecords(params),
         getAvailabilityStatistics: (params) => backendApi.getWaterQualityAvailabilityStatistics(params),
     },
