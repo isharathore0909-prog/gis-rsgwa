@@ -3,37 +3,68 @@ import * as Icons from 'lucide-react';
 import Pagination from '../Common/Pagination';
 import { downloadCSV, downloadPDF } from '../../utils/exportUtils';
 
-const MetricDataTable = ({ data, analysisResults, title }) => {
+import Spinner from '../Common/ChartSpinner';
+
+const MetricDataTable = ({ data, analysisResults, title, fetchData }) => {
     const [currentPage, setCurrentPage] = useState(1);
+    const [serverData, setServerData] = useState({ items: [], count: 0, loading: false });
     const itemsPerPage = 10;
-    const items = data?.features || (Array.isArray(data) ? data : []);
 
-    // 1. Memoize Headers (detect once from the first available item)
+    // Fallback client-side items
+    const clientItems = data?.features || (Array.isArray(data) ? data : []);
+
+    // 1. Memoize Headers
     const headers = useMemo(() => {
-        const firstItem = items[0]?.properties || items[0];
+        const firstItem = serverData.items[0] || clientItems[0]?.properties || clientItems[0];
         if (!firstItem) return [];
-        return Object.keys(firstItem).slice(0, 10); // Show up to 10 columns for dashboard view
-    }, [items]);
+        return Object.keys(firstItem.properties || firstItem).slice(0, 10);
+    }, [serverData.items, clientItems]);
 
-    // Reset to first page when data changes
+    // Fetch data when page changes OR filters (fetchData) change
     React.useEffect(() => {
-        setCurrentPage(1);
-    }, [items.length]);
+        let isMounted = true;
+        if (fetchData) {
+            setServerData(prev => ({ ...prev, loading: true }));
+            fetchData(currentPage, itemsPerPage).then(res => {
+                if (isMounted) {
+                    if (res) {
+                        setServerData({ items: res.items, count: res.count, loading: false });
+                    } else {
+                        setServerData(prev => ({ ...prev, loading: false }));
+                    }
+                }
+            }).catch(() => {
+                if (isMounted) setServerData(prev => ({ ...prev, loading: false }));
+            });
+        }
+        return () => { isMounted = false; };
+    }, [currentPage, fetchData, itemsPerPage]);
+
+    // Reset to first page when client data source changes (if pure client side)
+    React.useEffect(() => {
+        if (!fetchData) setCurrentPage(1);
+    }, [clientItems.length, fetchData]);
 
     const paginatedItems = useMemo(() => {
-        return items.slice(
+        if (fetchData) return serverData.items;
+        return clientItems.slice(
             (currentPage - 1) * itemsPerPage,
             currentPage * itemsPerPage
         );
-    }, [items, currentPage, itemsPerPage]);
+    }, [clientItems, serverData.items, currentPage, itemsPerPage, fetchData]);
+
+    const totalCount = fetchData ? serverData.count : clientItems.length;
 
     const handleExport = () => {
-        const flatData = items.map(item => item.properties || item);
+        // Fallback to clientItems if server export isn't implemented here
+        const sourceData = fetchData && serverData.count <= 1000 ? serverData.items : clientItems;
+        const flatData = sourceData.map(item => item.properties || item);
         downloadCSV(flatData, 'Dashboard_Data_Export');
     };
 
     const handlePrint = () => {
-        const flatData = items.map(item => item.properties || item);
+        const sourceData = fetchData && serverData.count <= 1000 ? serverData.items : clientItems;
+        const flatData = sourceData.map(item => item.properties || item);
         downloadPDF(flatData, `${title}_Data_PDF`, `${title} - Data Inventory`);
     };
 
@@ -67,7 +98,14 @@ const MetricDataTable = ({ data, analysisResults, title }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {paginatedItems.length > 0 ? (
+                        {serverData.loading ? (
+                            <tr>
+                                <td colSpan="10" style={{ textAlign: 'center', padding: '40px' }}>
+                                    <Spinner size={32} color="#3b82f6" />
+                                    <div style={{ marginTop: '10px' }}>Loading {title} Data...</div>
+                                </td>
+                            </tr>
+                        ) : paginatedItems.length > 0 ? (
                             paginatedItems.map((item, index) => {
                                 const globalIdx = (currentPage - 1) * itemsPerPage + index;
                                 const properties = item.properties || item;
@@ -100,7 +138,7 @@ const MetricDataTable = ({ data, analysisResults, title }) => {
             </div>
             <Pagination
                 currentPage={currentPage}
-                totalItems={items.length}
+                totalItems={totalCount}
                 itemsPerPage={itemsPerPage}
                 onPageChange={setCurrentPage}
             />

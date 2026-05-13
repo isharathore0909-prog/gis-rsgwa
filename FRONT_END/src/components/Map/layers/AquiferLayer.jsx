@@ -1,5 +1,6 @@
 import React from 'react';
 import { WMSTileLayer } from 'react-leaflet';
+import { GEOSERVER_CONFIG } from '../../../api/config';
 
 export const AquiferVectorLayer = ({
     isActive,
@@ -37,7 +38,7 @@ export const AquiferVectorLayer = ({
     return (
         <WMSTileLayer
             key={`aquifer-wms-${viewParams}`}
-            url="http://localhost:8080/geoserver/rgwcma/wms"
+            url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
             layers="rgwcma:aquifers_layer"
             format="image/png"
             transparent={true}

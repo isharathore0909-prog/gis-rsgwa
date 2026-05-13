@@ -106,6 +106,7 @@ export const useLegendData = (
             if (filters?.showWaterbodies) items.push(WATER_RESOURCES_SUB_LAYERS.waterbodies);
             if (filters?.showMicro) items.push(WATER_RESOURCES_SUB_LAYERS.micro);
             if (filters?.showDams) items.push(WATER_RESOURCES_SUB_LAYERS.dams);
+            if (filters?.showRecharge) items.push(WATER_RESOURCES_SUB_LAYERS.recharge);
             return items;
         }
         else {
@@ -178,7 +179,7 @@ export const useLegendData = (
     }, [
         filters?.type,
         filters?.showEC, filters?.showNitrate, filters?.showFluoride, filters?.showTDS, filters?.showPH,
-        filters?.showCanals, filters?.showWaterbodies, filters?.showMicro, filters?.showDams,
+        filters?.showCanals, filters?.showWaterbodies, filters?.showMicro, filters?.showDams, filters?.showRecharge,
 
         legendFeature, numClasses, blockBoundaryData, gwreData, mapRainfallPoints, waterQualityRecords,
         aquiferRecords, districtRainfall

@@ -84,7 +84,8 @@ export const WATER_RESOURCES_SUB_LAYERS = {
     canals: { label: 'Canals', color: '#00bcd4', isCategorical: true },
     waterbodies: { label: 'Waterbodies', color: '#3b82f6', isCategorical: true },
     micro: { label: 'Micro Watershed', color: '#8b5cf6', isCategorical: true },
-    dams: { label: 'Dams', color: '#0ea5e9', isCategorical: true }
+    dams: { label: 'Dams', color: '#0ea5e9', isCategorical: true },
+    recharge: { label: 'Recharge Structures', color: '#22c55e', isCategorical: true }
 };
 
 export const LEGEND_FEATURE_OPTIONS = {

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../../api';
 
 export const useAquiferLoader = (filters) => {
     const [aquiferRecords, setAquiferRecords] = useState([]);
     const [aquiferLoading, setAquiferLoading] = useState(false);
     const [districtWaterLevelStats, setDistrictWaterLevelStats] = useState([]);
+    const lastParamsRef = useRef('');
 
     useEffect(() => {
         const controller = new AbortController();
@@ -17,31 +18,37 @@ export const useAquiferLoader = (filters) => {
                 return;
             }
 
+            const params = {
+                district_id: filters.district_id,
+                district: filters.district,
+                block_id: filters.block_id,
+                block: filters.block,
+                gp_id: filters.gp_id,
+                grampanchayat: filters.gramPanchayat,
+                village_id: filters.village_id,
+                village_name: filters.village,
+                detailed: filters.district ? 'true' : 'false',
+                map_markers: !filters.district ? 'true' : undefined
+            };
+
+            // Skip if parameters haven't changed
+            const paramsKey = JSON.stringify(params);
+            if (paramsKey === lastParamsRef.current) return;
+            lastParamsRef.current = paramsKey;
+
             setAquiferLoading(true);
             const timeoutId = setTimeout(() => {
                 if (!signal.aborted) setAquiferLoading(false);
             }, 15000);
 
             try {
-                const params = {
-                    district_id: filters.district_id,
-                    district: filters.district,
-                    block_id: filters.block_id,
-                    block: filters.block,
-                    gp_id: filters.gp_id,
-                    grampanchayat: filters.gramPanchayat,
-                    village_id: filters.village_id,
-                    village_name: filters.village,
-                    detailed: filters.district ? 'true' : 'false',
-                    map_markers: !filters.district ? 'true' : undefined
-                };
                 const data = await api.aquifer.getRecords(params, signal);
                 if (!signal.aborted) {
                     setAquiferRecords(data.results || data || []);
                     setAquiferLoading(false);
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 if (!signal.aborted) {
                     setAquiferRecords([]);
                     setAquiferLoading(false);
@@ -52,7 +59,12 @@ export const useAquiferLoader = (filters) => {
         };
         fetchAquifer();
         return () => controller.abort();
-    }, [filters?.type, filters?.district, filters?.block, filters?.gramPanchayat, filters?.village]);
+    }, [
+        filters?.type, filters?.district, filters?.district_id,
+        filters?.block, filters?.block_id,
+        filters?.gramPanchayat, filters?.gp_id,
+        filters?.village, filters?.village_id
+    ]);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -71,7 +83,7 @@ export const useAquiferLoader = (filters) => {
                     })));
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 console.error("Failed to fetch district water level stats:", err);
             }
         };

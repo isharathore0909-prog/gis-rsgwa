@@ -1,16 +1,85 @@
-import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import React, { useMemo } from 'react';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 import SmartChartContainer from '../Common/SmartChartContainer';
 
+/**
+ * MonsoonComparisonChart - Standardized on Highcharts
+ * Compares water quality parameters between pre-monsoon and post-monsoon periods.
+ */
 const MonsoonComparisonChart = ({ summary, isOverview = false }) => {
     if (!summary || (summary.total_records === 0 && !isOverview)) return null;
 
-    const data = [
-        { name: 'pH', pre: summary.avg_pre_ph, post: summary.avg_post_ph },
-        { name: isOverview ? 'TDS (mg/l)' : 'TDS/10', pre: summary.avg_pre_tds / 10, post: summary.avg_post_tds / 10 },
-        { name: 'Hardness', pre: summary.avg_pre_hardness, post: summary.avg_post_hardness },
-        { name: 'Alkalinity', pre: summary.avg_pre_alkalinity, post: summary.avg_post_alkalinity },
-    ];
+    const options = useMemo(() => {
+        const dataRows = [
+            { name: 'pH', pre: summary.avg_pre_ph, post: summary.avg_post_ph },
+            { name: isOverview ? 'TDS (mg/l)' : 'TDS/10', pre: summary.avg_pre_tds / 10, post: summary.avg_post_tds / 10 },
+            { name: 'Hardness', pre: summary.avg_pre_hardness, post: summary.avg_post_hardness },
+            { name: 'Alkalinity', pre: summary.avg_pre_alkalinity, post: summary.avg_post_alkalinity },
+        ];
+
+        return {
+            chart: {
+                type: 'column',
+                backgroundColor: 'transparent',
+                height: isOverview ? 300 : 250,
+                style: { fontFamily: 'inherit' }
+            },
+            title: { text: null },
+            xAxis: {
+                categories: dataRows.map(d => d.name),
+                labels: { style: { fontSize: isOverview ? '11px' : '10px', color: '#64748b' } },
+                lineWidth: 1,
+                lineColor: '#e2e8f0',
+                tickWidth: 0
+            },
+            yAxis: {
+                title: { text: null },
+                labels: { style: { fontSize: isOverview ? '11px' : '10px', color: '#64748b' } },
+                gridLineColor: '#f1f5f9'
+            },
+            tooltip: {
+                shared: true,
+                useHTML: true,
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                borderWidth: 0,
+                shadow: true,
+                borderRadius: 8,
+                formatter: function () {
+                    const isTds = this.x.includes('TDS');
+                    const label = isTds && !isOverview ? 'TDS' : this.x;
+
+                    let rows = ``;
+                    this.points.forEach(p => {
+                        const val = isTds ? (p.y * 10) : p.y;
+                        rows += `<p style="margin: 2px 0; color: ${p.color}; font-size: 11px;">
+                            <strong>${p.series.name}:</strong> ${val.toFixed(1)}
+                        </p>`;
+                    });
+
+                    return `<div style="padding: 8px;">
+                        <p style="margin:0 0 5px 0; font-weight:700; color:#1e293b; font-size: 12px;">${label}</p>
+                        ${rows}
+                    </div>`;
+                }
+            },
+            legend: { enabled: false },
+            plotOptions: {
+                column: {
+                    borderRadius: isOverview ? 4 : 2,
+                    borderWidth: 0,
+                    pointPadding: 0.2,
+                    groupPadding: 0.1
+                },
+                series: { animation: false }
+            },
+            series: [
+                { name: 'Pre-Monsoon', data: dataRows.map(d => d.pre), color: '#f4a261' },
+                { name: 'Post-Monsoon', data: dataRows.map(d => d.post), color: '#2a9d8f' }
+            ],
+            credits: { enabled: false }
+        };
+    }, [summary, isOverview]);
 
     return (
         <div className={`water-quality-comparison-section full-width ${isOverview ? 'animated-entry' : ''}`} style={isOverview ? { marginTop: '1.5rem' } : { marginTop: '2rem' }}>
@@ -20,38 +89,20 @@ const MonsoonComparisonChart = ({ summary, isOverview = false }) => {
                 </h4>
             )}
             <SmartChartContainer height={isOverview ? "300px" : "250px"} className={isOverview ? "bar-chart-wrapper" : ""}>
-                <BarChart
-                    data={data}
-                    margin={isOverview ? { top: 20, right: 36, left: 20, bottom: 5 } : { top: 10, right: 35, left: -20, bottom: 0 }}
-                >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                    <XAxis dataKey="name" tick={{ fontSize: isOverview ? 11 : 10 }} />
-                    <YAxis tick={{ fontSize: isOverview ? 11 : 10 }} />
-                    <Tooltip
-                        allowEscapeViewBox={{ x: false, y: true }}
-                        content={({ active, payload, label }) => {
-                            if (active && payload && payload.length) {
-                                const isTds = label.includes('TDS');
-                                return (
-                                    <div className="custom-chart-tooltip" style={!isOverview ? { padding: '8px' } : undefined}>
-                                        <p className="tooltip-title" style={!isOverview ? { fontSize: '0.75rem' } : undefined}>
-                                            {isTds && !isOverview ? 'TDS' : label}
-                                        </p>
-                                        <p className="tooltip-item" style={{ color: '#f4a261', fontSize: !isOverview ? '0.7rem' : undefined }}>
-                                            <strong>Pre:</strong> {isTds ? (payload[0].value * 10).toFixed(1) : payload[0].value.toFixed(1)}
-                                        </p>
-                                        <p className="tooltip-item" style={{ color: '#2a9d8f', fontSize: !isOverview ? '0.7rem' : undefined }}>
-                                            <strong>Post:</strong> {isTds ? (payload[1].value * 10).toFixed(1) : payload[1].value.toFixed(1)}
-                                        </p>
-                                    </div>
-                                );
-                            }
-                            return null;
-                        }}
-                    />
-                    <Bar dataKey="pre" name="Pre-Monsoon" fill="#f4a261" radius={isOverview ? [4, 4, 0, 0] : [2, 2, 0, 0]} barSize={isOverview ? undefined : 15} />
-                    <Bar dataKey="post" name="Post-Monsoon" fill="#2a9d8f" radius={isOverview ? [4, 4, 0, 0] : [2, 2, 0, 0]} barSize={isOverview ? undefined : 15} />
-                </BarChart>
+                {options ? (
+                    <HighchartsReact highcharts={Highcharts} options={options} />
+                ) : (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        color: '#94a3b8',
+                        fontSize: '13px'
+                    }}>
+                        No comparison data available
+                    </div>
+                )}
             </SmartChartContainer>
 
             <div className="quality-legend-simple">
@@ -75,4 +126,4 @@ const MonsoonComparisonChart = ({ summary, isOverview = false }) => {
     );
 };
 
-export default MonsoonComparisonChart;
+export default React.memo(MonsoonComparisonChart);

@@ -13,27 +13,28 @@ export const useRainfallLoader = (filters) => {
     const [rainfallStationRecords, setRainfallStationRecords] = useState([]);
     const [rainfallLoading, setRainfallLoading] = useState(false);
 
-    const lastFetchedDistrict = useRef(null);
+    const lastParamsRef = useRef('');
 
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
 
         const fetchStationRainfall = async () => {
+            const params = {
+                limit: 10000,
+                district: filters.district ? toTitleCase(filters.district) : undefined,
+                district_id: filters.district_id
+            };
+
+            // Skip if parameters haven't changed
+            const paramsKey = JSON.stringify(params);
+            if (paramsKey === lastParamsRef.current) return;
+            lastParamsRef.current = paramsKey;
+
             const shouldLoad = rainfallStations.length === 0;
             if (shouldLoad) setRainfallLoading(true);
 
             try {
-                const params = { limit: 10000 };
-                if (filters?.district) {
-                    if (lastFetchedDistrict.current === filters.district) {
-                        if (!signal.aborted && shouldLoad) setRainfallLoading(false);
-                        return;
-                    }
-                    params.district = toTitleCase(filters.district);
-                    lastFetchedDistrict.current = filters.district;
-                }
-
                 const [stations, records] = await Promise.all([
                     api.rainfall.getStations(params, signal),
                     api.rainfall.getStationRecords(params, signal)
@@ -43,7 +44,7 @@ export const useRainfallLoader = (filters) => {
                     setRainfallStationRecords(Array.isArray(records?.results) ? records.results : (Array.isArray(records) ? records : []));
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 if (!signal.aborted) {
                     setRainfallStations([]);
                     setRainfallStationRecords([]);
@@ -62,7 +63,7 @@ export const useRainfallLoader = (filters) => {
             controller.abort();
             clearTimeout(safetyTimeout);
         };
-    }, [filters?.type, filters?.district]);
+    }, [filters?.type, filters?.district, filters?.district_id]);
 
     return {
         rainfallPoints, setRainfallPoints,

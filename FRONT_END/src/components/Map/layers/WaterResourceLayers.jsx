@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo } from 'react';
+import { GEOSERVER_CONFIG } from '../../../api/config';
 import { GeoJSON, WMSTileLayer, useMap } from 'react-leaflet';
 import VectorGridSlicer from '../VectorGridSlicer';
-import { DamMarker } from '../Markers';
+import { DamMarker, RechargeMarker } from '../Markers';
 
 export const DamMarkersLayer = ({
     isActive,
@@ -28,15 +29,41 @@ export const DamMarkersLayer = ({
     );
 };
 
+export const RechargeMarkersLayer = ({
+    isActive,
+    rechargeRecords,
+    onStructureClick,
+    color
+}) => {
+    if (!isActive || !rechargeRecords?.length) return null;
+
+    return (
+        <>
+            {rechargeRecords.map((item, idx) => (
+                <RechargeMarker
+                    key={`${item.id || idx}`}
+                    structure={item}
+                    coordinate={{ lat: item.latitude || item.lat, lng: item.longitude || item.lng }}
+                    onStructureClick={onStructureClick}
+                    color={color}
+                />
+            ))}
+        </>
+    );
+};
+
 export const WaterResourcesLayers = ({
     isActive,
     showCanals,
     showWaterbodies,
     showMicro,
+    showRecharge,
     canalFilter,
     waterbodyFilter,
     microData,
-    layerColors = { canals: "#00bcd4", waterbodies: "#0288d1", micro: "#ff5722" },
+    rechargeRecords,
+    onStructureClick,
+    layerColors = { canals: "#00bcd4", waterbodies: "#0288d1", micro: "#ff5722", recharge: "#22c55e" },
     onLoading
 }) => {
     const map = useMap();
@@ -74,8 +101,17 @@ export const WaterResourcesLayers = ({
         fillOpacity: 0.6
     }), [layerColors.micro]);
 
-    const getCqlFilter = (filter) => {
+    const getCqlFilter = (filter, isLayerWithJsonProperties = true) => {
         let clauses = [];
+
+        if (!isLayerWithJsonProperties) {
+            // Standard column-based filtering for newer layers like Recharge Structures
+            if (filter?.villageId) clauses.push(`village_id = ${filter.villageId}`);
+            else if (filter?.gpId) clauses.push(`gp_id = ${filter.gpId}`);
+            else if (filter?.blockId) clauses.push(`block_id = ${filter.blockId}`);
+            else if (filter?.districtId) clauses.push(`district_id = ${filter.districtId}`);
+            return clauses.length ? clauses.join(' AND ') : null;
+        }
 
         const makeRegex = (key, val, isNumeric = false) => {
             if (!val) return null;
@@ -120,17 +156,23 @@ export const WaterResourcesLayers = ({
         return `<?xml version="1.0" encoding="UTF-8"?><StyledLayerDescriptor version="1.0.0" xmlns="http://www.opengis.net/sld" xmlns:ogc="http://www.opengis.net/ogc"><NamedLayer><Name>waterbodies_layer</Name><UserStyle><FeatureTypeStyle><Rule><PolygonSymbolizer><Fill><CssParameter name="fill">${layerColors.waterbodies}</CssParameter><CssParameter name="fill-opacity">0.7</CssParameter></Fill><Stroke><CssParameter name="stroke">${layerColors.waterbodies}</CssParameter><CssParameter name="stroke-width">1.0</CssParameter></Stroke></PolygonSymbolizer></Rule></FeatureTypeStyle></UserStyle></NamedLayer></StyledLayerDescriptor>`;
     }, [layerColors.waterbodies]);
 
+    const rechargeSld = useMemo(() => {
+        const color = layerColors.recharge || '#22c55e';
+        return `<?xml version="1.0" encoding="UTF-8"?><StyledLayerDescriptor version="1.0.0" xmlns="http://www.opengis.net/sld" xmlns:ogc="http://www.opengis.net/ogc"><NamedLayer><Name>recharge_structure_layer</Name><UserStyle><FeatureTypeStyle><Rule><PointSymbolizer><Graphic><Mark><WellKnownName>triangle</WellKnownName><Fill><CssParameter name="fill">${color}</CssParameter></Fill><Stroke><CssParameter name="stroke">#ffffff</CssParameter><CssParameter name="stroke-width">1.5</CssParameter></Stroke></Mark><Size>16</Size><Rotation>180</Rotation></Graphic></PointSymbolizer></Rule></FeatureTypeStyle></UserStyle></NamedLayer></StyledLayerDescriptor>`;
+    }, [layerColors.recharge]);
+
     if (!isActive) return null;
 
     const canalFilterCql = getCqlFilter(canalFilter);
     const waterbodyFilterCql = getCqlFilter(waterbodyFilter);
+    const rechargeFilterCql = getCqlFilter(canalFilter, false);
 
     return (
         <>
             {showCanals && (
                 <WMSTileLayer
                     key={`canals-v3-${canalFilter?.districtId}-${canalFilter?.blockId}`}
-                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
                     layers="rgwcma:canals_layer"
                     format="image/png"
                     transparent={true}
@@ -145,7 +187,7 @@ export const WaterResourcesLayers = ({
             {showWaterbodies && (
                 <WMSTileLayer
                     key={`waterbodies-v3-${waterbodyFilter?.districtId}-${waterbodyFilter?.blockId}`}
-                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
                     layers="rgwcma:waterbodies_layer"
                     format="image/png"
                     transparent={true}
@@ -156,6 +198,29 @@ export const WaterResourcesLayers = ({
                         version: '1.1.1'
                     }}
                 />
+            )}
+            {showRecharge && (
+                <>
+                    <WMSTileLayer
+                        key={`recharge-wms-${canalFilter?.districtId}-${canalFilter?.blockId}`}
+                        url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
+                        layers="rgwcma:recharge_structure_layer"
+                        format="image/png"
+                        transparent={true}
+                        zIndex={503}
+                        params={{
+                            ...(rechargeFilterCql ? { cql_filter: rechargeFilterCql } : {}),
+                            sld_body: rechargeSld,
+                            version: '1.1.1'
+                        }}
+                    />
+                    <RechargeMarkersLayer
+                        isActive={true}
+                        rechargeRecords={rechargeRecords}
+                        onStructureClick={onStructureClick}
+                        color={layerColors.recharge}
+                    />
+                </>
             )}
             {showMicro && microData && (
                 <GeoJSON

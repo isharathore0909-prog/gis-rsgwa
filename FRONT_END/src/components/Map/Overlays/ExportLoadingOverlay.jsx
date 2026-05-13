@@ -1,4 +1,5 @@
 import React from 'react';
+import Spinner from '../../Common/ChartSpinner';
 
 /**
  * Export Loading Overlay
@@ -35,15 +36,9 @@ export const ExportLoadingOverlay = ({ isActive }) => {
                 maxWidth: '500px',
                 width: '90%'
             }}>
-                <div className="spinner-large" style={{
-                    width: '64px',
-                    height: '64px',
-                    border: '5px solid rgba(15, 23, 42, 0.05)',
-                    borderLeftColor: '#0ea5e9',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                    marginBottom: '30px'
-                }}></div>
+                <div className="spinner-large" style={{ marginBottom: '30px' }}>
+                    <Spinner size={64} color="#0ea5e9" />
+                </div>
 
                 <div style={{ textAlign: 'center' }}>
                     <h2 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '12px', color: '#0f172a' }}>

@@ -80,7 +80,17 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
         wqi_data = calculate_wqi(summary)
         quality_status = check_quality_status(summary)
         well_types = queryset.values('type_of_well').annotate(count=Count('id')).order_by('-count')
-        res = {'summary': summary, 'wqi': wqi_data, 'status': quality_status, 'well_type_distribution': list(well_types)}
+        
+        # Add dashboard correlations
+        correlations = CorrelationService.get_dashboard_correlations(queryset)
+        
+        res = {
+            'summary': summary, 
+            'wqi': wqi_data, 
+            'status': quality_status, 
+            'well_type_distribution': list(well_types),
+            'correlations': correlations
+        }
         cache.set(cache_key, res, 3600)
         return Response(res)
 
@@ -125,15 +135,25 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='correlation-matrix')
     def correlation_matrix(self, request):
+        cache_key = build_cache_key("wq_corr_matrix", request)
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+
         result = CorrelationService.get_correlation_matrix_data(
             request, 
             self.filter_queryset, 
             self.get_queryset
         )
+        if result and 'error' not in result:
+            cache.set(cache_key, result, 3600)
         return Response(result)
 
     @action(detail=False, methods=['get'])
     def correlation(self, request):
+        cache_key = build_cache_key("wq_corr_single", request)
+        cached_res = cache.get(cache_key)
+        if cached_res: return Response(cached_res)
+
         result = CorrelationService.get_correlation_data(
             request, 
             self.filter_queryset, 
@@ -146,4 +166,5 @@ class WaterQualityViewSet(viewsets.ModelViewSet):
                 status=result.get('status', status.HTTP_500_INTERNAL_SERVER_ERROR)
             )
             
+        cache.set(cache_key, result, 3600)
         return Response(result)

@@ -1,42 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import HydrographChart from '../../DataAnalysis/WellInventory/HydrographChart';
 import api from '../../../api';
 import * as Icons from 'lucide-react';
+import ChartLoader from '../../Common/ChartLoader';
+import ParamSelect from './ParamSelect';
+import {
+    PHYSICAL_METRICS,
+    HYDROGRAPH_OPTIONS,
+    PARAM_LABELS,
+    WQ_PARAM_ENTRIES,
+    STYLES,
+} from './waterLevelConstants';
 
-const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor, filters = {} }) => {
-    // Dynamic Correlation State
-    // Dynamic Correlation State
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
+const WaterLevelCharts = ({
+    analysisResults,
+    districtWaterLevelData,
+    metricColor,
+    filters = {},
+    isLoading: isDataLoading,
+}) => {
     const [yParam, setYParam] = useState('ec');
     const [xMetric, setXMetric] = useState('water_level');
     const [correlationData, setCorrelationData] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [backendRegression, setBackendRegression] = useState(null);
+    const [isCorrelationLoading, setIsCorrelationLoading] = useState(false);
     const [showTrendLine, setShowTrendLine] = useState(true);
-
-    // Hydrograph Selection State
     const [hydrographType, setHydrographType] = useState('average');
 
-    const hydrographOptions = [
-        { id: 'average', label: 'Average Water Level', color: '#1e3a8a' },
-        { id: 'pre_monsoon', label: 'Pre Water Level', color: '#3b82f6' },
-        { id: 'post_monsoon', label: 'Post Water Level', color: '#0ea5e9' }
-    ];
-
-    // Physical metrics that cannot be y_param in the backend
-    const physicalMetrics = ['water_level', 'rainfall'];
-
+    // ------------------------------------------------------------------
+    // Data fetching – correlation
+    // ------------------------------------------------------------------
     useEffect(() => {
         const controller = new AbortController();
-        const signal = controller.signal;
+        const { signal } = controller;
 
         const fetchCorrelation = async () => {
-            setIsLoading(true);
+            setIsCorrelationLoading(true);
             try {
                 // Normalise: backend requires y_param to be a WQ column.
                 // If the user put a physical metric on the Y axis, swap axes
                 // for the API call and flip the returned x/y when building points.
-                const yIsPhysical = physicalMetrics.includes(yParam);
+                const yIsPhysical = PHYSICAL_METRICS.includes(yParam);
                 const apiYParam = yIsPhysical ? xMetric : yParam;
                 const apiXMetric = yIsPhysical ? yParam : xMetric;
 
@@ -49,27 +59,22 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                     district: filters.district || undefined,
                     block: filters.block || filters.taluka || undefined,
                     gp: filters.gramPanchayat || undefined,
-                    village: filters.village || undefined
+                    village: filters.village || undefined,
                 }, signal);
 
                 if (!signal.aborted && res.results) {
-                    // If axes were swapped for the API, flip them back so the
-                    // chart always plots [xMetric, yParam] as [x, y].
                     const points = res.results.map(r =>
                         yIsPhysical ? [r.y, r.x] : [r.x, r.y]
                     );
                     setCorrelationData(points);
+                    setBackendRegression(res.regression);
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
-                console.error("Failed to fetch correlation:", err);
-                if (!signal.aborted) {
-                    setCorrelationData([]);
-                }
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
+                console.error('Failed to fetch correlation:', err);
+                if (!signal.aborted) setCorrelationData([]);
             } finally {
-                if (!signal.aborted) {
-                    setIsLoading(false);
-                }
+                if (!signal.aborted) setIsCorrelationLoading(false);
             }
         };
 
@@ -77,78 +82,16 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
         return () => controller.abort();
     }, [xMetric, yParam, filters]);
 
-    // Regression Calculation
-    const trendLine = React.useMemo(() => {
-        if (!correlationData || correlationData.length < 2) return null;
+    // ------------------------------------------------------------------
+    // Derived data – memoized
+    // ------------------------------------------------------------------
 
-        const points = correlationData.filter(p => p[0] !== null && p[1] !== null);
-        const n = points.length;
-        if (n < 2) return null;
+    // Regression calculation moved to backend
 
-        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
-        for (const [x, y] of points) {
-            sumX += x;
-            sumY += y;
-            sumXY += x * y;
-            sumX2 += x * x;
-            sumY2 += y * y;
-        }
-
-        const denominator = (n * sumX2 - sumX * sumX);
-        if (denominator === 0) return null;
-
-        const slope = (n * sumXY - sumX * sumY) / denominator;
-        const intercept = (sumY - slope * sumX) / n;
-
-        const rNum = (n * sumXY - sumX * sumY);
-        const rDen = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
-        const rSquared = rDen === 0 ? 0 : Math.pow(rNum / rDen, 2);
-
-        const xValues = points.map(p => p[0]);
-        const minX = Math.min(...xValues);
-        const maxX = Math.max(...xValues);
-
-        return {
-            points: [[minX, slope * minX + intercept], [maxX, slope * maxX + intercept]],
-            rSquared: rSquared.toFixed(3),
-            slope: slope.toFixed(4)
-        };
-    }, [correlationData]);
-
-    const allParamLabels = {
-        // Water Quality Parameters
-        ec: 'EC (µS/cm)',
-        ph: 'pH',
-        tds: 'TDS (mg/l)',
-        hardness: 'Hardness (mg/l)',
-        alkalinity: 'Alkalinity (mg/l)',
-        fluoride: 'Fluoride (mg/l)',
-        nitrate: 'Nitrate (mg/l)',
-        chloride: 'Chloride (mg/l)',
-        sulphate: 'Sulphate (mg/l)',
-        bicarbonate: 'Bicarbonate (mg/l)',
-        carbonate: 'Carbonate (mg/l)',
-        calcium: 'Calcium (mg/l)',
-        magnesium: 'Magnesium (mg/l)',
-        sodium: 'Sodium (mg/l)',
-        potassium: 'Potassium (mg/l)',
-        iron: 'Iron (mg/l)',
-        arsenic: 'Arsenic (mg/l)',
-        uranium: 'Uranium (µg/l)',
-        // Physical Metrics
-        water_level: 'Water Level (m.bgl)',
-        rainfall: 'Annual Rainfall (mm)'
-    };
-
-    // Keep these for axis label lookups
-    const yParamLabels = allParamLabels;
-    const xMetricLabels = allParamLabels;
-
-    // 3. Potability & Sustainability Insights
-    const qualityInsight = React.useMemo(() => {
+    const qualityInsight = useMemo(() => {
         const stats = analysisResults?.waterQualityStats?.summary;
         if (!stats) return null;
-        const isSafe = (stats.avg_ec <= 3000) && (stats.avg_fluoride <= 1.5);
+        const isSafe = stats.avg_ec <= 3000 && stats.avg_fluoride <= 1.5;
         return {
             safe: isSafe,
             color: isSafe ? '#10b981' : '#f59e0b',
@@ -156,16 +99,16 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
             text: isSafe ? 'Generally Potable' : 'Quality Issues Detected',
             subtext: isSafe
                 ? 'Primary parameters (EC/Fluoride) are within safe limits.'
-                : 'Some samples exceed recommended safety thresholds.'
+                : 'Some samples exceed recommended safety thresholds.',
         };
     }, [analysisResults]);
 
-    const trendInsight = React.useMemo(() => {
-        const trends = analysisResults?.yearlyTrends?.yearly_trends || analysisResults?.yearlyTrends;
+    const trendInsight = useMemo(() => {
+        const trends = analysisResults?.yearlyTrends?.yearly_trends ?? analysisResults?.yearlyTrends;
         if (!Array.isArray(trends) || trends.length < 2) return null;
 
-        const first = trends[0].average || trends[0].value;
-        const last = trends[trends.length - 1].average || trends[trends.length - 1].value;
+        const first = trends[0].average ?? trends[0].value;
+        const last = trends[trends.length - 1].average ?? trends[trends.length - 1].value;
         const diff = last - first;
         const degrading = diff > 0; // Increasing depth means declining levels
 
@@ -174,18 +117,113 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
             color: degrading ? '#ef4444' : '#10b981',
             icon: degrading ? 'TrendingDown' : 'TrendingUp',
             text: degrading ? 'Declining Trend' : 'Recovering/Stable',
-            subtext: `Net change of ${Math.abs(diff).toFixed(2)}m over the recorded period.`
+            subtext: `Net change of ${Math.abs(diff).toFixed(2)}m over the recorded period.`,
         };
     }, [analysisResults]);
 
+    /** Memoized hydrograph data transform to avoid re-mapping on every render */
+    const hydrographData = useMemo(() => {
+        if (analysisResults?.yearlyTrends?.yearly_trends) {
+            return analysisResults.yearlyTrends.yearly_trends.map(t => ({
+                ...t,
+                'Average Water Level': t.average ?? t['Average Water Level'],
+                'Pre Water Level': t.pre_monsoon ?? t['Pre Water Level'],
+                'Post Water Level': t.post_monsoon ?? t['Post Water Level'],
+                'Annual Rainfall': analysisResults.yearlyRainfallData?.[t.year]
+                    ? analysisResults.yearlyRainfallData[t.year] / 1000
+                    : null,
+            }));
+        }
+        return Array.isArray(analysisResults?.yearlyTrends) ? analysisResults.yearlyTrends : [];
+    }, [analysisResults]);
+
+    const activeHydrograph = useMemo(
+        () => HYDROGRAPH_OPTIONS.find(o => o.id === hydrographType),
+        [hydrographType]
+    );
+
+    /** Memoized Highcharts options for the district column chart */
+    const districtChartOptions = useMemo(() => ({
+        chart: { type: 'column', backgroundColor: 'transparent', height: 400 },
+        title: { text: 'District-wise Average Water Level' },
+        xAxis: {
+            categories: districtWaterLevelData?.map(d => d.name) ?? [],
+            title: { text: 'Districts' },
+            labels: { rotation: -45, style: { fontSize: '9px' } },
+        },
+        yAxis: { title: { text: 'Water Level (m.bgl)' }, reversed: false },
+        series: [{
+            name: 'Avg Static WL',
+            data: districtWaterLevelData?.map(d => d.value) ?? [],
+            color: metricColor || '#3b82f6',
+            borderRadius: 4,
+        }],
+        credits: { enabled: false },
+        tooltip: { valueSuffix: ' m.bgl' },
+    }), [districtWaterLevelData, metricColor]);
+
+    /** Memoized Highcharts options for the scatter / correlation chart */
+    const correlationChartOptions = useMemo(() => ({
+        chart: { type: 'scatter', zoomType: 'xy', backgroundColor: 'transparent', height: 400 },
+        title: { text: null },
+        xAxis: {
+            title: { enabled: true, text: PARAM_LABELS[xMetric] },
+            startOnTick: true,
+            endOnTick: true,
+            showLastLabel: true,
+        },
+        yAxis: { title: { text: PARAM_LABELS[yParam] } },
+        plotOptions: {
+            scatter: {
+                marker: { radius: 5, states: { hover: { enabled: true, lineColor: 'rgb(100,100,100)' } } },
+                tooltip: {
+                    headerFormat: '<b>Spatial Correlation</b><br>',
+                    pointFormat: `${PARAM_LABELS[xMetric]}: {point.x}<br/>${PARAM_LABELS[yParam]}: {point.y}`,
+                },
+            },
+        },
+        series: [
+            {
+                name: 'Matched Stations',
+                type: 'scatter',
+                color: metricColor || '#3b82f6',
+                data: correlationData,
+                marker: { radius: 4 },
+                zIndex: 1,
+            },
+            ...(showTrendLine && backendRegression ? [{
+                name: `Trend Line (R²: ${backendRegression.r_squared})`,
+                type: 'line',
+                data: backendRegression.line_points,
+                color: '#ef4444',
+                dashStyle: 'Dash',
+                lineWidth: 2,
+                marker: { enabled: false },
+                states: { hover: { lineWidth: 3 } },
+                enableMouseTracking: true,
+                tooltip: { pointFormat: `Correlation Trend Line<br/>R²: ${backendRegression.r_squared}` },
+                zIndex: 2,
+            }] : []),
+        ],
+        credits: { enabled: false },
+    }), [xMetric, yParam, correlationData, metricColor, showTrendLine, backendRegression]);
+
+    // Stable callback – avoids inline arrow on every render
+    const handleTrendToggle = useCallback(() => setShowTrendLine(prev => !prev), []);
+    const handleTrendCheckbox = useCallback(e => { e.stopPropagation(); setShowTrendLine(e.target.checked); }, []);
+    const stopPropagation = useCallback(e => e.stopPropagation(), []);
+
+    // ------------------------------------------------------------------
+    // Render
+    // ------------------------------------------------------------------
     return (
         <>
-            {/* Top Charts Row */}
+            {/* Detailed / Hydrograph Chart */}
             <div className="chart-item">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={STYLES.chartHeader}>
                     <h3>Detailed Analysis</h3>
-                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
-                        {hydrographOptions.map(opt => (
+                    <div style={STYLES.tabBar}>
+                        {HYDROGRAPH_OPTIONS.map(opt => (
                             <button
                                 key={opt.id}
                                 onClick={() => setHydrographType(opt.id)}
@@ -199,7 +237,7 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                                     color: hydrographType === opt.id ? opt.color : '#64748b',
                                     fontWeight: hydrographType === opt.id ? 700 : 500,
                                     boxShadow: hydrographType === opt.id ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-                                    transition: 'all 0.2s'
+                                    transition: 'all 0.2s',
                                 }}
                             >
                                 {opt.label.replace(' Water Level', '')}
@@ -209,128 +247,62 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                 </div>
                 <div className="chart-container" style={{ height: '350px', background: 'white', padding: '10px', borderRadius: '12px', width: '100%', overflow: 'hidden' }}>
                     <HydrographChart
-                        dataKey={hydrographOptions.find(o => o.id === hydrographType).label}
-                        data={
-                            analysisResults?.yearlyTrends?.yearly_trends
-                                ? analysisResults.yearlyTrends.yearly_trends.map(t => ({
-                                    ...t,
-                                    'Average Water Level': t.average !== undefined ? t.average : t['Average Water Level'],
-                                    'Pre Water Level': t.pre_monsoon !== undefined ? t.pre_monsoon : t['Pre Water Level'],
-                                    'Post Water Level': t.post_monsoon !== undefined ? t.post_monsoon : t['Post Water Level'],
-                                    'Annual Rainfall': analysisResults.yearlyRainfallData && analysisResults.yearlyRainfallData[t.year] ? (analysisResults.yearlyRainfallData[t.year] / 1000) : null
-                                }))
-                                : Array.isArray(analysisResults?.yearlyTrends) ? analysisResults.yearlyTrends : []
-                        }
+                        dataKey={activeHydrograph.label}
+                        data={hydrographData}
                         height="340px"
                         showRainfall={true}
+                        isLoading={isDataLoading}
                     />
                 </div>
             </div>
 
+            {/* District-wise Water Level */}
             <div className="chart-item">
                 <h3>District-wise Water Level</h3>
                 <div style={{ height: '400px', width: '100%' }}>
                     {districtWaterLevelData?.length > 0 ? (
-                        <div className="chart-container" style={{ height: '400px', background: 'white', padding: '10px', borderRadius: '12px', width: '100%' }}>
-                            <HighchartsReact
-                                highcharts={Highcharts}
-                                options={{
-                                    chart: { type: 'column', backgroundColor: 'transparent', height: 400 },
-                                    title: { text: 'District-wise Average Water Level' },
-                                    xAxis: {
-                                        categories: districtWaterLevelData.map(d => d.name),
-                                        title: { text: 'Districts' },
-                                        labels: { rotation: -45, style: { fontSize: '9px' } }
-                                    },
-                                    yAxis: {
-                                        title: { text: 'Water Level (m.bgl)' },
-                                        reversed: false
-                                    },
-                                    series: [{
-                                        name: 'Avg Static WL',
-                                        data: districtWaterLevelData.map(d => d.value),
-                                        color: metricColor || '#3b82f6',
-                                        borderRadius: 4
-                                    }],
-                                    credits: { enabled: false },
-                                    tooltip: { valueSuffix: ' m.bgl' }
-                                }}
-                            />
+                        <div className="chart-container" style={STYLES.chartContainer}>
+                            <ChartLoader isLoading={isDataLoading} minHeight="380px">
+                                <HighchartsReact highcharts={Highcharts} options={districtChartOptions} />
+                            </ChartLoader>
                         </div>
                     ) : (
-                        <div className="chart-empty-state" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', borderRadius: '8px' }}>
+                        <div className="chart-empty-state" style={STYLES.emptyState}>
                             <p>No district data available.</p>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Middle Section: Correlation Analysis */}
+            {/* Correlation Analysis */}
             <div className="chart-item full-width">
                 <div className="chart-header-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h3 style={{ margin: 0, fontSize: '15px' }}>Parameter Correlation Analysis</h3>
                     <div className="selectors" style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', alignItems: 'center' }}>
-                        <select
-                            value={yParam}
-                            onChange={(e) => setYParam(e.target.value)}
+                        <ParamSelect value={yParam} onChange={e => setYParam(e.target.value)} />
+                        <span style={STYLES.vsLabel}>vs</span>
+                        <ParamSelect value={xMetric} onChange={e => setXMetric(e.target.value)} />
+
+                        <div style={STYLES.divider} />
+
+                        <div
                             style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
                                 padding: '6px 12px',
                                 borderRadius: '8px',
-                                border: 'none',
-                                background: 'white',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                color: '#1e293b',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                background: showTrendLine ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                                transition: 'all 0.2s',
                                 cursor: 'pointer',
-                                transition: 'all 0.2s'
                             }}
-                        >
-                            {Object.entries(allParamLabels).map(([val, label]) => (
-                                <option key={val} value={val}>{label}</option>
-                            ))}
-                        </select>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: '0 4px', textTransform: 'uppercase' }}>vs</span>
-                        <select
-                            value={xMetric}
-                            onChange={(e) => setXMetric(e.target.value)}
-                            style={{
-                                padding: '6px 12px',
-                                borderRadius: '8px',
-                                border: 'none',
-                                background: 'white',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                color: '#1e293b',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            {Object.entries(allParamLabels).map(([val, label]) => (
-                                <option key={val} value={val}>{label}</option>
-                            ))}
-                        </select>
-
-                        <div style={{ padding: '0 2px', width: '1px', background: '#cbd5e1', height: '20px', margin: '0 4px' }}></div>
-
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            background: showTrendLine ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
-                            transition: 'all 0.2s',
-                            cursor: 'pointer'
-                        }}
-                            onClick={() => setShowTrendLine(!showTrendLine)}
+                            onClick={handleTrendToggle}
                         >
                             <input
                                 type="checkbox"
                                 id="trendline-toggle"
                                 checked={showTrendLine}
-                                onChange={(e) => { e.stopPropagation(); setShowTrendLine(e.target.checked); }}
+                                onChange={handleTrendCheckbox}
                                 style={{ cursor: 'pointer', accentColor: '#ef4444' }}
                             />
                             <label
@@ -340,9 +312,9 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                                     fontWeight: 600,
                                     color: showTrendLine ? '#ef4444' : '#64748b',
                                     cursor: 'pointer',
-                                    userSelect: 'none'
+                                    userSelect: 'none',
                                 }}
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={stopPropagation}
                             >
                                 Trend Line
                             </label>
@@ -351,75 +323,21 @@ const WaterLevelCharts = ({ analysisResults, districtWaterLevelData, metricColor
                 </div>
 
                 <div style={{ height: '400px', width: '100%', position: 'relative' }}>
-                    {isLoading && (
-                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255,255,255,0.7)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Icons.Loader2 className="animate-spin" size={32} color={metricColor} />
-                        </div>
-                    )}
-
-                    {correlationData?.length > 0 ? (
-                        <div className="chart-container" style={{ height: '400px', background: 'white', padding: '10px', borderRadius: '12px', width: '100%' }}>
-                            <HighchartsReact
-                                highcharts={Highcharts}
-                                options={{
-                                    chart: { type: 'scatter', zoomType: 'xy', backgroundColor: 'transparent', height: 400 },
-                                    title: { text: null },
-                                    xAxis: {
-                                        title: { enabled: true, text: xMetricLabels[xMetric] },
-                                        startOnTick: true,
-                                        endOnTick: true,
-                                        showLastLabel: true
-                                    },
-                                    yAxis: {
-                                        title: { text: yParamLabels[yParam] }
-                                    },
-                                    plotOptions: {
-                                        scatter: {
-                                            marker: { radius: 5, states: { hover: { enabled: true, lineColor: 'rgb(100,100,100)' } } },
-                                            tooltip: {
-                                                headerFormat: '<b>Spatial Correlation</b><br>',
-                                                pointFormat: `${xMetricLabels[xMetric]}: {point.x}<br/>${yParamLabels[yParam]}: {point.y}`
-                                            }
-                                        }
-                                    },
-                                    series: [
-                                        {
-                                            name: 'Matched Stations',
-                                            type: 'scatter',
-                                            color: metricColor || '#3b82f6',
-                                            data: correlationData,
-                                            marker: { radius: 4 },
-                                            zIndex: 1
-                                        },
-                                        ...(showTrendLine && trendLine ? [{
-                                            name: `Trend Line (R²: ${trendLine.rSquared})`,
-                                            type: 'line',
-                                            data: trendLine.points,
-                                            color: '#ef4444',
-                                            dashStyle: 'Dash',
-                                            lineWidth: 2,
-                                            marker: { enabled: false },
-                                            states: { hover: { lineWidth: 3 } },
-                                            enableMouseTracking: true,
-                                            tooltip: {
-                                                pointFormat: `Correlation Trend Line<br/>R²: ${trendLine.rSquared}`
-                                            },
-                                            zIndex: 2
-                                        }] : [])
-                                    ],
-                                    credits: { enabled: false }
-                                }}
-                            />
-                        </div>
-                    ) : (
-                        <div className="chart-empty-state" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', borderRadius: '8px' }}>
-                            <p>{isLoading ? 'Comparing points spatially...' : 'No correlation data found for this pair.'}</p>
-                        </div>
-                    )}
+                    <ChartLoader isLoading={isCorrelationLoading} minHeight="400px">
+                        {correlationData?.length > 0 ? (
+                            <div className="chart-container" style={{ height: '400px', background: 'white', padding: '10px', borderRadius: '12px', width: '100%' }}>
+                                <HighchartsReact highcharts={Highcharts} options={correlationChartOptions} />
+                            </div>
+                        ) : (
+                            <div className="chart-empty-state" style={STYLES.emptyState}>
+                                <p>{isCorrelationLoading ? 'Comparing points spatially...' : 'No correlation data found for this pair.'}</p>
+                            </div>
+                        )}
+                    </ChartLoader>
                 </div>
             </div>
 
-            {/* Bottom Section: Sustainability Insights */}
+            {/* Sustainability Insights */}
             {(qualityInsight || trendInsight) && (
                 <div className="chart-item full-width" style={{ gridColumn: 'span 3', display: 'flex', gap: '16px', background: 'transparent', padding: '0 0 20px 0', marginTop: '10px' }}>
                     {qualityInsight && (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import useDebounce from '../core/useDebounce';
+import { notificationService } from '../../services/notificationService';
 
 /**
  * Custom hook for fetching aquifer/well inventory records
@@ -58,6 +59,7 @@ export const useAquiferData = (isActive, filters) => {
                     console.error('[useAquiferData] Error:', error);
                     setRecords([]);
                     setLoading(false);
+                    notificationService.error(`Failed to fetch well inventory: ${error.message}`);
                 }
             }
         };

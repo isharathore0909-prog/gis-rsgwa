@@ -11,6 +11,7 @@ export { useAquiferData } from './data/useAquiferData';
 export { usePiezometerData } from './data/usePiezometerData';
 export { useGeoJSONData } from './data/useGeoJSONData';
 export { useSpatialLayerStats } from './data/useSpatialLayerStats';
+export { useRechargeLoader } from './core/loaders/useRechargeLoader';
 
 // Data Processing Hooks
 export {

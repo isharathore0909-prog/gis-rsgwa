@@ -86,6 +86,7 @@ const VerticalIconSidebar = () => {
 
     const WATER_RESOURCE_OPTIONS = [
         { id: 'dams', label: 'Dams', key: 'showDams' },
+        { id: 'recharge', label: 'Recharge Structures', key: 'showRecharge' },
         { id: 'waterbodies', label: 'Water Bodies', key: 'showWaterbodies' },
         { id: 'canals', label: 'Canals', key: 'showCanals' },
         { id: 'micro', label: 'Micro Watershed', key: 'showMicro' }

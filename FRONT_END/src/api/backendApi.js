@@ -1,8 +1,15 @@
 import axios from 'axios';
 import { BACKEND_API, API_CONFIG } from './config';
+import { createLocationService } from './services/locationService';
+import { createRainfallService } from './services/rainfallService';
+import { createAquiferService } from './services/aquiferService';
+import { createWaterService } from './services/waterService';
+import { createSpatialService } from './services/spatialService';
+import { createAuthService } from './services/authService';
 
 /**
  * Backend API Client using Axios
+ * Refactored to use modular services while maintaining full backward compatibility.
  */
 class BackendAPIClient {
     constructor() {
@@ -11,11 +18,9 @@ class BackendAPIClient {
             timeout: API_CONFIG.TIMEOUT,
         });
 
-        // Persistent Cache for GET requests
         this.cache = new Map();
         this._loadCache();
 
-        // Request Interceptor
         this.client.interceptors.request.use(
             (config) => {
                 const token = localStorage.getItem('access_token');
@@ -27,16 +32,11 @@ class BackendAPIClient {
             (error) => Promise.reject(error)
         );
 
-        // Response Interceptor for Token Refresh and Caching
         this.client.interceptors.response.use(
             (response) => {
-                // Cache successful GET requests
                 if (response.config.method === 'get') {
                     const cacheKey = response.config.url + JSON.stringify(response.config.params || {});
-                    const cacheEntry = {
-                        data: response.data,
-                        timestamp: Date.now()
-                    };
+                    const cacheEntry = { data: response.data, timestamp: Date.now() };
                     this.cache.set(cacheKey, cacheEntry);
                     this._saveToPersistentCache(cacheKey, cacheEntry);
                 }
@@ -44,27 +44,17 @@ class BackendAPIClient {
             },
             async (error) => {
                 const originalRequest = error.config;
-
-                // Network error retry logic with exponential backoff
                 if (!error.response || error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
                     originalRequest._retryCount = originalRequest._retryCount || 0;
                     if (originalRequest._retryCount < API_CONFIG.RETRY_ATTEMPTS) {
                         originalRequest._retryCount += 1;
-
-                        // Capped backoff for reliability
-                        const rawDelay = Math.pow(2, originalRequest._retryCount - 1) * API_CONFIG.RETRY_DELAY;
-                        const delay = Math.min(rawDelay, API_CONFIG.MAX_RETRY_DELAY || 30000);
-                        console.warn(`🔄 Retrying request (${originalRequest._retryCount}/${API_CONFIG.RETRY_ATTEMPTS}) in ${delay}ms: ${originalRequest.url}`);
-
+                        const delay = Math.min(Math.pow(2, originalRequest._retryCount - 1) * API_CONFIG.RETRY_DELAY, 30000);
                         await new Promise(resolve => setTimeout(resolve, delay));
                         return this.client(originalRequest);
                     }
                 }
-
-                // If error is 401 and we haven't retried yet
                 if (error.response?.status === 401 && !originalRequest._retry) {
                     originalRequest._retry = true;
-
                     try {
                         const refreshed = await this.refreshToken();
                         if (refreshed) {
@@ -72,179 +62,109 @@ class BackendAPIClient {
                             originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
                             return this.client(originalRequest);
                         }
-                    } catch (refreshError) {
-                        return Promise.reject(refreshError);
-                    }
+                    } catch (refreshError) { return Promise.reject(refreshError); }
                 }
-
-                // Generic error handling
-                const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message;
-                return Promise.reject(new Error(errorMessage));
+                return Promise.reject(new Error(error.response?.data?.detail || error.response?.data?.message || error.message));
             }
         );
+
+        // Domain Services
+        const loc = createLocationService(this);
+        const rain = createRainfallService(this);
+        const aq = createAquiferService(this);
+        const water = createWaterService(this);
+        const spatial = createSpatialService(this);
+        const auth = createAuthService(this);
+
+        // Attach short names for service internal use
+        Object.assign(this, loc, rain, aq, water, spatial, auth);
+
+        // --- Explicit Backward Compatibility Mapping ---
+        
+        // Location
+        this.getStates = loc.getStates;
+        this.getDistricts = loc.getDistricts;
+        this.getBlocks = loc.getBlocks;
+        this.getGrampanchayats = loc.getGrampanchayats;
+        this.getVillages = loc.getVillages;
+        this.getLocationCodes = loc.getLocationCodes;
+        this.getBoundaryCollection = loc.getBoundaryCollection;
+        this.getBoundaryByCode = loc.getBoundaryByCode;
+        this.getAddressByLatLon = loc.getAddressByLatLon;
+        this.pointIdentify = loc.pointIdentify;
+
+        // Rainfall
+        this.getRainfallRecords = rain.getRecords;
+        this.getRainfallStatistics = rain.getStatistics;
+        this.getRainfallSummary = rain.getSummary;
+        this.getRainfallNearby = rain.getNearby;
+        this.getRainfallDistrictWise = rain.getDistrictWise;
+        this.getRainfallLocationWise = rain.getLocationWise;
+        this.getRainfallStations = rain.getStations;
+        this.getRainfallStationRecords = rain.getStationRecords;
+        this.getRainfallStationStatistics = rain.getStationStatistics;
+        this.getRainfallStationSummary = rain.getStationSummary;
+        this.getRainfallStationDistrictWise = rain.getStationDistrictWise;
+        this.getRainfallStationLocationWise = rain.getStationLocationWise;
+        this.getRainfallDistribution = rain.getDistribution;
+        this.getRainfallStationDistribution = rain.getStationDistribution;
+
+        // Aquifer
+        this.getAquiferRecords = aq.getRecords;
+        this.getAquiferStatistics = aq.getStatistics;
+        this.getAquiferYearlyStatistics = aq.getYearlyStatistics;
+        this.getAquiferNearby = aq.getNearby;
+        this.getAquiferByLocation = aq.byLocation;
+        this.getAquiferDecadalAnalysis = aq.getDecadalAnalysis;
+
+        // Water Quality
+        this.getWaterQualityRecords = water.getRecords;
+        this.getWaterQualityStatistics = water.getStatistics;
+        this.getWaterQualityCorrelation = water.getCorrelation;
+        this.getWaterQualityCorrelationMatrix = water.getCorrelationMatrix;
+        this.getWaterQualityAvailabilityStatistics = water.getAvailabilityStatistics;
+        this.getPiezometerRecords = water.getPiezometerRecords;
+        this.getRechargeStructureRecords = water.getRechargeStructureRecords;
+        this.getRechargeStructureStatistics = water.getRechargeStructureStatistics;
+
+        // Spatial
+        this.getSpatialLayers = spatial.getLayers;
+        this.getSpatialStatistics = spatial.getStatistics;
+        this.getSpatialIntersect = spatial.getIntersect;
     }
 
-    /**
-     * Cache-aware GET helper
-     */
     async getCached(endpoint, params = {}, headers = {}, signal = null) {
         const cacheKey = endpoint + JSON.stringify(params || {});
         const cached = this.cache.get(cacheKey);
-
-        // Use cache if it's less than 5 minutes old
-        if (cached && (Date.now() - cached.timestamp < 300000)) {
-            return cached.data;
-        }
-
+        if (cached && (Date.now() - cached.timestamp < 300000)) return cached.data;
         return this.client.get(endpoint, { params, headers, signal });
     }
 
-    /**
-     * Refresh authentication token
-     * Synchronized to prevent multiple concurrent refresh calls
-     */
-    async refreshToken() {
-        if (this.refreshPromise) {
-            return this.refreshPromise;
-        }
-
-        this.refreshPromise = (async () => {
-            try {
-                const refreshToken = localStorage.getItem('refresh_token');
-                if (!refreshToken) return false;
-
-                const response = await axios.post(`${BACKEND_API.BASE_URL}${BACKEND_API.ENDPOINTS.TOKEN_REFRESH}`, {
-                    refresh: refreshToken
-                });
-
-                if (response.data?.access) {
-                    localStorage.setItem('access_token', response.data.access);
-                    return true;
-                }
-
-                this.clearTokens();
-                return false;
-            } catch (error) {
-                console.error('Token refresh failed:', error);
-                this.clearTokens();
-                return false;
-            } finally {
-                this.refreshPromise = null;
-            }
-        })();
-
-        return this.refreshPromise;
+    getWithApiKey(endpoint, params = {}, signal = null) {
+        return this.getCached(endpoint, params, { 'x-auth-key': BACKEND_API.API_KEY }, signal);
     }
 
-    /**
-     * Set authentication tokens
-     */
     setTokens(access, refresh) {
         if (access) localStorage.setItem('access_token', access);
         if (refresh) localStorage.setItem('refresh_token', refresh);
     }
 
-    /**
-     * Clear authentication tokens
-     */
     clearTokens() {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        this.cache.clear(); // Clear cache on logout
+        this.cache.clear();
     }
 
-    /**
-     * Helper for API Key requests
-     */
-    getWithApiKey(endpoint, params = {}, signal = null) {
-        return this.getCached(endpoint, params, { 'x-auth-key': BACKEND_API.API_KEY }, signal);
-    }
-
-    // ==================== API Methods ====================
-
-    getStates(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.STATES, params, signal); }
-    getDistricts(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.DISTRICTS, params, signal); }
-    getBlocks(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BLOCKS, params, signal); }
-    getGrampanchayats(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.GRAMPANCHAYATS, params, signal); }
-    getVillages(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.VILLAGES, params, signal); }
-    getLocationCodes(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.LOCATION_CODES, params, signal); }
-
-    getBoundaryCollection(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BOUNDARY_COLLECTION, params, signal); }
-    getBoundaryByCode(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.BOUNDARY_BY_CODE, params, signal); }
-
-    getAddressByLatLon(lat, lon, includeBoundary = false, signal = null) {
-        const params = { lat, lon };
-        if (includeBoundary) params.boundary = 'true';
-        return this.getWithApiKey(BACKEND_API.ENDPOINTS.PINCODE, params, signal);
-    }
-
-    pointIdentify(lat, lon, signal = null) {
-        return this.getWithApiKey(BACKEND_API.ENDPOINTS.POINT_IDENTIFY, { lat, lon }, signal);
-    }
-
-    getRainfallRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL, params, signal); }
-    getRainfallStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATISTICS, params, signal); }
-    getRainfallSummary(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_SUMMARY, params, signal); }
-    getRainfallNearby(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_NEARBY, params, signal); }
-    getRainfallDistrictWise(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_DISTRICT_WISE, params, signal); }
-    getRainfallLocationWise(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_LOCATION_WISE, params, signal); }
-    getRainfallStations(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATIONS, params, signal); }
-    getRainfallStationRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_RECORDS, params, signal); }
-    getRainfallStationStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_STATISTICS, params, signal); }
-    getRainfallStationSummary(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_SUMMARY, params, signal); }
-    getRainfallStationDistrictWise(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_DISTRICT_WISE, params, signal); }
-    getRainfallStationLocationWise(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_LOCATION_WISE, params, signal); }
-    getRainfallDistribution(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_DISTRIBUTION, params, signal); }
-    getRainfallStationDistribution(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RAINFALL_STATION_DISTRIBUTION, params, signal); }
-
-    getWaterQualityRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY, params, signal); }
-    getWaterQualityStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_STATISTICS, params, signal); }
-    getWaterQualityCorrelation(params = {}, signal = null) { return this.getWithApiKey('water-quality/correlation/', params, signal); }
-    getWaterQualityCorrelationMatrix(params = {}, signal = null) { return this.getWithApiKey('water-quality/correlation-matrix/', params, signal); }
-
-    getWaterQualityAvailabilityStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.WATER_QUALITY_AVAILABILITY_STATISTICS, params, signal); }
-
-    getAquiferRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER, params, signal); }
-    getAquiferStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_STATISTICS, params, signal); }
-    getAquiferYearlyStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_YEARLY_STATISTICS, params, signal); }
-    getAquiferNearby(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_NEARBY, params, signal); }
-    getAquiferByLocation(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.AQUIFER_BY_LOCATION, params, signal); }
-
-    getRechargeStructureRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE, params, signal); }
-    getRechargeStructureStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.RECHARGE_STRUCTURE_STATISTICS, params, signal); }
-
-    getPiezometerRecords(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.PIEZOMETER, params, signal); }
-    getSpatialLayers(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS, params, signal); }
-    getSpatialStatistics(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_STATISTICS, params, signal); }
-    getSpatialIntersect(params = {}, signal = null) { return this.getWithApiKey(BACKEND_API.ENDPOINTS.SPATIAL_LAYERS_INTERSECT, params, signal); }
-
-    async login(credentials) {
-        const data = await this.client.post(BACKEND_API.ENDPOINTS.LOGIN, credentials);
-        if (data.access) {
-            this.setTokens(data.access, data.refresh);
-        }
-        return data;
-    }
-
-    register(userData) { return this.client.post(BACKEND_API.ENDPOINTS.REGISTER, userData); }
-    /**
-     * Cache persistence helpers
-     */
     _loadCache() {
         try {
             const stored = sessionStorage.getItem('gis_api_cache');
             if (stored) {
                 const parsed = JSON.parse(stored);
                 Object.entries(parsed).forEach(([key, val]) => {
-                    // Only load entries less than 30 minutes old
-                    if (Date.now() - val.timestamp < 1800000) {
-                        this.cache.set(key, val);
-                    }
+                    if (Date.now() - val.timestamp < 1800000) this.cache.set(key, val);
                 });
             }
-        } catch (e) {
-            console.warn('Failed to load API cache from sessionStorage', e);
-        }
+        } catch (e) { }
     }
 
     _saveToPersistentCache(key, entry) {
@@ -252,17 +172,12 @@ class BackendAPIClient {
             const stored = sessionStorage.getItem('gis_api_cache');
             const cacheObj = stored ? JSON.parse(stored) : {};
             cacheObj[key] = entry;
-
-            // Simple cleanup: if cache size grows too large, clear it
             if (Object.keys(cacheObj).length > 100) {
                 const sortedKeys = Object.keys(cacheObj).sort((a, b) => cacheObj[a].timestamp - cacheObj[b].timestamp);
                 delete cacheObj[sortedKeys[0]];
             }
-
             sessionStorage.setItem('gis_api_cache', JSON.stringify(cacheObj));
-        } catch (e) {
-            // Probably QuotaExceededError or security restriction
-        }
+        } catch (e) { }
     }
 
     _clearPersistentCache() {
@@ -270,11 +185,6 @@ class BackendAPIClient {
             sessionStorage.removeItem('gis_api_cache');
             this.cache.clear();
         } catch (e) { }
-    }
-
-    logout() {
-        this.clearTokens();
-        this._clearPersistentCache();
     }
 }
 

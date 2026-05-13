@@ -105,15 +105,21 @@ export const useRainfallAnalysis = ({
                 ]);
 
                 if (!signal.aborted) {
+                    const summaryData = Array.isArray(summary) ? summary : (summary?.data || []);
+                    const overallAvg = summary?.overall_average || null;
+
                     setRainfallStatsData(stats);
-                    setRainfallSummaryData(summary || []);
+                    setRainfallSummaryData(summaryData);
+                    // Add overall_average to stats for easier access if it came with summary
+                    if (overallAvg && stats) stats.overall_average = overallAvg;
+
                     // Extract station IDs from results if returned by backend
                     const ids = stats.station_ids || [];
                     setIntersectingStationIds(ids);
                     setRainfallError(null);
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 if (!signal.aborted) {
                     console.error('Rainfall fetch failed:', err);
                     if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK')) {
@@ -172,7 +178,7 @@ export const useRainfallAnalysis = ({
                     }
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 console.error("Distribution fetch failed:", err);
             } finally {
                 if (!signal.aborted) setIsDistFetching(false);

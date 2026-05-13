@@ -45,7 +45,7 @@ export const useSpatialLayerStats = (isActive, layerType, filters = {}, includeF
                     }
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 console.error(`[useSpatialLayerStats] Failed to fetch stats for ${layerType}:`, err);
                 if (!signal.aborted) {
                     setError(err);

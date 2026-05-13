@@ -1,34 +1,57 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import * as Icons from 'lucide-react';
 import Pagination from '../Common/Pagination';
+import Spinner from '../Common/ChartSpinner';
 import { downloadCSV, downloadPDF } from '../../utils/exportUtils';
 import './WaterResourcesTables.css';
 
-const TableCard = React.memo(({ title, data = [], columns = [], loading = false }) => {
+const TableCard = React.memo(({ title, data = [], columns = [], loading = false, fetchData = null }) => {
     const [currentPage, setCurrentPage] = useState(1);
+    const [serverData, setServerData] = useState({ items: [], count: 0, loading: false });
     const itemsPerPage = 8;
 
-    // Reset page when data changes
+    const clientItems = data || [];
+
+    // Fetch data when page changes OR filters (fetchData) change
     React.useEffect(() => {
-        setCurrentPage(1);
-    }, [data.length]);
+        let isMounted = true;
+        if (fetchData) {
+            setServerData(prev => ({ ...prev, loading: true }));
+            fetchData(currentPage, itemsPerPage).then(res => {
+                if (isMounted && res) {
+                    setServerData({ items: res.items, count: res.count, loading: false });
+                }
+            });
+        }
+        return () => { isMounted = false; };
+    }, [currentPage, fetchData, itemsPerPage]);
+
+    // Reset to first page when client data source changes
+    React.useEffect(() => {
+        if (!fetchData) setCurrentPage(1);
+    }, [clientItems.length, fetchData]);
 
     const paginatedItems = useMemo(() => {
-        return data.slice(
+        if (fetchData) return serverData.items;
+        return clientItems.slice(
             (currentPage - 1) * itemsPerPage,
             currentPage * itemsPerPage
         );
-    }, [data, currentPage, itemsPerPage]);
+    }, [clientItems, serverData.items, currentPage, itemsPerPage, fetchData]);
+
+    const totalCount = fetchData ? serverData.count : clientItems.length;
 
     const handleExportCSV = useCallback(() => {
-        const flatData = data.map(item => item.properties || item);
+        const sourceData = fetchData && serverData.count <= 1000 ? serverData.items : clientItems;
+        const flatData = sourceData.map(item => item.properties || item);
         downloadCSV(flatData, `${title}_Data_Export`);
-    }, [data, title]);
+    }, [clientItems, serverData, fetchData, title]);
 
     const handleExportPDF = useCallback(() => {
-        const flatData = data.map(item => item.properties || item);
+        const sourceData = fetchData && serverData.count <= 1000 ? serverData.items : clientItems;
+        const flatData = sourceData.map(item => item.properties || item);
         downloadPDF(flatData, `${title}_Data_PDF`, `${title} Data Inventory`);
-    }, [data, title]);
+    }, [clientItems, serverData, fetchData, title]);
 
     return (
         <div className="table-card">
@@ -47,9 +70,12 @@ const TableCard = React.memo(({ title, data = [], columns = [], loading = false 
                 </div>
             </div>
             <div className="table-card-content">
-                {loading ? (
-                    <div className="table-loading">Loading {title}...</div>
-                ) : data.length === 0 ? (
+                {loading || serverData.loading ? (
+                    <div className="table-loading" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '20px' }}>
+                        <Spinner size={32} color="#3b82f6" />
+                        <span>Loading {title}...</span>
+                    </div>
+                ) : paginatedItems.length === 0 ? (
                     <div className="table-empty">No {title.toLowerCase()} found.</div>
                 ) : (
                     <div className="table-responsive">
@@ -78,7 +104,7 @@ const TableCard = React.memo(({ title, data = [], columns = [], loading = false 
                         </table>
                         <Pagination
                             currentPage={currentPage}
-                            totalItems={data.length}
+                            totalItems={totalCount}
                             itemsPerPage={itemsPerPage}
                             onPageChange={setCurrentPage}
                         />
@@ -95,7 +121,8 @@ const WaterResourcesTables = ({
     canals = [],
     micro = [],
     rechargeData = [],
-    loading = {}
+    loading = {},
+    fetchRechargeData = null
 }) => {
 
     // Column definitions for each table type
@@ -169,6 +196,7 @@ const WaterResourcesTables = ({
                     data={rechargeData}
                     columns={rechargeColumns}
                     loading={loading.recharge}
+                    fetchData={fetchRechargeData}
                 />
             </div>
         </div>

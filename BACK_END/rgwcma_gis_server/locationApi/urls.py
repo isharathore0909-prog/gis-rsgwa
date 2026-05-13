@@ -5,6 +5,7 @@ from .views import (
     PincodeView, BoundaryByCodeView, BoundaryCollectionView, LocationCodeView, 
     ExternalRequestProxyView, PointIdentifyView
 )
+from .views.external import GeoServerProxyView
 
 router = DefaultRouter()
 router.register(r'countries', CountryViewSet)
@@ -21,5 +22,6 @@ urlpatterns = [
     path('boundary-collection/', BoundaryCollectionView.as_view(), name='boundary-collection'),
     path('location-codes/', LocationCodeView.as_view(), name='location-codes'),
     path('external-proxy/<path:endpoint>/', ExternalRequestProxyView.as_view(), name='external-proxy'),
+    path('geoserver-proxy/', GeoServerProxyView.as_view(), name='geoserver-proxy'),
     path('point-identify/', PointIdentifyView.as_view(), name='point-identify'),
 ]

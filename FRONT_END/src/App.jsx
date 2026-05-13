@@ -2,7 +2,8 @@ import React, { useMemo, Suspense, lazy } from 'react';
 
 // Components
 import Header from './components/Header';
-import LoadingOverlay from './components/common/LoadingOverlay';
+import LoadingOverlay from './components/Common/ChartLoadingOverlay';
+import ToastContainer from './components/Common/ToastContainer';
 
 // Lazy load heavy components
 const DashboardContainer = lazy(() => import('./components/Dashboard/DashboardContainer'));
@@ -133,6 +134,7 @@ function AppContent() {
     return (
         <div className="app-container">
             <Header />
+            <ToastContainer />
             <Suspense fallback={<LoadingOverlay message="Initializing Application..." />}>
                 {viewMode === 'dashboard' ? (
                     <div className="main-layout dashboard-layout">

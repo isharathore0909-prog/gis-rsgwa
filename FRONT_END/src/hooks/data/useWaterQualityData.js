@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import useDebounce from '../core/useDebounce';
+import { notificationService } from '../../services/notificationService';
 
 /**
  * Custom hook for fetching water quality records
@@ -57,6 +58,7 @@ export const useWaterQuality = (isActive, filters) => {
                     console.error('[useWaterQuality] Error:', error);
                     setRecords([]);
                     setLoading(false);
+                    notificationService.error(`Failed to fetch water quality wells: ${error.message}`);
                 }
             }
         };

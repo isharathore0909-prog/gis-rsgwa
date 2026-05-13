@@ -1,13 +1,14 @@
-import React from 'react';
-import {
-    PieChart, Pie, Cell,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid,
-    ResponsiveContainer, Tooltip, Legend
-} from 'recharts';
+import React, { useMemo } from 'react';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 import AnalysisCard from './Common/AnalysisCard';
 import MiniStatusCard from './Common/MiniStatusCard';
 import SmartChartContainer from './Common/SmartChartContainer';
 
+/**
+ * GroundWaterSection - Standardized on Highcharts
+ * Displays GWRE status, water level bars, aquifer area, and WQ compliance.
+ */
 const GroundWaterSection = ({
     isGWRE,
     pieData,
@@ -22,30 +23,140 @@ const GroundWaterSection = ({
 }) => {
 
     const isNoData = isGWRE && pieData.length === 1 && pieData[0].name === 'Data N/A';
-
     if (isNoData) return null;
+
+    // Stage of Ground Water Extraction Donut Chart Options
+    const pieOptions = useMemo(() => ({
+        chart: { type: 'pie', backgroundColor: 'transparent', height: isExpanded ? 350 : 260 },
+        title: { text: null },
+        plotOptions: {
+            pie: {
+                innerSize: '65%',
+                dataLabels: { enabled: false },
+                showInLegend: false,
+                borderWidth: 0,
+                states: { hover: { brightness: 0.1 } }
+            }
+        },
+        tooltip: {
+            headerFormat: '',
+            pointFormat: '<span style="color:{point.color}">\u25CF</span> {point.name}: <b>{point.y}</b>'
+        },
+        series: [{
+            name: 'Status',
+            data: pieData.map(d => ({ name: d.name, y: d.value, color: d.color })),
+            animation: false
+        }],
+        credits: { enabled: false }
+    }), [pieData, isExpanded]);
+
+    // Ground Water Level Bar Chart Options
+    const waterLevelOptions = useMemo(() => ({
+        chart: { type: 'column', backgroundColor: 'transparent', height: isExpanded ? 350 : 260 },
+        title: { text: null },
+        xAxis: {
+            categories: waterLevelChartData.map(d => d.name),
+            labels: { style: { fontSize: '11px', color: '#64748b' } },
+            lineWidth: 0,
+            tickWidth: 0
+        },
+        yAxis: {
+            reversed: true, // Crucial for mbgl (meters below ground level)
+            title: { text: null },
+            gridLineColor: '#f1f5f9',
+            labels: { style: { fontSize: '11px', color: '#64748b' } }
+        },
+        plotOptions: {
+            column: { borderRadius: 4, borderWidth: 0 }
+        },
+        tooltip: {
+            shared: true,
+            valueSuffix: ' mbgl'
+        },
+        series: [{
+            name: 'Water Level',
+            showInLegend: false,
+            data: waterLevelChartData.map(d => ({ y: d.value, color: d.color })),
+            animation: false
+        }],
+        credits: { enabled: false }
+    }), [waterLevelChartData, isExpanded]);
+
+    // Aquifers Present Horizontal Bar Chart Options
+    const aquiferOptions = useMemo(() => ({
+        chart: { type: 'bar', backgroundColor: 'transparent', height: isExpanded ? 420 : 300 },
+        title: { text: null },
+        xAxis: {
+            categories: aquiferData.map(d => d.name),
+            labels: { style: { fontSize: '10px', fontWeight: '500', color: '#475569' } },
+            lineWidth: 0
+        },
+        yAxis: {
+            title: { text: null },
+            gridLineColor: '#f1f5f9',
+            visible: false
+        },
+        plotOptions: {
+            bar: { borderRadius: 4, borderWidth: 0 }
+        },
+        tooltip: {
+            pointFormat: 'Area: <b>{point.y:,.0f} sq km</b>'
+        },
+        series: [{
+            name: 'Area',
+            showInLegend: false,
+            data: aquiferData.map(d => ({ y: d.value, color: d.color || '#3b82f6' })),
+            animation: false
+        }],
+        credits: { enabled: false }
+    }), [aquiferData, isExpanded]);
+
+    // Water Quality Compliance Horizontal Bar Chart Options
+    const qualityOptions = useMemo(() => ({
+        chart: { type: 'bar', backgroundColor: 'transparent', height: isExpanded ? 420 : 340 },
+        title: { text: null },
+        xAxis: {
+            categories: qualityData.map(d => d.subject),
+            labels: { style: { fontSize: '10px', fontWeight: '500', color: '#475569' } },
+            lineWidth: 0
+        },
+        yAxis: {
+            title: { text: null },
+            max: 100,
+            visible: false
+        },
+        plotOptions: {
+            bar: { borderRadius: 4, borderWidth: 0 }
+        },
+        tooltip: {
+            useHTML: true,
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            borderWidth: 0,
+            shadow: true,
+            formatter: function () {
+                const d = qualityData[this.point.index];
+                return `<div style="padding: 5px;">
+                    <p style="margin:0; font-weight:700; font-size:12px; color:#1e293b;">${d.subject}</p>
+                    <p style="margin:5px 0 0 0; font-size:11px; color:#64748b;"><strong>Limit:</strong> ${d.label}</p>
+                    <p style="margin:2px 0 0 0; font-size:11px; color:#64748b;"><strong>Exceedance:</strong> <span style="color:#ef4444; font-weight:600;">${this.y}%</span> Stations</p>
+                </div>`;
+            }
+        },
+        series: [{
+            name: 'Exceedance',
+            showInLegend: false,
+            data: qualityData.map(d => ({ y: d.value, color: '#f4a261' })),
+            animation: false
+        }],
+        credits: { enabled: false }
+    }), [qualityData, isExpanded]);
 
     return (
         <div className={`groundwater-analysis-grid animated-entry ${isExpanded ? 'is-expanded' : ''}`}>
-            {/* Only render the donut chart card when real GWRE data is available */}
             {pieData.length > 0 && (
                 <AnalysisCard title={isGWRE ? 'Stage of Ground Water Extraction' : 'Ground Water Status'}>
-                    <SmartChartContainer height={isExpanded ? '350px' : '260px'} className="pie-chart-wrapper">
-                        <PieChart>
-                            <Pie
-                                data={pieData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={55}
-                                outerRadius={80}
-                                paddingAngle={5}
-                                dataKey="value"
-                                isAnimationActive={false}
-                            >
-                                {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                            </Pie>
-                            <Tooltip allowEscapeViewBox={{ y: true }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                        </PieChart>
+                    <SmartChartContainer height={isExpanded ? '350px' : '260px'} className="pie-chart-wrapper" isLoading={isLoading}>
+                        <HighchartsReact highcharts={Highcharts} options={pieOptions} />
                     </SmartChartContainer>
 
                     <div className="card-legend-wrapper">
@@ -68,16 +179,8 @@ const GroundWaterSection = ({
             )}
 
             <AnalysisCard title="Ground Water Level (mbgl)">
-                <SmartChartContainer height={isExpanded ? '350px' : '260px'} className="bar-chart-wrapper">
-                    <BarChart data={waterLevelChartData} margin={{ top: 20, right: 40, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} reversed />
-                        <Tooltip allowEscapeViewBox={{ y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                        <Bar dataKey="value" radius={[0, 0, 4, 4]} isAnimationActive={false}>
-                            {waterLevelChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                        </Bar>
-                    </BarChart>
+                <SmartChartContainer height={isExpanded ? '350px' : '260px'} className="bar-chart-wrapper" isLoading={isLoading}>
+                    <HighchartsReact highcharts={Highcharts} options={waterLevelOptions} />
                 </SmartChartContainer>
                 <div className="status-summary-grid" style={{ marginTop: '1rem' }}>
                     {waterLevelChartData.map((d, i) => (
@@ -87,28 +190,8 @@ const GroundWaterSection = ({
             </AnalysisCard>
 
             <AnalysisCard title="Aquifers Present">
-                <SmartChartContainer height={isExpanded ? '420px' : '300px'} className="bar-chart-wrapper">
-                    <BarChart
-                        data={aquiferData}
-                        layout="vertical"
-                        margin={{ top: 10, right: 30, left: 70, bottom: 30 }}
-                        barSize={20}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                        <XAxis type="number" hide />
-                        <YAxis
-                            dataKey="name"
-                            type="category"
-                            width={70}
-                            tick={{ fontSize: 10, fontWeight: 500 }}
-                        />
-                        <Tooltip allowEscapeViewBox={{ y: true }} cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                        <Bar dataKey="value" fill="#8884d8" name="Area (sq km)" radius={[0, 4, 4, 0]} isAnimationActive={false}>
-                            {aquiferData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color || '#3b82f6'} />
-                            ))}
-                        </Bar>
-                    </BarChart>
+                <SmartChartContainer height={isExpanded ? '420px' : '300px'} className="bar-chart-wrapper" isLoading={isLoading}>
+                    <HighchartsReact highcharts={Highcharts} options={aquiferOptions} />
                 </SmartChartContainer>
                 <div className="aquifer-details-list" style={{ marginTop: '0.5rem' }}>
                     {aquiferData.map((d, i) => (
@@ -127,47 +210,15 @@ const GroundWaterSection = ({
             </AnalysisCard>
 
             <AnalysisCard title="Water Quality Compliance">
-                <SmartChartContainer height={isExpanded ? '420px' : '340px'} className="bar-chart-wrapper">
-                    <BarChart
-                        data={qualityData}
-                        layout="vertical"
-                        margin={{ top: 10, right: 30, left: 70, bottom: 30 }}
-                        barSize={20}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                        <XAxis type="number" domain={[0, 100]} hide />
-                        <YAxis
-                            dataKey="subject"
-                            type="category"
-                            width={65}
-                            tick={{ fontSize: 10, fontWeight: 500 }}
-                        />
-                        <Tooltip
-                            allowEscapeViewBox={{ y: true }}
-                            cursor={{ fill: 'transparent' }}
-                            content={({ active, payload }) => {
-                                if (active && payload && payload.length) {
-                                    const data = payload[0].payload;
-                                    return (
-                                        <div className="custom-chart-tooltip">
-                                            <p className="tooltip-title">{data.subject}</p>
-                                            <p className="tooltip-item"><strong>Limit:</strong> {data.label}</p>
-                                            <p className="tooltip-item"><strong>Exceedance:</strong> {data.value}% Stations</p>
-                                        </div>
-                                    );
-                                }
-                                return null;
-                            }}
-                        />
-                        <Bar dataKey="value" fill="#f4a261" radius={[0, 4, 4, 0]} isAnimationActive={false} />
-                    </BarChart>
+                <SmartChartContainer height={isExpanded ? '420px' : '340px'} className="bar-chart-wrapper" isLoading={isLoading}>
+                    <HighchartsReact highcharts={Highcharts} options={qualityOptions} />
                 </SmartChartContainer>
                 <div className="status-summary-grid" style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>
                     {qualityData.map((d, i) => (
                         <MiniStatusCard key={i} value={`${d.value}%`} label={d.subject} color="#f4a261" />
                     ))}
                 </div>
-                <div className="quality-legend-simple" style={{ marginTop: '0rem' }}>
+                <div className="quality-legend-simple">
                     <div className="legend-label">% Stations Exceeding Permissible Limits</div>
                 </div>
             </AnalysisCard>
@@ -197,7 +248,7 @@ const GroundWaterSection = ({
 
                     <div className="aquifer-details-list">
                         {[
-                            { id: 'ec', name: 'Electrical Conductivity (EC)', unit: 'µS/cm', threshold: 3000 },
+                            { id: 'ec', name: 'Electrical Conductivity (EC)', unit: 'µs/cm', threshold: 3000 },
                             { id: 'fluoride', name: 'Fluoride', unit: 'mg/l', threshold: 1.5 },
                             { id: 'nitrate', name: 'Nitrate', unit: 'mg/l', threshold: 45 },
                             { id: 'iron', name: 'Iron', unit: 'mg/l', threshold: 1.0 },
@@ -237,4 +288,4 @@ const GroundWaterSection = ({
     );
 };
 
-export default GroundWaterSection;
+export default React.memo(GroundWaterSection);

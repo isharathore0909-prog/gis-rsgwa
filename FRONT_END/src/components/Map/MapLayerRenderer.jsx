@@ -33,6 +33,8 @@ const MapLayerRenderer = ({
     canalFilter,
     waterbodyFilter,
     microData,
+    rechargeRecords,
+    showRecharge,
     currentLevel,
 }) => {
     return (
@@ -71,7 +73,7 @@ const MapLayerRenderer = ({
             <DamMarkersLayer
                 isActive={filters?.showDams}
                 damMarkers={damMarkers}
-                onDamClick={setSelectedDam}
+                onDamClick={(dam) => handleLocationClick({ lat: dam.coordinate.lat, lng: dam.coordinate.lng }, [{ ...dam, type: 'dam' }])}
                 onAddToTable={onAddToTable}
                 color={layerColors.dams}
             />
@@ -123,10 +125,13 @@ const MapLayerRenderer = ({
                 showCanals={filters?.showCanals}
                 showWaterbodies={filters?.showWaterbodies}
                 showMicro={filters?.showMicro}
+                showRecharge={showRecharge}
+                rechargeRecords={rechargeRecords}
                 canalFilter={canalFilter}
                 waterbodyFilter={waterbodyFilter}
                 microData={microData}
                 layerColors={layerColors}
+                onStructureClick={(structure) => handleLocationClick({ lat: structure.latitude || structure.lat, lng: structure.longitude || structure.lng }, [structure])}
                 onLoading={handleVectorLoading}
             />
 

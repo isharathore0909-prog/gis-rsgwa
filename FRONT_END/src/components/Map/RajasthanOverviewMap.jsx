@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import {
     StateBoundaryLayer, WaterQualityContourLayer,
     RainfallDistrictChoroplethLayer, DamMarkersLayer,
@@ -19,7 +19,7 @@ const RAJASTHAN_ZOOM = 6;
  * A simplified, independent map for the dashboard overview.
  * It stays focused on the whole state and shows thematic layers on hover.
  */
-const RajasthanOverviewMap = memo(({ hoveredMetric, damMarkers = [] }) => {
+const RajasthanOverviewMap = memo(({ hoveredMetric, damMarkers = [], gwreFeatures = [] }) => {
 
     const getLegendData = () => {
         const metric = hoveredMetric || 'gwre'; // Default layer is usually GWRE based on the map view
@@ -69,6 +69,31 @@ const RajasthanOverviewMap = memo(({ hoveredMetric, damMarkers = [] }) => {
                     isActive={!hoveredMetric || hoveredMetric === 'gwre'}
                     filters={{}}
                 />
+
+                {(!hoveredMetric || hoveredMetric === 'gwre') && gwreFeatures?.length > 0 && (
+                    <GeoJSON
+                        key={`gwre-geojson-${gwreFeatures.length}`}
+                        data={gwreFeatures}
+                        style={{ fillColor: 'transparent', color: 'transparent', weight: 0 }}
+                        onEachFeature={(feature, layer) => {
+                            const props = feature.properties || {};
+                            const block = (props.BLOCK_NAME || props.Block || props.block_name || props.BLOCK || '-').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                            const category = (props.Category || props.GWDL || props.CATEGORY || props.category || props.block_status || '-').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                            const stage = props.STAGE_OF_GW_DEVELOPMENT || props.Stage || props.stage_of_gw_development || props.stage_of_g || '-';
+
+                            layer.bindTooltip(`
+                                <div style="text-align: left; padding: 4px;">
+                                    <strong style="color: #64748b;">Block:</strong> ${block}<br/>
+                                    <strong style="color: #64748b;">Category:</strong> ${category}<br/>
+                                    <strong style="color: #64748b;">Stage of GWRE:</strong> ${stage}
+                                </div>
+                            `, {
+                                sticky: true,
+                                className: 'gwre-tooltip'
+                            });
+                        }}
+                    />
+                )}
 
                 <WaterQualityContourLayer
                     isActive={hoveredMetric === 'water_quality'}

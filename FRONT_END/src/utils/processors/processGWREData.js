@@ -28,7 +28,7 @@ export const processGWREData = (filters, processedBlockData, gwreFeatures) => {
         ...f,
         id: f.id || `gwre-${idx}`,
         properties: {
-            'Category': f.properties.Category || f.properties.GWDL || f.properties.CATEGORY || f.properties.block_status || 'Uncategorized',
+            'Category': f.properties.Category || f.properties.category || f.properties.GWDL || f.properties.CATEGORY || f.properties.block_status || 'Uncategorized',
             'District': f.properties.DIST_NAME || f.properties.District || f.properties.district_name || f.properties.DISTRICT_N || '-',
             'Block': f.properties.BLOCK_NAME || f.properties.Block || f.properties.block_name || f.properties.BLOCK || '-',
             'Net Availability': f.properties.NET_ANNUAL_GW_AVAILABILITY || f.properties.Net_Availability || f.properties.net_annual_gw_availability || 'N/A',

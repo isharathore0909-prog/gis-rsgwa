@@ -80,7 +80,7 @@ export const GroundwaterStatusLayer = ({
     }, []);
 
     const cqlFilter = handleFilters();
-    const baseUrl = "http://localhost:8080/geoserver/rgwcma/wms";
+    const baseUrl = `${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`;
     const layerName = "rgwcma:groundwater_status_layer";
 
     if (!isActive) return null;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { WMSTileLayer } from 'react-leaflet';
 import { PiezometerMarker } from '../Markers';
+import { GEOSERVER_CONFIG } from '../../../api/config';
 
 export const PiezometerMarkersLayer = React.memo(({
     isActive,
@@ -41,7 +42,7 @@ export const WaterLevelBubbleLayer = React.memo(({
     return (
         <WMSTileLayer
             key={`water-level-wms-${cql || 'state'}`}
-            url="http://localhost:8080/geoserver/rgwcma/wms"
+            url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
             layers="rgwcma:aquifer_spatial_view"
             styles="well_bubbles"
             format="image/png"

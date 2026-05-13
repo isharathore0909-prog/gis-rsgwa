@@ -129,3 +129,46 @@ def calculate_water_quality_stats(queryset, model):
         else: summary[k] = v or 0
         
     return summary
+
+def calculate_regression(points):
+    """
+    Calculates slope, intercept and R-squared for a list of [x, y] points.
+    Returns projection points for the min/max X values.
+    """
+    import math
+    if not points or len(points) < 2:
+        return None
+    
+    try:
+        n = len(points)
+        sum_x = sum(p[0] for p in points)
+        sum_y = sum(p[1] for p in points)
+        sum_xy = sum(p[0] * p[1] for p in points)
+        sum_x2 = sum(p[0]**2 for p in points)
+        sum_y2 = sum(p[1]**2 for p in points)
+        
+        denominator = (n * sum_x2 - sum_x**2)
+        if denominator == 0:
+            return None
+            
+        slope = (n * sum_xy - sum_x * sum_y) / denominator
+        intercept = (sum_y - slope * sum_x) / n
+        
+        # R-squared
+        r_num = (n * sum_xy - sum_x * sum_y)
+        r_den_sq = (n * sum_x2 - sum_x**2) * (n * sum_y2 - sum_y**2)
+        r_squared = (r_num**2 / r_den_sq) if r_den_sq > 0 else 0
+        
+        x_values = [p[0] for p in points]
+        min_x = min(x_values)
+        max_x = max(x_values)
+        
+        return {
+            'slope': round(slope, 4),
+            'intercept': round(intercept, 4),
+            'r_squared': round(r_squared, 3),
+            'line_points': [[min_x, slope * min_x + intercept], [max_x, slope * max_x + intercept]]
+        }
+    except Exception as e:
+        print(f"Regression error: {e}")
+        return None

@@ -56,3 +56,47 @@ export const calculateLinearTrendLine = (data, dataKey) => {
 
     return data.map((d, i) => (slope * i + intercept));
 };
+
+/**
+ * Scatter Linear Regression
+ * 
+ * Calculates slope, intercept and R-squared for a set of [x, y] points.
+ * Returns projection points for the min/max X values.
+ */
+export const calculateScatterRegression = (points) => {
+    if (!points || !Array.isArray(points) || points.length < 2) return null;
+
+    const validPoints = points.filter(p => Array.isArray(p) && p.length === 2 && !isNaN(p[0]) && !isNaN(p[1]));
+    const n = validPoints.length;
+    if (n < 2) return null;
+
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+    for (const [x, y] of validPoints) {
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+        sumY2 += y * y;
+    }
+
+    const denominator = (n * sumX2 - sumX * sumX);
+    if (denominator === 0) return null;
+
+    const slope = (n * sumXY - sumX * sumY) / denominator;
+    const intercept = (sumY - slope * sumX) / n;
+
+    // Calculate R-Squared
+    const rNum = (n * sumXY - sumX * sumY);
+    const rDen = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+    const rSquared = rDen === 0 ? 0 : Math.pow(rNum / rDen, 2);
+
+    const xValues = validPoints.map(p => p[0]);
+    const minX = Math.min(...xValues);
+    const maxX = Math.max(...xValues);
+
+    return {
+        points: [[minX, slope * minX + intercept], [maxX, slope * maxX + intercept]],
+        rSquared: rSquared.toFixed(3),
+        slope: slope.toFixed(4)
+    };
+};

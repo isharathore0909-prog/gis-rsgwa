@@ -1,0 +1,131 @@
+.toast-container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+    max-width: 400px;
+}
+
+.toast-message {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f1f5f9;
+    pointer-events: auto;
+    overflow: hidden;
+    min-width: 300px;
+}
+
+.toast-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.toast-icon {
+    flex-shrink: 0;
+}
+
+.toast-icon.success {
+    color: #10b981;
+}
+
+.toast-icon.error {
+    color: #ef4444;
+}
+
+.toast-icon.warning {
+    color: #f59e0b;
+}
+
+.toast-icon.info {
+    color: #3b82f6;
+}
+
+.toast-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #1e293b;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 4px;
+    margin-left: 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toast-close:hover {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: #e2e8f0;
+    width: 0;
+    animation: toast-progress-anim linear forwards;
+}
+
+.toast-success .toast-progress {
+    background: #10b981;
+}
+
+.toast-error .toast-progress {
+    background: #ef4444;
+}
+
+.toast-warning .toast-progress {
+    background: #f59e0b;
+}
+
+.toast-info .toast-progress {
+    background: #3b82f6;
+}
+
+@keyframes toast-progress-anim {
+    from {
+        width: 100%;
+    }
+
+    to {
+        width: 0%;
+    }
+}
+
+.animated-toast {
+    animation: toast-enter 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes toast-enter {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}

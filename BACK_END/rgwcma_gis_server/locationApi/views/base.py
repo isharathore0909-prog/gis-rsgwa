@@ -11,10 +11,11 @@ from rest_framework.response import Response
 
 from ..models import Country, State, District, Block, Grampanchayat, Village
 
+from django.conf import settings
 logger = logging.getLogger(__name__)
 
-GPSPL_DOMAIN = "http://gpspl.geoplanetsolution.in"
-DEFAULT_EXTERNAL_API_KEY = "e32ebc1d-fe04-4bd7-9003-df5274c990e2"
+GPSPL_DOMAIN = settings.EXTERNAL_SERVICES["GPSPL_DOMAIN"]
+DEFAULT_EXTERNAL_API_KEY = settings.EXTERNAL_SERVICES["GPSPL_API_KEY"]
 
 LAYER_PARENT_MAP = {
     'state': 'country_id',
@@ -135,6 +136,7 @@ class BaseLocationViewSet(viewsets.ModelViewSet):
             return Response(cached_res)
             
         response = super().list(request, *args, **kwargs)
-        # Cache for 1 hour as location data is nearly static
-        cache.set(cache_key, response.data, 3600)
+        # Cache for 24 hours if successful, as location data is nearly static in Rajasthan
+        if response.status_code == 200:
+            cache.set(cache_key, response.data, 3600 * 24)
         return response

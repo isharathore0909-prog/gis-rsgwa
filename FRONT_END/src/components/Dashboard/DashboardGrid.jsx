@@ -103,6 +103,7 @@ const DashboardGrid = ({ onMetricClick, mapComponent, data, analysisResults }) =
                                 <RajasthanOverviewMap
                                     hoveredMetric={hoveredMetricId}
                                     damMarkers={data.allDams}
+                                    gwreFeatures={analysisResults?.gwreFeatures?.features || []}
                                 />
                             </div>
                         </div>

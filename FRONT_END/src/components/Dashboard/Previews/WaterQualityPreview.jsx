@@ -1,7 +1,84 @@
-import React from 'react';
-import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip } from 'recharts';
+import React, { useMemo } from 'react';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
+import more from 'highcharts/highcharts-more';
+
+// Initialize Highcharts more module for polar/spiderweb charts
+if (typeof Highcharts === 'object' && more) {
+    if (typeof more === 'function') {
+        more(Highcharts);
+    } else if (typeof more.default === 'function') {
+        more.default(Highcharts);
+    }
+}
 
 const WaterQualityPreview = ({ analysisResults, metricColor }) => {
+    const chartOptions = useMemo(() => {
+        const rawData = analysisResults?.qualityData || [];
+        if (rawData.length === 0) return null;
+
+        const labelMap = {
+            'EC': 'E.C.',
+            'TDS': 'TDS',
+            'Fluoride': 'Fluoride',
+            'Nitrate': 'Nitrate',
+            'Hardness': 'Hardness',
+            'pH': 'pH'
+        };
+
+        return {
+            chart: {
+                polar: true,
+                type: 'area',
+                backgroundColor: 'transparent',
+                height: 240,
+                spacing: [10, 0, 10, 0]
+            },
+            title: { text: null },
+            pane: { size: '80%' },
+            xAxis: {
+                categories: rawData.map(d => labelMap[d.subject] || d.subject),
+                tickmarkPlacement: 'on',
+                lineWidth: 0,
+                gridLineColor: '#e2e8f0',
+                labels: {
+                    style: { fontSize: '10px', fontWeight: '600', color: '#334155' },
+                    distance: 15
+                }
+            },
+            yAxis: {
+                gridLineInterpolation: 'polygon',
+                lineWidth: 0,
+                min: 0,
+                max: 100,
+                tickInterval: 25,
+                gridLineColor: '#e2e8f0',
+                labels: {
+                    enabled: true,
+                    style: { fontSize: '9px', color: '#94a3b8' },
+                    align: 'right',
+                    x: -2
+                }
+            },
+            tooltip: {
+                shared: true,
+                pointFormat: '{series.name}: <b>{point.y}%</b>',
+                style: { fontSize: '10px' }
+            },
+            legend: { enabled: false },
+            credits: { enabled: false },
+            series: [{
+                name: 'Exceedance',
+                data: rawData.map(d => d.value),
+                pointPlacement: 'on',
+                color: '#3b82f6',
+                fillColor: 'rgba(59, 130, 246, 0.3)',
+                lineWidth: 2,
+                marker: { enabled: false }
+            }]
+        };
+    }, [analysisResults?.qualityData]);
+
     if (!analysisResults?.qualityData || analysisResults.qualityData.length === 0) return null;
 
     return (
@@ -15,21 +92,12 @@ const WaterQualityPreview = ({ analysisResults, metricColor }) => {
             flexDirection: 'column'
         }}>
             <div style={{ height: '240px', width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius={100} data={analysisResults.qualityData}>
-                        <PolarGrid stroke="#e2e8f0" />
-                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 600, fill: '#475569' }} />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8 }} />
-                        <Tooltip formatter={(value) => `${value}%`} />
-                        <Radar
-                            name="Exceedance %"
-                            dataKey="value"
-                            stroke={metricColor}
-                            fill={metricColor}
-                            fillOpacity={0.6}
-                        />
-                    </RadarChart>
-                </ResponsiveContainer>
+                {chartOptions && (
+                    <HighchartsReact
+                        highcharts={Highcharts}
+                        options={chartOptions}
+                    />
+                )}
             </div>
             {analysisResults?.waterQualityStats?.summary && (
                 <div style={{

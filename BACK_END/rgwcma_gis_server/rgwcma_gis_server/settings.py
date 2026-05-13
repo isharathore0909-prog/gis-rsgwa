@@ -210,9 +210,19 @@ else:
 # ==============================================================================
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'IGNORE_EXCEPTIONS': True,
+        }
     }
+}
+
+EXTERNAL_SERVICES = {
+    "GEOSERVER_URL": os.getenv("GEOSERVER_URL", "http://localhost:8080/geoserver"),
+    "GPSPL_DOMAIN": os.getenv("GPSPL_DOMAIN", "http://gpspl.geoplanetsolution.in"),
+    "GPSPL_API_KEY": os.getenv("GPSPL_API_KEY", "e32ebc1d-fe04-4bd7-9003-df5274c990e2"),
 }
 
 
@@ -319,7 +329,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ),
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'core.pagination.DynamicPageNumberPagination',
     'PAGE_SIZE': 100,
 }
 

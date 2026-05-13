@@ -4,6 +4,7 @@ import api from '../../../api';
 export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, selectedWell, rainfallStations }) => {
     const [rainfallData, setRainfallData] = useState({});
     const [rainfallLoading, setRainfallLoading] = useState(false);
+    const [overallAverage, setOverallAverage] = useState(null);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -39,9 +40,8 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
                     // Attempt 1: Specific Village/Block/District fetch
                     response = await api.rainfall.getStationSummary(params, signal);
 
-                    // Fallback Attempt: If no data for specific village/station context, 
-                    // try a broader Block/District fetch to get regional average.
-                    if (selectedWell && (!response || !Array.isArray(response) || response.length === 0)) {
+                    // Fallback Attempt
+                    if (selectedWell && (!response || (!Array.isArray(response) && !response.data) || (Array.isArray(response) && response.length === 0))) {
                         if (signal.aborted) return;
                         const fallbackParams = {
                             timestep: params.timestep,
@@ -54,21 +54,24 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
                     }
 
                     // Secondary fallback to standard rainfall records if stations are empty
-                    if (!response || !Array.isArray(response) || response.length === 0) {
+                    if (!response || (!Array.isArray(response) && !response.data) || (Array.isArray(response) && response.length === 0)) {
                         if (signal.aborted) return;
                         const genParams = { ...params };
                         if (globalFilters?.gramPanchayat) genParams.gram_panchayat = globalFilters.gramPanchayat;
                         response = await api.rainfall.getSummary(genParams, signal);
                     }
                 } catch (err) {
-                    if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                    if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                     console.error("Rainfall fetch failed", err);
                     response = [];
                 }
 
-                if (!signal.aborted && Array.isArray(response)) {
+                if (!signal.aborted && (Array.isArray(response) || (response && response.data))) {
                     const rainMap = {};
-                    response.forEach(r => {
+                    const records = Array.isArray(response) ? response : (response.data || []);
+                    const avg = response?.overall_average || null;
+
+                    records.forEach(r => {
                         let yrVal = r.year || r.name || r.date;
                         let finalYear = null;
 
@@ -85,11 +88,13 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
                         }
                     });
                     setRainfallData(rainMap);
+                    setOverallAverage(avg);
                 } else if (!signal.aborted) {
                     setRainfallData({});
+                    setOverallAverage(null);
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 if (!signal.aborted) console.error("Error fetching rainfall for well inventory:", err);
             } finally {
                 if (!signal.aborted) setRainfallLoading(false);
@@ -100,5 +105,5 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
         return () => controller.abort();
     }, [selectedWell, displayRegion, displayBlock, globalFilters, rainfallStations]);
 
-    return { rainfallData, rainfallLoading };
+    return { rainfallData, rainfallLoading, overallAverage };
 };

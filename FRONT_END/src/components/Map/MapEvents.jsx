@@ -29,6 +29,11 @@ export function MapEvents({ onLocationClick }) {
                         blockCode: data.block_code,
                         gpCode: data.gp_code,
                         villageCode: data.village_code,
+                        gw_category: data.gw_category,
+                        aquifer: data.aquifer,
+                        water_resource: data.water_resource,
+                        rainfall: data.rainfall,
+                        water_level: data.water_level,
                         type: data.village ? 'village' : (data.gramPanchayat ? 'gp' : (data.block ? 'block' : 'district'))
                     }]);
                 }

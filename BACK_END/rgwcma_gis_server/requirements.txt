@@ -29,3 +29,5 @@ whitenoise==6.8.2
 scipy
 pyproj
 django-extensions==3.2.3
+django-redis>=5.4.0
+redis>=5.0.0

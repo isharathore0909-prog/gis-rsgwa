@@ -176,7 +176,7 @@ class MapRenderer:
             if layer == 'groundwater_zones':
                 colors = []
                 for _, row in gdf.iterrows():
-                    status = str(row.get('GWDL') or row.get('Category') or row.get('CATEGORY') or row.get('block_status') or row.get('Stage_of_G') or row.get('status') or '').lower()
+                    status = str(row.get('category') or row.get('Category') or row.get('CATEGORY') or row.get('GWDL') or row.get('block_status') or row.get('Stage_of_G') or row.get('status') or '').strip().lower()
                     color, label = GWRE_COLORS['default'], 'Default'
                     if 'safe' in status: color, label = GWRE_COLORS['safe'], 'Safe'
                     elif 'semi' in status: color, label = GWRE_COLORS['semi'], 'Semi Critical'

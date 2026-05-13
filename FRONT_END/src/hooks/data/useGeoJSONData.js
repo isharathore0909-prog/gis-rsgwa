@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { notificationService } from '../../services/notificationService';
 
 /**
  * Custom hook for loading GeoJSON files
@@ -67,6 +68,7 @@ export const useGeoJSONData = (url, isActive) => {
                     console.error(`[useGeoJSONData] Error loading ${url}:`, err);
                     setError(err);
                     setLoading(false);
+                    notificationService.error(`Failed to load map layer: ${url.split('/').pop()}`);
                 }
                 throw err;
             });

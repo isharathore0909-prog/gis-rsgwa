@@ -113,6 +113,19 @@ export const WATER_QUALITY_PALETTE = [
     { label: 'Non Potable', value: 'Critical', color: '#e63946' }
 ];
 
+export const GW_CATEGORY_COLORS = {
+    'safe': '#22c55e',
+    'semi-critical': '#eab308',
+    'critical': '#f97316',
+    'over-exploited': '#ef4444',
+    'saline': '#6c757d', // Updated to match GWRE_COLORS if needed, or keeping it distinct
+};
+
+export const formatGWCategory = (cat) => {
+    if (!cat) return null;
+    return cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+};
+
 export const GWRE_COLORS = {
     'safe': '#28a745',
     'semi': '#ffc107',

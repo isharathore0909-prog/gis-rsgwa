@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { GeoJSON, CircleMarker, Tooltip, WMSTileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import { BLUE_PALETTE } from '../../../constants/mapConstants';
+import { GEOSERVER_CONFIG } from '../../../api/config';
 import { getFeatureColor } from '../../../utils/mapUtils';
 
 import { normalizeDistrictName } from '../../../utils/namingUtils';
@@ -26,7 +27,7 @@ export const RainfallDistrictChoroplethLayer = ({
     return (
         <WMSTileLayer
             key={`rainfall-wms-${cql || 'all'}`}
-            url="http://localhost:8080/geoserver/rgwcma/wms"
+            url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
             layers="rgwcma:rainfall_choropleth"
             format="image/png"
             transparent={true}

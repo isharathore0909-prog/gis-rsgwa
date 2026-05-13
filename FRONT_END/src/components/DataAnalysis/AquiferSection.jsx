@@ -1,52 +1,14 @@
 import React, { useMemo } from 'react';
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Cell
-} from 'recharts';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 import AnalysisCard from './Common/AnalysisCard';
 import SmartChartContainer from './Common/SmartChartContainer';
 import './AquiferSection.css';
 
-// Custom tooltip for the aquifer bar chart
-const AquiferTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-        const d = payload[0].payload;
-        return (
-            <div style={{
-                background: '#fff',
-                border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '10px 14px',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                fontSize: '0.82rem',
-                minWidth: '160px'
-            }}>
-                <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{d.name}</div>
-                {d.area > 0 && (
-                    <div style={{ color: '#475569' }}>
-                        Area: <strong>{d.area.toLocaleString(undefined, { maximumFractionDigits: 1 })} km²</strong>
-                    </div>
-                )}
-                {d.count > 0 && (
-                    <div style={{ color: '#475569' }}>
-                        Features: <strong>{d.count}</strong>
-                    </div>
-                )}
-                <div style={{ color: '#64748b', marginTop: 4 }}>
-                    Share: <strong style={{ color: payload[0].fill }}>{Number(d.percent).toFixed(1)}%</strong>
-                </div>
-            </div>
-        );
-    }
-    return null;
-};
-
+/**
+ * AquiferSection - Standardized on Highcharts
+ * Visualizes the distribution of aquifer types in a selected region.
+ */
 const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpanded, spatialFilterApplied, totalArea, totalCount }) => {
     // Process data based on selected region
     const aquiferData = useMemo(() => {
@@ -55,6 +17,79 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
         }
         return [];
     }, [data]);
+
+    // Highcharts Configuration
+    const options = useMemo(() => {
+        if (aquiferData.length === 0) return null;
+
+        return {
+            chart: {
+                type: 'bar',
+                backgroundColor: 'transparent',
+                height: isExpanded
+                    ? Math.max(400, aquiferData.length * 60)
+                    : Math.max(220, aquiferData.length * 50),
+                style: { fontFamily: 'inherit' }
+            },
+            title: { text: null },
+            xAxis: {
+                categories: aquiferData.map(d => d.name),
+                labels: {
+                    style: { fontSize: '10px', fontWeight: '600', color: '#475569' }
+                },
+                lineWidth: 1,
+                lineColor: '#e2e8f0',
+                tickWidth: 0
+            },
+            yAxis: {
+                title: { text: null },
+                visible: false,
+                max: 100
+            },
+            tooltip: {
+                useHTML: true,
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                borderWidth: 0,
+                shadow: {
+                    color: 'rgba(0,0,0,0.12)',
+                    offsetX: 0,
+                    offsetY: 8,
+                    width: 24
+                },
+                borderRadius: 12,
+                formatter: function () {
+                    const d = aquiferData[this.point.index];
+                    return `<div style="padding: 10px 14px; min-width: 160px;">
+                        <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px; font-size: 13px;">${d.name}</div>
+                        ${d.area > 0 ? `<div style="color: #475569; font-size: 12px;">Area: <strong>${d.area.toLocaleString(undefined, { maximumFractionDigits: 1 })} km²</strong></div>` : ''}
+                        ${d.count > 0 ? `<div style="color: #475569; font-size: 12px;">Features: <strong>${d.count}</strong></div>` : ''}
+                        <div style="color: #64748b; margin-top: 4px; font-size: 12px;">Share: <strong style="color: ${d.color || '#3b82f6'};">${Number(d.percent).toFixed(1)}%</strong></div>
+                    </div>`;
+                }
+            },
+            plotOptions: {
+                bar: {
+                    borderRadius: 6,
+                    borderWidth: 0,
+                    dataLabels: {
+                        enabled: true,
+                        format: '{y:.1f}%',
+                        style: { fontSize: '10px', fontWeight: '600', color: '#64748b' },
+                        align: 'right',
+                        x: 45
+                    }
+                },
+                series: { animation: false }
+            },
+            series: [{
+                name: 'Share',
+                showInLegend: false,
+                data: aquiferData.map(d => ({ y: d.percent, color: d.color || '#3b82f6' })),
+                animation: false
+            }],
+            credits: { enabled: false }
+        };
+    }, [aquiferData, isExpanded]);
 
     if (data?.isNoData) return null;
 
@@ -140,43 +175,15 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
                                 ? `${Math.max(400, aquiferData.length * 60)}px`
                                 : `${Math.max(220, aquiferData.length * 50)}px`}
                             className="aquifer-chart-container"
+                            isLoading={isLoading}
                         >
-                            <BarChart
-                                data={aquiferData}
-                                layout="vertical"
-                                margin={{ top: 10, right: 50, left: 0, bottom: 10 }}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                                <XAxis type="number" hide domain={[0, 'dataMax']} dataKey="percent" />
-                                <YAxis
-                                    dataKey="name"
-                                    type="category"
-                                    width={110}
-                                    tick={{ fontSize: 10, fontWeight: 600, fill: '#475569' }}
-                                    axisLine={{ stroke: '#e2e8f0' }}
-                                    tickLine={false}
-                                />
-                                <Tooltip allowEscapeViewBox={{ y: true }} content={<AquiferTooltip />} />
-                                <Bar
-                                    dataKey="percent"
-                                    fill="#3b82f6"
-                                    barSize={22}
-                                    radius={[0, 6, 6, 0]}
-                                    minPointSize={2}
-                                    isAnimationActive={false}
-                                    label={{
-                                        position: 'right',
-                                        formatter: (v) => `${Number(v).toFixed(1)}%`,
-                                        fontSize: 10,
-                                        fontWeight: 600,
-                                        fill: '#64748b'
-                                    }}
-                                >
-                                    {aquiferData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
+                            {options ? (
+                                <HighchartsReact highcharts={Highcharts} options={options} />
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
+                                    Loading distribution...
+                                </div>
+                            )}
                         </SmartChartContainer>
                     </div>
 
@@ -218,4 +225,4 @@ const AquiferSection = ({ displayRegion, displayBlock, data, isLoading, isExpand
     );
 };
 
-export default AquiferSection;
+export default React.memo(AquiferSection);

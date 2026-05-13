@@ -1,7 +1,8 @@
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, memo, Suspense, lazy } from 'react';
 import DashboardGrid from './DashboardGrid';
-import MetricDetailView from './MetricDetailView';
+const MetricDetailView = lazy(() => import('./MetricDetailView'));
 import { DASHBOARD_METRICS } from '../../config/dashboardConfig';
+import LoadingOverlay from '../Common/ChartLoadingOverlay';
 import { processGWREData } from '../../utils/processors/processGWREData';
 import { processRainfallData } from '../../utils/processors/processRainfallData';
 import { processWaterQualityData, processWellInventoryData } from '../../utils/processors/processQualityWellData';
@@ -210,27 +211,34 @@ const DashboardContainer = memo(({
                     analysisResults={analysisResults}
                 />
             ) : (
-                <MetricDetailView
-                    metric={DASHBOARD_METRICS[activeMetricId.toUpperCase()]}
-                    onBack={handleBackToDashboard}
-                    data={processedData}
-                    analysisResults={analysisResults}
-                    rechargeRecords={rechargeRecords.map(r => {
-                        const props = r.properties || r;
-                        return {
-                            ...r,
-                            structure_name: props.structure_type || props.structure_name || props.name || props.NAME || '---',
-                            district: props.district_name || props.district || props.dist_name || props.DIST_NAME || '---',
-                            block: props.block_name || props.block || props.BLOCK_NAME || '---',
-                            status: props.status || props.structure_status || props.STATUS || '---'
-                        };
-                    })}
-                    rechargeLoading={rechargeLoading}
-                    waterQualityRaw={water_quality}
-                    waterLevelRaw={water_level}
-                    districtWaterLevelStats={districtWaterLevelStats}
-                    filters={filters}
-                />
+                (() => {
+                    const currentMetric = DASHBOARD_METRICS[activeMetricId.toUpperCase()];
+                    return (
+                        <Suspense fallback={<LoadingOverlay message={`Loading ${currentMetric?.title || 'Analysis'}...`} />}>
+                            <MetricDetailView
+                                metric={currentMetric}
+                                onBack={handleBackToDashboard}
+                                data={processedData}
+                                analysisResults={analysisResults}
+                                rechargeRecords={rechargeRecords.map(r => {
+                                    const props = r.properties || r;
+                                    return {
+                                        ...r,
+                                        structure_name: props.structure_type || props.structure_name || props.name || props.NAME || '---',
+                                        district: props.district_name || props.district || props.dist_name || props.DIST_NAME || '---',
+                                        block: props.block_name || props.block || props.BLOCK_NAME || '---',
+                                        status: props.status || props.structure_status || props.STATUS || '---'
+                                    };
+                                })}
+                                rechargeLoading={rechargeLoading}
+                                waterQualityRaw={water_quality}
+                                waterLevelRaw={water_level}
+                                districtWaterLevelStats={districtWaterLevelStats}
+                                filters={filters}
+                            />
+                        </Suspense>
+                    );
+                })()
             )}
         </div>
     );

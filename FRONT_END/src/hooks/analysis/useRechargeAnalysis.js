@@ -80,7 +80,7 @@ export const useRechargeAnalysis = ({
                     });
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 if (!signal.aborted) {
                     console.error('Failed to fetch recharge stats:', err);
                     if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error'))) {

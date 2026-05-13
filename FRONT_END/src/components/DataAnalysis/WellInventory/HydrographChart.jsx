@@ -1,22 +1,12 @@
 import React, { useMemo } from 'react';
-import {
-    ComposedChart,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer,
-    Bar,
-    Line,
-    LabelList
-} from 'recharts';
-import SmartChartContainer from '../Common/SmartChartContainer';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
+import ChartLoader from '../../Common/ChartLoader';
 import { calculateLinearTrendLine } from '../../../utils/statsUtils';
 
-const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpanded, showRainfall = true }) => {
-    const processedData = useMemo(() => {
-        if (!data) return [];
+const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpanded, showRainfall = true, isLoading = false }) => {
+    const chartOptions = useMemo(() => {
+        if (!data || data.length === 0) return null;
 
         const baseData = data.map(d => ({
             ...d,
@@ -26,133 +16,163 @@ const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpa
         const levelTrend = calculateLinearTrendLine(baseData, dataKey);
         const rainTrend = showRainfall ? calculateLinearTrendLine(baseData, 'Annual Rainfall') : null;
 
-        return baseData.map((d, i) => ({
-            ...d,
-            'Level Trend': levelTrend && levelTrend[i] != null ? parseFloat(levelTrend[i].toFixed(3)) : null,
-            'Rainfall Trend': rainTrend && rainTrend[i] != null ? parseFloat(rainTrend[i].toFixed(3)) : null
-        }));
-    }, [data, dataKey, showRainfall]);
+        const seriesColor = dataKey.includes('Pre') ? '#3b82f6' :
+            dataKey.includes('Post') ? '#0ea5e9' : '#1e3a8a';
 
-    if (!processedData.length) return null;
+        const categories = data.map(d => d.year);
 
-    const getSeriesColor = () => {
-        if (dataKey.includes('Pre')) return '#3b82f6';
-        if (dataKey.includes('Post')) return '#0ea5e9';
-        return '#1e3a8a';
-    };
+        const series = [
+            {
+                name: dataKey,
+                type: 'spline',
+                yAxis: showRainfall ? 1 : 0,
+                data: baseData.map(d => d[dataKey]),
+                color: seriesColor,
+                zIndex: 5,
+                marker: {
+                    enabled: true,
+                    radius: 5,
+                    fillColor: seriesColor
+                },
+                lineWidth: 3
+            },
+            {
+                name: `Linear (${dataKey})`,
+                type: 'line',
+                yAxis: showRainfall ? 1 : 0,
+                data: levelTrend || [],
+                color: seriesColor,
+                dashStyle: 'Dash',
+                marker: { enabled: false },
+                lineWidth: 1.5,
+                zIndex: 4,
+                enableMouseTracking: false
+            }
+        ];
 
-    const seriesColor = getSeriesColor();
+        if (showRainfall) {
+            series.unshift({
+                name: 'Annual Rainfall (m)',
+                type: 'column',
+                yAxis: 0,
+                data: baseData.map(d => d['Annual Rainfall']),
+                color: '#93c5fd',
+                zIndex: 1,
+                borderRadius: 2,
+                dataLabels: {
+                    enabled: true,
+                    format: '{y:.2f}',
+                    style: { fontSize: '9px', fontWeight: '600', color: '#64748b' }
+                }
+            });
+
+            series.push({
+                name: 'Linear (Annual Rainfall)',
+                type: 'line',
+                yAxis: 0,
+                data: rainTrend || [],
+                color: '#60a5fa',
+                dashStyle: 'ShortDash',
+                marker: { enabled: false },
+                lineWidth: 1.5,
+                zIndex: 2,
+                enableMouseTracking: false
+            });
+        }
+
+        return {
+            chart: {
+                height: isExpanded ? 500 : 400,
+                backgroundColor: 'transparent',
+                style: { fontFamily: 'inherit' },
+                spacingTop: 20,
+                spacingBottom: 40
+            },
+            title: { text: null },
+            xAxis: {
+                categories: categories,
+                labels: { style: { fontSize: '10px', color: '#64748b' } },
+                gridLineWidth: 0,
+                axisLine: { visible: false }
+            },
+            yAxis: showRainfall ? [
+                { // Primary (Rainfall)
+                    title: {
+                        text: 'Annual Rainfall (m)',
+                        style: { color: '#3b82f6', fontWeight: '600', fontSize: '10px' }
+                    },
+                    labels: { style: { color: '#3b82f6', fontSize: '10px' } },
+                    gridLineWidth: 1,
+                    gridLineColor: '#f1f5f9',
+                    min: 0
+                },
+                { // Secondary (Water Level)
+                    title: {
+                        text: 'Static water level in m.bgl',
+                        style: { color: seriesColor, fontWeight: '600', fontSize: '10px' }
+                    },
+                    labels: { style: { color: seriesColor, fontSize: '10px' } },
+                    reversed: true,
+                    opposite: true,
+                    gridLineWidth: 0
+                }
+            ] : [
+                {
+                    title: {
+                        text: 'Static water level in m.bgl',
+                        style: { color: seriesColor, fontWeight: '600', fontSize: '10px' }
+                    },
+                    labels: { style: { color: seriesColor, fontSize: '10px' } },
+                    reversed: true,
+                    gridLineWidth: 1,
+                    gridLineColor: '#f1f5f9'
+                }
+            ],
+            tooltip: {
+                shared: true,
+                useHTML: true,
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                borderWidth: 0,
+                borderRadius: 8,
+                shadow: true,
+                headerFormat: '<span style="font-size: 11px; color: #1e293b; font-weight: 700">{point.key}</span><br/>',
+                pointFormat: '<span style="color:{point.color}">\u25CF</span> {series.name}: <b>{point.y:.3f}</b><br/>'
+            },
+            legend: {
+                enabled: true,
+                itemStyle: { fontSize: '10px', fontWeight: '500', color: '#64748b' },
+                verticalAlign: 'bottom',
+                align: 'center'
+            },
+            credits: { enabled: false },
+            series: series
+        };
+    }, [data, dataKey, showRainfall, isExpanded]);
+
+    if (!data?.length && !isLoading) return null;
 
     return (
-        <SmartChartContainer height={height || (isExpanded ? '500px' : '400px')}>
-            <ComposedChart data={processedData} margin={{ top: 20, right: 30, left: 10, bottom: 50 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-
-                {showRainfall && (
-                    <YAxis
-                        yAxisId="left"
-                        label={{
-                            value: 'Annual Rainfall (m)',
-                            angle: -90,
-                            position: 'insideLeft',
-                            style: { fontSize: '10px', fill: '#3b82f6', fontWeight: 600 },
-                            dx: -10
-                        }}
-                        tick={{ fontSize: 10, fill: '#3b82f6' }}
-                        axisLine={false}
-                        tickLine={false}
-                        domain={[0, dataMax => dataMax * 1.4]}
+        <div
+            className="hydrograph-chart-wrapper"
+            style={{
+                height: height || (isExpanded ? '500px' : '400px'),
+                width: '100%',
+                position: 'relative'
+            }}
+        >
+            <ChartLoader isLoading={isLoading} minHeight="100%">
+                {chartOptions ? (
+                    <HighchartsReact
+                        highcharts={Highcharts}
+                        options={chartOptions}
                     />
+                ) : (
+                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                        No data available for chart
+                    </div>
                 )}
-
-                <YAxis
-                    yAxisId="right"
-                    orientation={showRainfall ? "right" : "left"}
-                    reversed={true}
-                    label={{
-                        value: 'Static water level in m.bgl',
-                        angle: showRainfall ? 90 : -90,
-                        position: showRainfall ? 'insideRight' : 'insideLeft',
-                        style: { fontSize: '10px', fill: seriesColor, fontWeight: 600 },
-                        dx: showRainfall ? 10 : -10
-                    }}
-                    tick={{ fontSize: 10, fill: seriesColor }}
-                    axisLine={false}
-                    tickLine={false}
-                    domain={['auto', 'auto']}
-                />
-
-                <Tooltip
-                    allowEscapeViewBox={{ x: false, y: true }}
-                    contentStyle={{
-                        borderRadius: '8px',
-                        border: 'none',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        fontSize: '0.85rem',
-                        pointerEvents: 'none'
-                    }}
-                    formatter={(value, name) => [
-                        typeof value === 'number' ? value.toFixed(3) : value,
-                        name
-                    ]}
-                    labelStyle={{ color: '#1e293b', fontWeight: 600, marginBottom: '4px' }}
-                />
-                <Legend verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: '10px', fontSize: '10px' }} iconType="circle" />
-
-                {showRainfall && (
-                    <Bar
-                        yAxisId="left"
-                        dataKey="Annual Rainfall"
-                        name="Annual Rainfall (m)"
-                        fill="#93c5fd"
-                        barSize={30}
-                        radius={[2, 2, 0, 0]}
-                    >
-                        <LabelList
-                            dataKey="Annual Rainfall"
-                            position="top"
-                            style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }}
-                            formatter={(v) => v ? v.toFixed(2) : ''}
-                        />
-                    </Bar>
-                )}
-
-                {showRainfall && (
-                    <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="Rainfall Trend"
-                        name="Linear (Annual Rainfall)"
-                        stroke="#60a5fa"
-                        strokeDasharray="5 5"
-                        dot={false}
-                        strokeWidth={1.5}
-                    />
-                )}
-
-                <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey={dataKey}
-                    name={dataKey}
-                    stroke={seriesColor}
-                    strokeWidth={3}
-                    dot={{ r: 5, fill: seriesColor }}
-                    connectNulls
-                />
-                <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="Level Trend"
-                    name={`Linear (${dataKey})`}
-                    stroke={seriesColor}
-                    strokeDasharray="3 3"
-                    dot={false}
-                    strokeWidth={1.5}
-                />
-            </ComposedChart>
-        </SmartChartContainer>
+            </ChartLoader>
+        </div>
     );
 };
 

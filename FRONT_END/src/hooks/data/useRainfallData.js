@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api';
 import { normalizeDistrictName } from '../../utils/namingUtils';
 import useDebounce from '../core/useDebounce';
+import { notificationService } from '../../services/notificationService';
 
 /**
  * Custom hook for fetching district-wise rainfall data
@@ -10,6 +11,7 @@ import useDebounce from '../core/useDebounce';
 export const useDistrictRainfall = (isActive, filters) => {
     const [districtRainfall, setDistrictRainfall] = useState({});
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     const debouncedFilters = useDebounce(filters, 500);
 
@@ -19,6 +21,7 @@ export const useDistrictRainfall = (isActive, filters) => {
         if (!isActive) {
             setDistrictRainfall({});
             setLoading(false);
+            setError(null);
             return;
         }
 
@@ -26,6 +29,7 @@ export const useDistrictRainfall = (isActive, filters) => {
 
         const fetchData = async () => {
             setLoading(true);
+            setError(null);
             try {
                 // Prepare filters - specifically extract date range if present
                 const params = { limit: 10000 }; // Get more records for accurate averaging
@@ -90,7 +94,9 @@ export const useDistrictRainfall = (isActive, filters) => {
                 }
                 if (!ignore) {
                     console.error('[useDistrictRainfall] Error:', error);
+                    setError(error.message);
                     setLoading(false);
+                    notificationService.error(`Failed to fetch district rainfall: ${error.message}`);
                 }
             }
         };
@@ -102,7 +108,7 @@ export const useDistrictRainfall = (isActive, filters) => {
         };
     }, [isActive, debouncedFilters]);
 
-    return { data: districtRainfall, loading };
+    return { data: districtRainfall, loading, error };
 };
 
 /**
@@ -112,6 +118,7 @@ export const useDistrictRainfall = (isActive, filters) => {
 export const useLocationRainfall = (isActive, filters, level) => {
     const [locationRainfall, setLocationRainfall] = useState({});
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     const debouncedFilters = useDebounce(filters, 500);
 
@@ -121,6 +128,7 @@ export const useLocationRainfall = (isActive, filters, level) => {
         if (!isActive || !level || level === 'district') {
             setLocationRainfall({});
             setLoading(false);
+            setError(null);
             return;
         }
 
@@ -128,6 +136,7 @@ export const useLocationRainfall = (isActive, filters, level) => {
 
         const fetchData = async () => {
             setLoading(true);
+            setError(null);
             try {
                 const params = { level };
                 if (debouncedFilters?.startDate) params.start_date = debouncedFilters.startDate;
@@ -176,7 +185,9 @@ export const useLocationRainfall = (isActive, filters, level) => {
                 }
                 if (!ignore) {
                     console.error('[useLocationRainfall] Error:', error);
+                    setError(error.message);
                     setLoading(false);
+                    notificationService.error(`Failed to fetch ${level} rainfall: ${error.message}`);
                 }
             }
         };
@@ -188,5 +199,5 @@ export const useLocationRainfall = (isActive, filters, level) => {
         };
     }, [isActive, level, debouncedFilters]);
 
-    return { data: locationRainfall, loading };
+    return { data: locationRainfall, loading, error };
 };

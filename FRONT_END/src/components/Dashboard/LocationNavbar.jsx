@@ -1,8 +1,10 @@
-import { Map, Home, ChevronRight, ArrowLeft, BarChart2 } from 'lucide-react';
+import React from 'react';
+import { Map, Home, ArrowLeft, BarChart2 } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { useLocations } from '../../hooks/ui/useLocations';
 import { toTitleCase } from '../../utils/namingUtils';
 import './LocationNavbar.css';
+import BreadcrumbMenu from './BreadcrumbMenu';
 
 const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetailedAnalysisBtn }) => {
     const { filters, updateFilters, setViewMode, viewMode, setFilters } = useAppContext();
@@ -33,17 +35,10 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
     const handleHome = () => {
         setFilters(prev => ({
             ...prev,
-            district: '',
-            districtId: null,
-            districtCode: null,
-            block: '',
-            blockId: null,
-            blockCode: null,
-            gramPanchayat: '',
-            gpId: null,
-            gpCode: null,
-            village: '',
-            vlgId: null
+            district: '', districtId: null, districtCode: null,
+            block: '', blockId: null, blockCode: null,
+            gramPanchayat: '', gpId: null, gpCode: null,
+            village: '', vlgId: null
         }));
     };
 
@@ -60,29 +55,20 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
             const distObj = (apiDistricts || []).find(d => toTitleCase(d.name || d.district_name) === normalizedValue);
             updates.districtId = distObj ? distObj.id : null;
             updates.districtCode = distObj ? (distObj.code || distObj.district_code) : null;
-            updates.block = '';
-            updates.blockId = null;
-            updates.blockCode = null;
-            updates.gramPanchayat = '';
-            updates.gpId = null;
-            updates.gpCode = null;
-            updates.village = '';
-            updates.vlgId = null;
+            updates.block = ''; updates.blockId = null; updates.blockCode = null;
+            updates.gramPanchayat = ''; updates.gpId = null; updates.gpCode = null;
+            updates.village = ''; updates.vlgId = null;
         } else if (key === 'block') {
             const blockObj = (apiBlocks || []).find(b => toTitleCase(b.name || b.block_name) === normalizedValue);
             updates.blockId = blockObj ? blockObj.id : null;
             updates.blockCode = blockObj ? (blockObj.code || blockObj.block_code) : null;
-            updates.gramPanchayat = '';
-            updates.gpId = null;
-            updates.gpCode = null;
-            updates.village = '';
-            updates.vlgId = null;
+            updates.gramPanchayat = ''; updates.gpId = null; updates.gpCode = null;
+            updates.village = ''; updates.vlgId = null;
         } else if (key === 'gramPanchayat') {
             const gpObj = (apiGPs || []).find(g => toTitleCase(g.name || g.gp_name) === normalizedValue);
             updates.gpId = gpObj ? gpObj.id : null;
             updates.gpCode = gpObj ? (gpObj.code || gpObj.gp_code) : null;
-            updates.village = '';
-            updates.vlgId = null;
+            updates.village = ''; updates.vlgId = null;
         } else if (key === 'village') {
             const vlgObj = (apiVillages || []).find(v => toTitleCase(v.name || v.village_name || v.vlg_name) === normalizedValue);
             updates.vlgId = vlgObj ? vlgObj.id : null;
@@ -114,21 +100,11 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
                     ...prev,
                     type: targetType,
                     legendFeature: legendFeatureMap[targetType] || prev.legendFeature,
-                    // If switching to Water Resources, enable only the default sub-layer
                     ...(targetType === 'Water Resources' ? {
-                        showDams: true,
-                        showCanals: false,
-                        showWaterbodies: false,
-                        showMicro: false,
-                        showRecharge: false
+                        showDams: true, showCanals: false, showWaterbodies: false, showMicro: false, showRecharge: false
                     } : {}),
-                    // Ensure Water Quality also defaults to EC only
                     ...(targetType === 'Water Quality' ? {
-                        showEC: true,
-                        showTDS: false,
-                        showFluoride: false,
-                        showPH: false,
-                        showMarkers: true
+                        showEC: true, showTDS: false, showFluoride: false, showPH: false, showMarkers: true
                     } : {})
                 }));
             }
@@ -136,7 +112,6 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
         setViewMode('gis');
     };
 
-    // Ensure values for select match the options (Title Case)
     const activeDistrict = toTitleCase(filters.district);
     const activeBlock = toTitleCase(filters.block);
     const activeGP = toTitleCase(filters.gramPanchayat);
@@ -144,7 +119,7 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
 
     return (
         <div className="location-navbar breadcrumb-mode">
-            <div className="breadcrumb-container">
+            <div className="breadcrumb-wrapper">
                 <button
                     className={`breadcrumb-item home-btn ${!activeDistrict ? 'active' : ''}`}
                     onClick={handleHome}
@@ -153,123 +128,18 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
                     <Home size={18} />
                 </button>
 
-                {activeDistrict && (
-                    <>
-                        <ChevronRight className="breadcrumb-separator" size={16} />
-                        <select
-                            className="breadcrumb-select"
-                            value={activeDistrict}
-                            onChange={(e) => handleFilterChange('district', e.target.value)}
-                        >
-                            <option value="">Select District</option>
-                            {availableDistricts.map(d => (
-                                <option key={d} value={d}>{d}</option>
-                            ))}
-                        </select>
-                    </>
-                )}
-
-                {activeBlock && (
-                    <>
-                        <ChevronRight className="breadcrumb-separator" size={16} />
-                        <select
-                            className="breadcrumb-select"
-                            value={activeBlock}
-                            onChange={(e) => handleFilterChange('block', e.target.value)}
-                        >
-                            <option value="">Select Block</option>
-                            {availableBlocks.map(b => (
-                                <option key={b} value={b}>{b}</option>
-                            ))}
-                        </select>
-                    </>
-                )}
-
-                {activeGP && (
-                    <>
-                        <ChevronRight className="breadcrumb-separator" size={16} />
-                        <select
-                            className="breadcrumb-select"
-                            value={activeGP}
-                            onChange={(e) => handleFilterChange('gramPanchayat', e.target.value)}
-                        >
-                            <option value="">Select GP</option>
-                            {availableGPs.map(g => (
-                                <option key={g} value={g}>{g}</option>
-                            ))}
-                        </select>
-                    </>
-                )}
-
-                {activeVillage && (
-                    <>
-                        <ChevronRight className="breadcrumb-separator" size={16} />
-                        <select
-                            className="breadcrumb-select"
-                            value={activeVillage}
-                            onChange={(e) => handleFilterChange('village', e.target.value)}
-                        >
-                            <option value="">Select Village</option>
-                            {availableVillages.map(v => (
-                                <option key={v} value={v}>{v}</option>
-                            ))}
-                        </select>
-                    </>
-                )}
-
-                {/* Next Level Selection Dropdown */}
-                {!activeDistrict && (
-                    <>
-                        <ChevronRight className="breadcrumb-separator" size={16} />
-                        <select
-                            className="breadcrumb-new-select"
-                            onChange={(e) => handleFilterChange('district', e.target.value)}
-                            value=""
-                        >
-                            <option value="">Select District...</option>
-                            {availableDistricts.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                    </>
-                )}
-                {activeDistrict && !activeBlock && (
-                    <>
-                        <ChevronRight className="breadcrumb-separator" size={16} />
-                        <select
-                            className="breadcrumb-new-select"
-                            onChange={(e) => handleFilterChange('block', e.target.value)}
-                            value=""
-                        >
-                            <option value="">Select Block...</option>
-                            {availableBlocks.map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                    </>
-                )}
-                {activeBlock && !activeGP && (
-                    <>
-                        <ChevronRight className="breadcrumb-separator" size={16} />
-                        <select
-                            className="breadcrumb-new-select"
-                            onChange={(e) => handleFilterChange('gramPanchayat', e.target.value)}
-                            value=""
-                        >
-                            <option value="">Select GP...</option>
-                            {availableGPs.map(g => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                    </>
-                )}
-                {activeGP && !activeVillage && (
-                    <>
-                        <ChevronRight className="breadcrumb-separator" size={16} />
-                        <select
-                            className="breadcrumb-new-select"
-                            onChange={(e) => handleFilterChange('village', e.target.value)}
-                            value=""
-                        >
-                            <option value="">Select Village...</option>
-                            {availableVillages.map(v => <option key={v} value={v}>{v}</option>)}
-                        </select>
-                    </>
-                )}
+                <BreadcrumbMenu
+                    activeDistrict={activeDistrict}
+                    activeBlock={activeBlock}
+                    activeGP={activeGP}
+                    activeVillage={activeVillage}
+                    availableDistricts={availableDistricts}
+                    availableBlocks={availableBlocks}
+                    availableGPs={availableGPs}
+                    availableVillages={availableVillages}
+                    handleFilterChange={handleFilterChange}
+                    loading={loading}
+                />
             </div>
 
             <div className="navbar-actions">
@@ -286,18 +156,11 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
                         onClick={() => setIsDetailedView(!isDetailedView)}
                         title={isDetailedView ? "Back to Charts" : "Switch to Detailed Analysis"}
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '8px 16px',
-                            borderRadius: '8px',
-                            border: '1px solid #e2e8f0',
+                            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
+                            borderRadius: '8px', border: '1px solid #e2e8f0',
                             background: isDetailedView ? 'var(--metric-color, #2563eb)' : 'white',
                             color: isDetailedView ? 'white' : '#64748b',
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            transition: 'all 0.2s',
+                            cursor: 'pointer', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s',
                             boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                         }}
                     >
@@ -307,12 +170,7 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
                 )}
 
                 {viewMode !== 'gis' && (
-
-                    <button
-                        className="gis-view-btn"
-                        onClick={handleMapViewClick}
-                        title="Switch to Map View"
-                    >
+                    <button className="gis-view-btn" onClick={handleMapViewClick} title="Switch to Map View">
                         <Map size={18} />
                         <span>Map View</span>
                     </button>
@@ -322,4 +180,4 @@ const LocationNavbar = ({ metricId, isDetailedView, setIsDetailedView, showDetai
     );
 };
 
-export default LocationNavbar;
+export default React.memo(LocationNavbar);

@@ -16,10 +16,11 @@ export const useDataLoading = (filters, neighbors) => {
 
     // Debounce filters to prevent rapid API calls during navigation/selection
     const debouncedFilters = useDebounce(filters, 400);
+    const debouncedNeighbors = useDebounce(neighbors, 400);
 
     const baseMap = useBaseMapLoader(initRetry, setInitRetry);
     const rainfall = useRainfallLoader(debouncedFilters);
-    const waterQuality = useWaterQualityLoader(debouncedFilters, neighbors);
+    const waterQuality = useWaterQualityLoader(debouncedFilters, debouncedNeighbors);
     const aquifer = useAquiferLoader(debouncedFilters);
     const recharge = useRechargeLoader(debouncedFilters);
     const secondary = useSecondaryLoader(debouncedFilters);

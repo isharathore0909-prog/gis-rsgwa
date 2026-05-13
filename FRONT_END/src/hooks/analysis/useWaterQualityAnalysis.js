@@ -4,6 +4,7 @@ import {
     checkWaterQualityStatus,
     calculateWQI
 } from '../../data/blockWaterQualityData';
+import { notificationService } from '../../services/notificationService';
 
 export const useWaterQualityAnalysis = ({
     isWaterQuality,
@@ -128,6 +129,7 @@ export const useWaterQualityAnalysis = ({
                     } else {
                         setWaterQualityError(error.message);
                         setWaterQualityStats(null);
+                        notificationService.error(`Water Quality API Error: ${error.message}`);
                     }
                 }
             } finally {

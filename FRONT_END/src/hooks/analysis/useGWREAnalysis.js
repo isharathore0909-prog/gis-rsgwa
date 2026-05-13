@@ -72,7 +72,7 @@ export const useGWREAnalysis = ({
                     });
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 if (!signal.aborted) {
                     console.error('Failed to fetch GWRE stats:', err);
                     if (apiRetryCount < 3 && (!err.response || err.code === 'ERR_NETWORK' || err.message.includes('Network Error'))) {
@@ -148,7 +148,10 @@ export const useGWREAnalysis = ({
 
         const fetchFeatures = async () => {
             try {
-                const params = { layer_type: 'groundwater_zone' };
+                const params = {
+                    layer_type: 'groundwater_zone',
+                    page_size: 500 // Ensure all 301 blocks are fetched for the map
+                };
                 if (analysisLevel !== 'State' && displayRegion) params.district = displayRegion;
                 if (displayBlock) params.block = displayBlock;
                 if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
@@ -159,10 +162,43 @@ export const useGWREAnalysis = ({
                     : await api.spatialLayer.getLayers(params, signal);
 
                 if (!signal.aborted) {
-                    setGwreFeatures(data);
+                    // Normalize data to standard GeoJSON FeatureCollection
+                    let normalizedFeatures = [];
+
+                    if (data?.features) {
+                        // Already a FeatureCollection
+                        normalizedFeatures = data.features;
+                    } else if (data?.results) {
+                        // Paginated response
+                        normalizedFeatures = data.results.map(item => ({
+                            type: 'Feature',
+                            id: item.id,
+                            geometry: item.geometry,
+                            properties: {
+                                ...item.properties,
+                                name: item.name
+                            }
+                        }));
+                    } else if (Array.isArray(data)) {
+                        // Direct array response
+                        normalizedFeatures = data.map(item => ({
+                            type: 'Feature',
+                            id: item.id,
+                            geometry: item.geometry,
+                            properties: {
+                                ...item.properties,
+                                name: item.name
+                            }
+                        }));
+                    }
+
+                    setGwreFeatures({
+                        type: 'FeatureCollection',
+                        features: normalizedFeatures
+                    });
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 if (!signal.aborted) {
                     console.error('Failed to fetch GWRE features:', err);
                 }

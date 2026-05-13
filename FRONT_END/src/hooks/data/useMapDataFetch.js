@@ -11,7 +11,8 @@ import {
     useLocationRainfall,
     useSelectedDistrictData,
     useValidatedBoundaries,
-    useSelectedBoundaryGeometry
+    useSelectedBoundaryGeometry,
+    useRechargeLoader
 } from '../index';
 import { RAJASTHAN_DAMS_DATA } from '../../data/damsData';
 import { reprojectGeoJSON } from '../../utils/reproject';
@@ -56,6 +57,8 @@ export const useMapDataFetch = ({
     const { data: gwreData, loading: gwreLoading } = { data: null, loading: false };
     const reprojectedGwreData = null;
     const { data: raingaugeStations, loading: raingaugeLoading } = useGeoJSONData('/Raingauge Stations.geojson', filters?.type === 'Rainfall');
+
+    const { rechargeRecords, rechargeLoading } = useRechargeLoader(filters);
 
     // WMS Migration: We no longer fetch large GeoJSON payloads for canals and waterbodies.
     // They are rendered server-side via WMS.
@@ -125,6 +128,8 @@ export const useMapDataFetch = ({
         damMarkers,
         canalLoading,
         waterbodyLoading,
+        rechargeRecords,
+        rechargeLoading,
         validatedBlockData,
         selectedDistrictData,
         selectedBoundary

@@ -1,6 +1,7 @@
 import React from 'react';
 import { WMSTileLayer } from 'react-leaflet';
 import { getFeatureColor } from '../../../utils/mapUtils';
+import { GEOSERVER_CONFIG } from '../../../api/config';
 
 /**
  * State Boundary Layer using WMS for Districts
@@ -36,7 +37,7 @@ export const StateBoundaryLayer = ({
     return (
         <WMSTileLayer
             key={`state-wms-${filters?.type}-${isBackground}-${filters?.district}`}
-            url="http://localhost:8080/geoserver/rgwcma/wms"
+            url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
             layers="rgwcma:locationApi_district"
             format="image/png"
             transparent={true}
@@ -113,7 +114,7 @@ export const WmsSelectionHighlight = ({ filters }) => {
             {districtHighlight && (
                 <WMSTileLayer
                     key={`sel-dist-${district}`}
-                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
                     layers="rgwcma:locationApi_district"
                     format="image/png"
                     transparent={true}
@@ -129,7 +130,7 @@ export const WmsSelectionHighlight = ({ filters }) => {
             {blockHighlight && (
                 <WMSTileLayer
                     key={`sel-block-${district}-${block}`}
-                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
                     layers="rgwcma:locationApi_block"
                     format="image/png"
                     transparent={true}
@@ -145,7 +146,7 @@ export const WmsSelectionHighlight = ({ filters }) => {
             {gpHighlight && (
                 <WMSTileLayer
                     key={`sel-gp-${block}-${gramPanchayat}`}
-                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
                     layers="rgwcma:locationApi_grampanchayat"
                     format="image/png"
                     transparent={true}

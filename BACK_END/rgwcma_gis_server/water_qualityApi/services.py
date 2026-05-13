@@ -27,7 +27,12 @@ class CorrelationService:
         
         # 1. Fetch data for all metrics using iterator for efficiency
         filtered_wq = queryset_filter_func(get_queryset_func())
-        query = filtered_wq.values('well_id', *[m for m in metrics if m not in ['water_level', 'rainfall']])
+        query_fields = [
+            'well_id', 'site_name',
+            'village__name',
+            'village__grampanchayat__block__district__name'
+        ] + [m for m in metrics if m not in ['water_level', 'rainfall']]
+        query = filtered_wq.values(*query_fields)
         
         # Prepare data structure for alignment
         well_data = {} # {well_id: {metric: value}}
@@ -36,7 +41,12 @@ class CorrelationService:
         for row in query.iterator(chunk_size=2000):
             wid = str(row['well_id'])
             if wid not in well_data:
-                well_data[wid] = {}
+                well_data[wid] = {
+                    'well_id': wid,
+                    'site_name': row.get('site_name'),
+                    'village': row.get('village__name'),
+                    'district': row.get('village__grampanchayat__block__district__name')
+                }
             for m in metrics:
                 if m in row:
                     val = cls.safe_float(row[m])
@@ -131,7 +141,7 @@ class CorrelationService:
             if not village_ids:
                 return {
                     'type': 'correlation', 'x_metric': x_metric, 'y_param': y_param,
-                    'count': 0, 'results': []
+                    'count': 0, 'results': [], 'regression': None
                 }
             village_clause = "AND wq.village_id = ANY(%s)"
 
@@ -169,12 +179,17 @@ class CorrelationService:
                 for r in records
             ]
 
+            from .utils import calculate_regression
+            points = [[cls.safe_float(r[x_metric]), cls.safe_float(r[y_param])] for r in records if r[x_metric] is not None and r[y_param] is not None]
+            regression = calculate_regression(points)
+
             return {
                 'type': 'wq_vs_wq',
                 'x_metric': x_metric,
                 'y_param': y_param,
                 'count': len(data),
-                'results': data
+                'results': data,
+                'regression': regression
             }
 
         # CASE 2: WATER LEVEL
@@ -289,14 +304,55 @@ class CorrelationService:
                 for r in rows
             ]
 
+            from .utils import calculate_regression
+            points = [[cls.safe_float(r[2]), cls.safe_float(r[1])] for r in rows if r[2] is not None and r[1] is not None]
+            regression = calculate_regression(points)
+
             return {
                 'type': x_metric,
                 'x_metric': x_metric,
                 'y_param': y_param,
                 'year': year,
                 'count': len(data),
-                'results': data
+                'results': data,
+                'regression': regression
             }
 
         except Exception as e:
             return {'error': str(e), 'status': status.HTTP_500_INTERNAL_SERVER_ERROR}
+
+    @classmethod
+    def get_dashboard_correlations(cls, queryset):
+        """
+        Calculate correlations specifically for the dashboard components.
+        - EC vs TDS
+        - (Calcium + Magnesium) vs Hardness
+        """
+        from .utils import calculate_regression
+        
+        # 1. Fetch relevant fields
+        data = queryset.values('ec', 'tds', 'calcium', 'magnesium', 'hardness')
+        
+        ec_tds_points = []
+        hardness_points = []
+        
+        for r in data:
+            # EC vs TDS
+            ec = cls.safe_float(r.get('ec'))
+            tds = cls.safe_float(r.get('tds'))
+            if ec is not None and tds is not None:
+                ec_tds_points.append([ec, tds])
+            
+            # (Ca + Mg) vs Hardness
+            calcium = cls.safe_float(r.get('calcium'))
+            magnesium = cls.safe_float(r.get('magnesium'))
+            hardness = cls.safe_float(r.get('hardness'))
+            
+            if hardness is not None and (calcium is not None or magnesium is not None):
+                ca_mg_sum = (calcium or 0) + (magnesium or 0)
+                hardness_points.append([ca_mg_sum, hardness])
+        
+        return {
+            'ec_vs_tds': calculate_regression(ec_tds_points),
+            'ca_mg_vs_hardness': calculate_regression(hardness_points)
+        }

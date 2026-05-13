@@ -1,36 +1,54 @@
-import React from 'react';
-import { PieChart, Pie, Tooltip } from 'recharts';
+import React, { useMemo } from 'react';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 import SmartChartContainer from './SmartChartContainer';
 
-const ParameterChart = ({ name, value, limit, unit, status, color }) => {
+/**
+ * ParameterChart - Standardized on Highcharts
+ * Mini donut chart for water quality parameters.
+ */
+const ParameterChart = ({ name, value, limit, unit, status }) => {
     const isExceeded = status === 'High' || status === 'Out Range';
+
+    const options = useMemo(() => ({
+        chart: {
+            type: 'pie',
+            backgroundColor: 'transparent',
+            height: 100,
+            style: { fontFamily: 'inherit' }
+        },
+        title: { text: null },
+        plotOptions: {
+            pie: {
+                innerSize: '60%',
+                dataLabels: { enabled: false },
+                showInLegend: false,
+                borderWidth: 0,
+                states: { hover: { brightness: 0.1 } }
+            }
+        },
+        tooltip: {
+            headerFormat: '',
+            pointFormat: '<b>{point.name}</b>: {point.y:.2f} ' + unit,
+            borderRadius: 6,
+            borderWidth: 0,
+            shadow: true
+        },
+        series: [{
+            name: name,
+            data: [
+                { name: 'Value', y: Math.min(value, limit), color: isExceeded ? '#e63946' : '#2a9d8f' },
+                { name: 'Target', y: Math.max(0, limit - value), color: '#e5e7eb' }
+            ],
+            animation: false
+        }],
+        credits: { enabled: false }
+    }), [name, value, limit, unit, isExceeded]);
 
     return (
         <div className="water-quality-mini-card" style={{ position: 'relative' }}>
             <SmartChartContainer height="100px">
-                <PieChart>
-                    <Pie
-                        data={[
-                            { value: Math.min(value, limit), fill: isExceeded ? '#e63946' : '#2a9d8f' },
-                            { value: Math.max(0, limit - value), fill: '#e5e7eb' }
-                        ]}
-                        cx="50%" cy="50%" innerRadius={22} outerRadius={38} dataKey="value" startAngle={90} endAngle={-270}
-                    />
-                    <Tooltip
-                        allowEscapeViewBox={{ x: false, y: true }}
-                        content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                                return (
-                                    <div className="custom-chart-tooltip" style={{ padding: '8px', fontSize: '12px' }}>
-                                        <p style={{ margin: 0 }}><strong>{name}</strong></p>
-                                        <p style={{ margin: 0 }}>{payload[0].value.toFixed(2)} {unit}</p>
-                                    </div>
-                                );
-                            }
-                            return null;
-                        }}
-                    />
-                </PieChart>
+                <HighchartsReact highcharts={Highcharts} options={options} />
             </SmartChartContainer>
             <div className="parameter-name">{name}</div>
             <div className="parameter-stats">
@@ -44,4 +62,4 @@ const ParameterChart = ({ name, value, limit, unit, status, color }) => {
     );
 };
 
-export default ParameterChart;
+export default React.memo(ParameterChart);

@@ -81,7 +81,7 @@ export const useAquiferSpatialStats = ({
                     }
                 }
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 console.error('[AquiferStats] Backend computation failed:', err);
             } finally {
                 if (!signal.aborted) setIsFetchingSpatial(false);

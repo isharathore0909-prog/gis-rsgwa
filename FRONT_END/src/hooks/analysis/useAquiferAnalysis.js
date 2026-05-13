@@ -69,7 +69,8 @@ export const useAquiferAnalysis = ({
         aquiferStats,
         aquiferLoading,
         aquiferRecords,
-        yearlyTrends
+        yearlyTrends,
+        aquiferYearData
     } = useAquiferApiStats({
         activeMode,
         isWellInventory,
@@ -138,6 +139,7 @@ export const useAquiferAnalysis = ({
         // New aggregated data
         aquiferRecords,
         yearlyTrends,
+        aquiferYearData,
         nearbyData,
         nearbyLoading
     };

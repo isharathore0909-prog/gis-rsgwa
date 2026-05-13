@@ -1,5 +1,6 @@
 import React from 'react';
 import { WMSTileLayer } from 'react-leaflet';
+import { GEOSERVER_CONFIG } from '../../../api/config';
 
 /**
  * Water Quality Contour Layer (WMS-Based)
@@ -38,7 +39,7 @@ const WaterQualityContourLayer = ({
     return (
         <WMSTileLayer
             key={`wq-contour-${parameter}-${viewParams}`}
-            url="http://localhost:8080/geoserver/rgwcma/wms"
+            url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
             layers="rgwcma:wq_dynamic_contours"
             format="image/png"
             transparent={true}

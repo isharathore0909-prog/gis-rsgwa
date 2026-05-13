@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { WMSTileLayer } from 'react-leaflet';
+import { GEOSERVER_CONFIG } from '../../../api/config';
 
 export const BlockBoundaryLayer = ({
     filters,
@@ -34,7 +35,7 @@ export const BlockBoundaryLayer = ({
     return (
         <WMSTileLayer
             key={`block-wms-${filters.district}-${filters.block}-${filters.type}`}
-            url="http://localhost:8080/geoserver/rgwcma/wms"
+            url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
             layers="rgwcma:locationApi_block"
             format="image/png"
             transparent={true}
@@ -105,7 +106,7 @@ export const DrillDownBoundariesLayer = ({ filters }) => {
             {gpConfig && (
                 <WMSTileLayer
                     key={`drill-gp-${gpConfig.layer}-${filters.block}`}
-                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
                     layers={gpConfig.layer}
                     format="image/png"
                     transparent={true}
@@ -121,7 +122,7 @@ export const DrillDownBoundariesLayer = ({ filters }) => {
             {villageConfig && (
                 <WMSTileLayer
                     key={`drill-vill-${villageConfig.layer}-${filters.gramPanchayat}`}
-                    url="http://localhost:8080/geoserver/rgwcma/wms"
+                    url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
                     layers={villageConfig.layer}
                     format="image/png"
                     transparent={true}

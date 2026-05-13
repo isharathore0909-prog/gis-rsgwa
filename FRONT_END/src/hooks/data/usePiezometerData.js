@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import useDebounce from '../core/useDebounce';
+import { notificationService } from '../../services/notificationService';
 
 /**
  * Custom hook for fetching piezometer records
@@ -35,9 +36,11 @@ export const usePiezometerData = (isActive, filters) => {
                     setLoading(false);
                 }
             } catch (error) {
+                if (error.name === 'CanceledError' || error.name === 'AbortError') return;
                 if (!ignore) {
                     console.error('[usePiezometerData] Error:', error);
                     setLoading(false);
+                    notificationService.error(`Failed to fetch piezometer data: ${error.message}`);
                 }
             }
         };

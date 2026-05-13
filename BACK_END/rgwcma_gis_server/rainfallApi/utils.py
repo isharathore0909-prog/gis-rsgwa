@@ -110,13 +110,23 @@ def calculate_rainfall_summary(queryset, timestep='daily', is_station_data=False
                            unit_count=Count(group_field, distinct=True)
                         ) \
                        .order_by('year_trunc')
-        return [
+        
+        processed_data = [
             {
                 'name': d['year_trunc'].strftime('%Y') if d['year_trunc'] else 'Unknown', 
                 'total': safe_round(d['total']), 
                 'average': safe_round(d['total'] / d['unit_count']) if d.get('unit_count', 0) > 0 else 0
             } for d in data
         ]
+        
+        # Calculate overall mean of yearly averages
+        averages = [d['average'] for d in processed_data if d['average'] > 0]
+        overall_avg = safe_round(sum(averages) / len(averages)) if averages else 0.0
+        
+        return {
+            'data': processed_data,
+            'overall_average': overall_avg
+        }
 
     elif timestep == 'seasonal':
         data = queryset.annotate(

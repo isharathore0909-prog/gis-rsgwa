@@ -28,7 +28,7 @@ export const useAquiferNearby = ({
                 }, signal);
                 if (!signal.aborted) setNearbyData(response && response.averages ? response : null);
             } catch (err) {
-                if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+                if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
                 console.error("Error fetching nearby aquifer data:", err);
             } finally {
                 if (!signal.aborted) setNearbyLoading(false);

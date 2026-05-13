@@ -129,6 +129,7 @@ export const useDataAnalysis = ({
         aquiferPolygons,
         aquiferRecords,
         yearlyTrends,
+        aquiferYearData,
         nearbyData,
         nearbyLoading
     } = useAquiferAnalysis({
@@ -226,6 +227,7 @@ export const useDataAnalysis = ({
         aquiferTotalCount,
         aquiferRecords,
         yearlyTrends,
+        aquiferYearData,
         nearbyData,
         nearbyLoading,
 
@@ -249,7 +251,7 @@ export const useDataAnalysis = ({
         waterQualityStats, waterQualityAvailability, waterQualityLoading, waterQualityError, qualityData, blockWaterQualityData,
         aquiferStats, aquiferLoading, spatialStatsLoading, aquiferSpatialStats, aquiferData, aquiferPolygons, waterLevelChartData,
         aquiferSpatialFilterApplied, aquiferTotalArea, aquiferTotalCount,
-        aquiferRecords, yearlyTrends, nearbyData, nearbyLoading,
+        aquiferRecords, yearlyTrends, aquiferYearData, nearbyData, nearbyLoading,
         rainfallStatsData, rainfallSummaryData, rainfallDistributionData, overallDistribution, rainfallError, rainfallLoading, intersectingStationIds, yearlyRainfallData,
         rechargeStats, rechargeLoading
     ]);

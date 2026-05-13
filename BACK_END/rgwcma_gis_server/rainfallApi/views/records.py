@@ -10,7 +10,7 @@ from django.core.cache import cache
 
 from ..models import Rainfall
 from ..serializers import RainfallSerializer
-from core.utils import spatial_nearby
+from core.geo_utils import spatial_nearby
 from core.filters import HierarchicalLocationFilterBackend
 from core.services.cache_utils import build_cache_key
 from ..utils import calculate_rainfall_stats, calculate_rainfall_summary
