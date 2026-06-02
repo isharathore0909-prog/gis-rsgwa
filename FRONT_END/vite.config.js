@@ -12,7 +12,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-leaflet': ['leaflet', 'react-leaflet'],
-          'vendor-charts': ['chart.js', 'react-chartjs-2', 'recharts'],
+          'vendor-charts': ['highcharts', 'highcharts-react-official'],
           'vendor-utils': ['proj4']
         }
       }

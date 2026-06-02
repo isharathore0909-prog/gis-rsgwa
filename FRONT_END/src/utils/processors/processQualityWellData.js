@@ -1,6 +1,11 @@
 export const processWaterQualityData = (filters, waterQualityRecords) => {
     const records = waterQualityRecords || [];
 
+    // Helper: return the numeric value as-is (including 0), or null if missing
+    const num = (v) => (v !== null && v !== undefined && v !== '' ? v : null);
+    // Helper: return a string label, falling back to '-'
+    const str = (v) => v || '-';
+
     return {
         type: 'FeatureCollection',
         features: records.map((p, idx) => ({
@@ -9,28 +14,28 @@ export const processWaterQualityData = (filters, waterQualityRecords) => {
             properties: {
                 'Category': 'Water Quality',
                 'Well ID': p.well_id,
-                'District': p.district || p.village__grampanchayat__block__district__name || '-',
-                'Block': p.block || p.village__grampanchayat__block__name || '-',
-                'Village': p.village_name || p.village__name || '-',
-                'pH': p.ph || '-',
-                'TDS': p.tds || '-',
-                'EC': p.ec || '-',
-                'Fluoride': p.fluoride || '-',
-                'Nitrate': p.nitrate || '-',
-                'Hardness': p.hardness || '-',
-                'Calcium': p.calcium || '-',
-                'Magnesium': p.magnesium || '-',
-                'Sodium': p.sodium || '-',
-                'Potassium': p.potassium || '-',
-                'Carbonate': p.carbonate || '-',
-                'Bicarbonate': p.bicarbonate || '-',
-                'Alkalinity': p.alkalinity || '-',
-                'Sulphate': p.sulphate || '-',
-                'Chloride': p.chloride || '-',
-                'Iron': p.iron || '-',
-                'Arsenic': p.arsenic || '-',
-                'Uranium': p.uranium || '-',
-                'Date': p.meta_date || '-'
+                'District': str(p.district || p.village__grampanchayat__block__district__name),
+                'Block': str(p.block || p.village__grampanchayat__block__name),
+                'Village': str(p.village_name || p.village__name),
+                'pH': num(p.ph),
+                'TDS': num(p.tds),
+                'EC': num(p.ec),
+                'Fluoride': num(p.fluoride),
+                'Nitrate': num(p.nitrate),
+                'Hardness': num(p.hardness),
+                'Calcium': num(p.calcium),
+                'Magnesium': num(p.magnesium),
+                'Sodium': num(p.sodium),
+                'Potassium': num(p.potassium),
+                'Carbonate': num(p.carbonate),
+                'Bicarbonate': num(p.bicarbonate),
+                'Alkalinity': num(p.alkalinity),
+                'Sulphate': num(p.sulphate),
+                'Chloride': num(p.chloride),
+                'Iron': num(p.iron),
+                'Arsenic': num(p.arsenic),
+                'Uranium': num(p.uranium),
+                'Date': str(p.meta_date)
             },
             geometry: {
                 type: 'Point',

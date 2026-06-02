@@ -206,7 +206,8 @@ const DashboardContainer = memo(({
                         allDams,
                         canalData: canalStats,
                         water_resources: waterbodyStats,
-                        microData
+                        microData,
+                        districtWaterLevelStats
                     }}
                     analysisResults={analysisResults}
                 />

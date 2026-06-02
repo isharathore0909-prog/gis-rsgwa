@@ -28,6 +28,10 @@ const DashboardGrid = ({ onMetricClick, mapComponent, data, analysisResults }) =
 
     // District-wise Water Level Averages for Water Level Card
     const districtWaterLevelData = React.useMemo(() => {
+        if (data?.districtWaterLevelStats && data.districtWaterLevelStats.length > 0) {
+            return [...data.districtWaterLevelStats].sort((a, b) => b.value - a.value);
+        }
+
         const rawData = (analysisResults?.aquiferRecords && analysisResults.aquiferRecords.length > 0)
             ? analysisResults.aquiferRecords
             : (data?.water_level?.features || (Array.isArray(data?.water_level) ? data.water_level : []));
@@ -62,7 +66,7 @@ const DashboardGrid = ({ onMetricClick, mapComponent, data, analysisResults }) =
                 value: parseFloat((stats.sum / stats.count).toFixed(2))
             }))
             .sort((a, b) => b.value - a.value);
-    }, [data.water_level, analysisResults?.aquiferRecords]);
+    }, [data.water_level, data.districtWaterLevelStats, analysisResults?.aquiferRecords]);
 
     const renderPreviewChart = (item, metric) => {
         switch (item.metricId) {

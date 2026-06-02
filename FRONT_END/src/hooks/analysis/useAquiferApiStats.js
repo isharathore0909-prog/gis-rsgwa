@@ -87,7 +87,7 @@ export const useAquiferApiStats = ({
                     setAquiferStats(stats);
                     if (isWellInventory || true) {
                         setYearlyTrends(trends);
-                        setAquiferRecords(records);
+                        setAquiferRecords(records?.results || records || []);
                         setAquiferYearData(yearData);
                     }
                 }

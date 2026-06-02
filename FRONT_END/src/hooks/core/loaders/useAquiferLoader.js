@@ -70,7 +70,7 @@ export const useAquiferLoader = (filters) => {
         const controller = new AbortController();
         const signal = controller.signal;
 
-        if (filters?.type !== 'Well Inventory' && filters?.type !== 'Aquifer') return;
+        if (filters?.type && filters?.type !== 'Well Inventory' && filters?.type !== 'Aquifer') return;
 
         const fetchDistrictStats = async () => {
             try {
