@@ -77,10 +77,14 @@ export const useAquiferLoader = (filters) => {
                 const params = { level: 'district', year: filters.year || 2024 };
                 const res = await api.aquifer.byLocation(params, signal);
                 if (!signal.aborted && res.data) {
-                    setDistrictWaterLevelStats(res.data.map(d => ({
-                        name: d.district,
-                        value: d.avg_pre || d.avg_pst || 0
-                    })));
+                    setDistrictWaterLevelStats(
+                        res.data
+                            .filter(d => d.district && d.district !== 'nan' && d.district !== 'N/A' && d.district !== '-')
+                            .map(d => ({
+                                name: d.district,
+                                value: d.avg_pre || d.avg_pst || 0
+                            }))
+                    );
                 }
             } catch (err) {
                 if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;

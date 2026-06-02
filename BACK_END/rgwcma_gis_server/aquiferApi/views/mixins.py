@@ -73,7 +73,9 @@ class AquiferStatsMixin:
         if cached_res: return Response(cached_res)
 
         queryset = self.filter_queryset(self.get_queryset())
-        data = queryset.values(
+        data = queryset.exclude(
+            village__grampanchayat__block__district__name__isnull=True
+        ).values(
             'village__grampanchayat__block__district__name'
         ).annotate(
             wells=Count('id'),
@@ -88,7 +90,9 @@ class AquiferStatsMixin:
                 'avg_pre': round(d['avg_pre'], 2) if d['avg_pre'] is not None else None,
                 'avg_pst': round(d['avg_pst'], 2) if d['avg_pst'] is not None else None,
             }
-            for d in data if d['village__grampanchayat__block__district__name']
+            for d in data
+            if d['village__grampanchayat__block__district__name']
+            and str(d['village__grampanchayat__block__district__name']).lower() not in ('nan', 'n/a', '-', 'none')
         ]
         
         final_response = {'level': 'district', 'year': year, 'data': result}

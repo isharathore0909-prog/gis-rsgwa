@@ -41,8 +41,10 @@ const MetricDetailView = ({ metric, onBack, data, analysisResults, rechargeRecor
         const districtGroups = {};
         yearData.forEach(f => {
             const district = f.district;
+            // Skip missing, placeholder, or nan district names
+            if (!district || district === '-' || district === 'nan' || district === 'N/A') return;
             const wl = parseFloat(f.pre_monsoon || f.post_monsoon);
-            if (district && district !== '-' && !isNaN(wl)) {
+            if (!isNaN(wl)) {
                 if (!districtGroups[district]) {
                     districtGroups[district] = { sum: 0, count: 0 };
                 }
