@@ -1,8 +1,7 @@
 import React from 'react';
 import { CircleMarker } from 'react-leaflet';
 import {
-    StateBoundaryLayer, WmsSelectionHighlight,
-    BlockBoundaryLayer, DrillDownBoundariesLayer, RaingaugeStationsLayer,
+    StateBoundaryLayer, WmsSelectionHighlight, RaingaugeStationsLayer,
     WaterQualityMarkersLayer, WaterLevelBubbleLayer, PiezometerMarkersLayer,
     DamMarkersLayer, AquiferVectorLayer, WaterResourcesLayers, WaterQualityContourLayer,
     RainfallDistrictChoroplethLayer, GroundwaterStatusLayer
@@ -56,17 +55,6 @@ const MapLayerRenderer = ({
                 <RainfallDistrictChoroplethLayer
                     isActive={true}
                     filters={filters}
-                />
-            )}
-
-            {/* Block boundaries — shown whenever a district is selected */}
-            {(filters?.district) && (
-                <BlockBoundaryLayer
-                    key={`block-wms-${filters?.type}-${filters?.district}`}
-                    filters={filters}
-                    legendFeature={legendFeature}
-                    legendData={legendData}
-                    blockData={validatedBlockData}
                 />
             )}
 
@@ -135,17 +123,8 @@ const MapLayerRenderer = ({
                 onLoading={handleVectorLoading}
             />
 
-            {/* Drill-down Boundaries (GP, Village) — show if block is selected */}
-            {(filters?.block) && (
-                <DrillDownBoundariesLayer
-                    key={`drill-wms-${filters?.block}-${filters?.gramPanchayat}`}
-                    filters={filters}
-                    currentLevel={currentLevel}
-                />
-            )}
-
-            {/* WMS-based Selection Highlights — district (blue), block (green), GP (amber) */}
-            {(filters?.district || filters?.block) && (
+            {/* Render only the deepest selected boundary, never its parents or children. */}
+            {(filters?.district || filters?.block || filters?.gramPanchayat || filters?.village) && (
                 <WmsSelectionHighlight filters={filters} />
             )}
         </>

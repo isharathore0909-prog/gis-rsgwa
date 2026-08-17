@@ -1,28 +1,45 @@
 import { useState, useEffect } from 'react';
-import { GEOSERVER_CONFIG } from '../../api/config';
-import api from '../../api';
+
+// GeoServer WFS layer map — same layers already used for WMS rendering
+const LAYER_MAP = {
+    district: 'rgwcma:locationApi_district',
+    block:    'rgwcma:locationApi_block',
+    gp:       'rgwcma:locationApi_grampanchayat',
+    village:  'rgwcma:locationApi_village',
+};
+
+// Vite proxies /geoserver → http://localhost:8080/geoserver, eliminating CORS.
+const WFS_BASE = '/geoserver/rgwcma/wfs';
+
+const isNumeric = (v) => v != null && !Number.isNaN(Number(v)) && String(v).trim() !== '';
 
 /**
- * Custom hook to fetch boundary geometry directly from GeoServer WFS for map camera zooming.
- * 100% GeoServer WFS approach — no database or local static GeoJSON.
+ * Fetches a single boundary feature from GeoServer WFS for map camera zooming.
+ * Uses the same GeoServer instance that already renders WMS tile layers —
+ * no Django middleman needed.
+ *
+ * Priority: id → code → name (exact) → name (prefix)
  */
 export const useSelectedBoundaryGeometry = (filters) => {
     const [boundary, setBoundary] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [loading, setLoading]   = useState(false);
+    const [error, setError]       = useState(null);
 
+    // Determine which administrative level is active (most specific first)
     const activeLevel = filters?.village
         ? 'village'
-        : (filters?.gramPanchayat
+        : filters?.gramPanchayat
             ? 'gp'
-            : (filters?.block
+            : filters?.block
                 ? 'block'
-                : (filters?.district ? 'district' : null)));
+                : filters?.district
+                    ? 'district'
+                    : null;
 
     const activeName = filters?.village || filters?.gramPanchayat || filters?.block || filters?.district;
-    const activeCode = filters?.vlgCode || filters?.gpCode || filters?.blockCode || filters?.districtCode;
-    const activeId = filters?.vlgId || filters?.gpId || filters?.blockId || filters?.districtId;
-    const isNumeric = (value) => value != null && !Number.isNaN(Number(value)) && String(value).trim() !== '';
+    const activeCode = filters?.vlgCode || filters?.villageCode || filters?.gpCode || filters?.blockCode || filters?.districtCode;
+    const activeId   = filters?.vlgId || filters?.villageId || filters?.gpId || filters?.blockId || filters?.districtId;
+    const selectionKey = `${activeLevel || 'none'}:${activeId || activeCode || activeName || ''}`;
 
     useEffect(() => {
         if (!activeLevel || !activeName) {
@@ -31,92 +48,74 @@ export const useSelectedBoundaryGeometry = (filters) => {
             return;
         }
 
+        const typeName = LAYER_MAP[activeLevel];
+        if (!typeName) return;
+
         let ignore = false;
         const controller = new AbortController();
-        const fetchGeoServerWfsBoundary = async () => {
+
+        const fetchBoundary = async () => {
             setLoading(true);
             setError(null);
-            // Never retain the previous level's geometry while a new selection is
-            // resolving; otherwise the camera can fit the old district after a
-            // block was chosen.
+            // Clear stale geometry immediately so the camera never zooms to a
+            // previous level's bounding box while the new request is in flight.
             setBoundary(null);
 
-            const boundaryParams = { layer: activeLevel, name: activeName };
-            if (activeCode) boundaryParams.code = activeCode;
-            if (isNumeric(activeId)) boundaryParams.id = activeId;
-
-            try {
-                // The backend returns the database geometry normalized to WGS84.
-                // It is more reliable for camera fitting than a cross-origin WFS
-                // request, while the WMS layer continues to render the boundary.
-                const boundaryData = await api.location.getBoundaryByCode(boundaryParams, controller.signal);
-                if (controller.signal.aborted || ignore) return;
-                if (boundaryData?.geometry) {
-                    setBoundary(boundaryData);
-                    setLoading(false);
-                    return;
-                }
-            } catch (backendError) {
-                if (controller.signal.aborted || ignore) return;
-                console.warn('[useSelectedBoundaryGeometry] Boundary API fallback:', backendError.message);
-            }
-
-            const layerMap = {
-                'district': 'rgwcma:locationApi_district',
-                'block': 'rgwcma:locationApi_block',
-                'gp': 'rgwcma:locationApi_grampanchayat',
-                'village': 'rgwcma:locationApi_village'
-            };
-
-            const typeName = layerMap[activeLevel];
-            if (!typeName) {
-                if (!ignore) setLoading(false);
-                return;
-            }
-
+            // Build CQL filter — most specific condition first so GeoServer
+            // short-circuits on the id match without scanning by name.
+            const cqlParts = [];
+            if (isNumeric(activeId))  cqlParts.push(`id = ${activeId}`);
+            if (activeCode)           cqlParts.push(`code = '${String(activeCode).replace(/'/g, "''")}'`);
             const escapedName = activeName.replace(/'/g, "''");
-            const escapedCode = activeCode ? String(activeCode).replace(/'/g, "''") : null;
+            cqlParts.push(`name ILIKE '${escapedName}'`);
+            cqlParts.push(`name ILIKE '${escapedName}%'`);
 
-            const cqlConditions = [`name ILIKE '${escapedName}'`, `name ILIKE '${escapedName}%'`];
-            if (escapedCode) cqlConditions.push(`code = '${escapedCode}'`);
-            if (isNumeric(activeId)) cqlConditions.push(`id = ${activeId}`);
+            const cqlFilter = cqlParts.join(' OR ');
 
-            const cqlFilter = `(${cqlConditions.join(' OR ')})`;
-
-            const wfsUrl = `${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wfs?` + new URLSearchParams({
-                service: 'WFS',
-                version: '1.1.0',
-                request: 'GetFeature',
-                typeName: typeName,
-                cql_filter: cqlFilter,
+            const url = `${WFS_BASE}?` + new URLSearchParams({
+                service:      'WFS',
+                version:      '1.1.0',
+                request:      'GetFeature',
+                typeName,
+                cql_filter:   cqlFilter,
                 outputFormat: 'application/json',
-                maxFeatures: '1'
-            }).toString();
+                maxFeatures:  '1',
+                // GeoServer exposes this field as `geometry` (not `the_geom`).
+                // Asking for the wrong field returns an XML exception, leaving
+                // the camera with no boundary to fit.
+                propertyName: 'geometry',
+            });
 
             try {
-                const res = await fetch(wfsUrl, { signal: controller.signal });
-                if (!res.ok) throw new Error(`GeoServer WFS status ${res.status}`);
+                const res = await fetch(url, { signal: controller.signal });
+                if (!res.ok) throw new Error(`GeoServer WFS returned ${res.status}`);
+
                 const data = await res.json();
-                if (!ignore && data && data.features && data.features.length > 0) {
-                    setBoundary(data.features[0]);
-                } else if (!ignore) {
-                    setError(`No ${activeLevel} boundary found for ${activeName}`);
+                if (ignore) return;
+
+                if (data?.features?.length > 0) {
+                    // Keep the selection identity with the feature.  The map
+                    // can then reject a previous block's geometry while a GP or
+                    // village request is still resolving.
+                    setBoundary({ ...data.features[0], __selectionKey: selectionKey });
+                } else {
+                    setError(`No ${activeLevel} boundary found for "${activeName}"`);
                 }
             } catch (err) {
                 if (controller.signal.aborted || ignore) return;
-                console.warn('[useSelectedBoundaryGeometry] GeoServer WFS fallback unavailable:', err.message);
-                if (!ignore) setError(`Boundary geometry unavailable for ${activeName}`);
+                console.warn('[useBoundaryGeometry] WFS fetch failed:', err.message);
+                setError(`Boundary unavailable for "${activeName}"`);
             } finally {
                 if (!ignore) setLoading(false);
             }
         };
 
-        fetchGeoServerWfsBoundary();
+        fetchBoundary();
         return () => {
             ignore = true;
             controller.abort();
         };
-    }, [activeLevel, activeName, activeId, activeCode, filters?.district]);
+    }, [activeLevel, activeName, activeId, activeCode, selectionKey]);
 
     return { boundary, loading, error };
 };

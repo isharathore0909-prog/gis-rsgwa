@@ -132,6 +132,9 @@ export const useMapDataFetch = ({
         rechargeLoading,
         validatedBlockData,
         selectedDistrictData,
-        selectedBoundary
+        selectedBoundary,
+        // Raw WFS feature used directly by useMapCamera for zoom — bypasses
+        // useValidatedBoundaries which drops single-Feature (non-collection) responses.
+        wfsBoundary: selectedSelectionBoundary
     };
 };

@@ -13,6 +13,7 @@ export const useMapView = ({
     validatedBlockData,
     selectedBoundary,
     selectedDistrictData,
+    wfsBoundary,
     rainfallPoints,
     searchCoordinates,
     districtRainfall,
@@ -36,7 +37,7 @@ export const useMapView = ({
         isLoading,
         isControlsSidebarCollapsed,
         isDataAnalysisSidebarHidden,
-        selectedBoundary,
+        wfsBoundary || selectedBoundary,
         selectedDistrictData,
         validatedBlockData,
         null, // validatedBoundaries

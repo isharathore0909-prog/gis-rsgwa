@@ -74,7 +74,7 @@ const MapView = memo(({
     const {
         districtRainfall, piezometerRecords, reprojectedGwreData,
         raingaugeStations, damMarkers, validatedBlockData,
-        selectedBoundary, selectedDistrictData
+        selectedBoundary, selectedDistrictData, wfsBoundary
     } = useMapDataFetch({
         filters, rainfallPoints, blockBoundaryData, rajasthanData,
         dynamicBoundaries: null, rainfallStations, rainfallStationRecords,
@@ -97,7 +97,7 @@ const MapView = memo(({
         handleFullscreen, onMapClick, handleLocationClick, setIgnoreNextClick
     } = useMapView({
         filters, onLocationClick: onLocationClickWithInfo, validatedBlockData,
-        selectedBoundary, selectedDistrictData,
+        selectedBoundary, selectedDistrictData, wfsBoundary,
         rainfallPoints, searchCoordinates,
         districtRainfall, isLoading, isControlsSidebarCollapsed, isDataAnalysisSidebarHidden
     });
