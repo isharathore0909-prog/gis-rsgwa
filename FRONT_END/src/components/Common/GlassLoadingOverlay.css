@@ -30,6 +30,13 @@
     animation: glassSlideUp 0.5s ease-out;
 }
 
+.glass-loading-message {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    margin-top: 10px;
+}
+
 .glass-spinner-container {
     position: relative;
     width: 60px;

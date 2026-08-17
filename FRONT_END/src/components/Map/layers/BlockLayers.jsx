@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { WMSTileLayer } from 'react-leaflet';
+import { GeoJSON, WMSTileLayer } from 'react-leaflet';
 import { GEOSERVER_CONFIG } from '../../../api/config';
 
 export const BlockBoundaryLayer = ({
@@ -7,6 +7,19 @@ export const BlockBoundaryLayer = ({
     legendData,
     blockData
 }) => {
+    const selectedBlockFallback = useMemo(() => {
+        if (!filters?.block || !blockData?.features?.length) return null;
+
+        const selectedName = String(filters.block).trim().toUpperCase();
+        const feature = blockData.features.find(item => {
+            const properties = item?.properties || {};
+            const name = properties.BLOCK_NAME || properties.block_name || properties.Block || properties.name;
+            return String(name || '').trim().toUpperCase() === selectedName;
+        });
+
+        return feature?.geometry ? feature : null;
+    }, [blockData, filters?.block]);
+
     // Generate CQL filter with support for multiple common field names in Geoserver layers
     const cqlFilterParam = useMemo(() => {
         const bid = filters.blockId || filters.blockCode;
@@ -33,19 +46,29 @@ export const BlockBoundaryLayer = ({
     if (filters.gramPanchayat) return null;
 
     return (
-        <WMSTileLayer
-            key={`block-wms-${filters.district}-${filters.block}-${filters.type}`}
-            url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
-            layers="rgwcma:locationApi_block"
-            format="image/png"
-            transparent={true}
-            zIndex={410}
-            params={{
-                sld_body: sldBody,
-                version: '1.1.1',
-                ...(cqlFilterParam ? { cql_filter: cqlFilterParam } : {})
-            }}
-        />
+        <>
+            <WMSTileLayer
+                key={`block-wms-${filters.district}-${filters.block}-${filters.type}`}
+                url={`${GEOSERVER_CONFIG.BASE_URL}/rgwcma/wms`}
+                layers="rgwcma:locationApi_block"
+                format="image/png"
+                transparent={true}
+                zIndex={410}
+                params={{
+                    sld_body: sldBody,
+                    version: '1.1.1',
+                    ...(cqlFilterParam ? { cql_filter: cqlFilterParam } : {})
+                }}
+            />
+            {selectedBlockFallback && (
+                <GeoJSON
+                    key={`block-static-fallback-${filters.district}-${filters.block}`}
+                    data={selectedBlockFallback}
+                    style={{ color: '#059669', weight: 3, fillColor: '#34d399', fillOpacity: 0.18 }}
+                    pane="overlayPane"
+                />
+            )}
+        </>
     );
 };
 

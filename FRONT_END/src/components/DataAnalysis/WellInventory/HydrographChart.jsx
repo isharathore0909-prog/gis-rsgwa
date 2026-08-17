@@ -149,8 +149,6 @@ const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpa
         };
     }, [data, dataKey, showRainfall, isExpanded]);
 
-    if (!data?.length && !isLoading) return null;
-
     return (
         <div
             className="hydrograph-chart-wrapper"
@@ -160,7 +158,7 @@ const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpa
                 position: 'relative'
             }}
         >
-            <ChartLoader isLoading={isLoading} minHeight="100%">
+            <ChartLoader isLoading={isLoading} minHeight="100%" message="Loading Trend Analysis...">
                 {chartOptions ? (
                     <HighchartsReact
                         highcharts={Highcharts}
@@ -168,7 +166,7 @@ const HydrographChart = ({ data, dataKey = 'Average Water Level', height, isExpa
                     />
                 ) : (
                     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                        No data available for chart
+                        No data available for trend chart
                     </div>
                 )}
             </ChartLoader>

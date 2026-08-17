@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import {
     StateBoundaryLayer, WaterQualityContourLayer,
@@ -20,6 +20,20 @@ const RAJASTHAN_ZOOM = 6;
  * It stays focused on the whole state and shows thematic layers on hover.
  */
 const RajasthanOverviewMap = memo(({ hoveredMetric, damMarkers = [], gwreFeatures = [] }) => {
+
+    // react-leaflet accepts a GeoJSON Feature or FeatureCollection, but callers
+    // may provide the API result object or its features array. Normalize it and
+    // discard incomplete records before handing it to Leaflet.
+    const validGwreGeoJson = useMemo(() => {
+        const features = Array.isArray(gwreFeatures) ? gwreFeatures : gwreFeatures?.features;
+        const validFeatures = (features || []).filter((feature) => (
+            feature?.type === 'Feature'
+            && feature.geometry?.type
+            && Array.isArray(feature.geometry.coordinates)
+        ));
+
+        return validFeatures.length ? { type: 'FeatureCollection', features: validFeatures } : null;
+    }, [gwreFeatures]);
 
     const getLegendData = () => {
         const metric = hoveredMetric || 'gwre'; // Default layer is usually GWRE based on the map view
@@ -70,10 +84,10 @@ const RajasthanOverviewMap = memo(({ hoveredMetric, damMarkers = [], gwreFeature
                     filters={{}}
                 />
 
-                {(!hoveredMetric || hoveredMetric === 'gwre') && gwreFeatures?.length > 0 && (
+                {(!hoveredMetric || hoveredMetric === 'gwre') && validGwreGeoJson && (
                     <GeoJSON
-                        key={`gwre-geojson-${gwreFeatures.length}`}
-                        data={gwreFeatures}
+                        key={`gwre-geojson-${validGwreGeoJson.features.length}`}
+                        data={validGwreGeoJson}
                         style={{ fillColor: 'transparent', color: 'transparent', weight: 0 }}
                         onEachFeature={(feature, layer) => {
                             const props = feature.properties || {};

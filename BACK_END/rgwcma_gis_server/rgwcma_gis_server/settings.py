@@ -208,15 +208,27 @@ else:
 # ==============================================================================
 # CACHING CONFIGURATION
 # ==============================================================================
+REDIS_URL = os.getenv('REDIS_URL', '').strip()
+USE_REDIS_CACHE = os.getenv('USE_REDIS_CACHE', 'false').lower() in ('1', 'true', 'yes')
+
+# Docker Compose does not provide Redis by default.  Falling back to Django's
+# local-memory cache keeps expensive chart aggregations cached in development
+# and single-instance deployments instead of silently recalculating each one.
 CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/1'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'IGNORE_EXCEPTIONS': True,
+    'default': (
+        {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'IGNORE_EXCEPTIONS': True,
+            }
         }
-    }
+        if REDIS_URL and USE_REDIS_CACHE else {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'rgwcma-chart-cache',
+        }
+    )
 }
 
 EXTERNAL_SERVICES = {

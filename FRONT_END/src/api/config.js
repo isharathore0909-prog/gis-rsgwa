@@ -83,8 +83,8 @@ export const GEOSERVER_CONFIG = {
 
 // API Request Configuration
 export const API_CONFIG = {
-    TIMEOUT: 60000, // Increase to 60 seconds
-    RETRY_ATTEMPTS: 10, // Increased from 5 to 10 for better resilience during startup
+    TIMEOUT: 20000,
+    RETRY_ATTEMPTS: 2,
     RETRY_DELAY: 1000,
     MAX_RETRY_DELAY: 15000, // 15 seconds max backoff
 };

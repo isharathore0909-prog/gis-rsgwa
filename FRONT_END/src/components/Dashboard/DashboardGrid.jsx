@@ -7,9 +7,10 @@ import WaterQualityPreview from './Previews/WaterQualityPreview';
 import WaterLevelPreview from './Previews/WaterLevelPreview';
 import WaterResourcesPreview from './Previews/WaterResourcesPreview';
 import RajasthanOverviewMap from '../Map/RajasthanOverviewMap';
+import CardInlineLoader from '../Common/CardInlineLoader';
 import './DashboardGrid.css';
 
-const DashboardGrid = ({ onMetricClick, mapComponent, data, analysisResults }) => {
+const DashboardGrid = ({ onMetricClick, mapComponent, data, analysisResults, loadingStates = {} }) => {
     const [hoveredMetricId, setHoveredMetricId] = React.useState(null);
 
     const handleMouseEnter = (id) => setHoveredMetricId(id);
@@ -68,7 +69,35 @@ const DashboardGrid = ({ onMetricClick, mapComponent, data, analysisResults }) =
             .sort((a, b) => b.value - a.value);
     }, [data.water_level, data.districtWaterLevelStats, analysisResults?.aquiferRecords]);
 
+    const isMetricLoading = (item) => {
+        const keyUpper = item.metricId;
+        const keyLower = item.id;
+        if (loadingStates && (loadingStates[keyUpper] || loadingStates[keyLower])) {
+            return true;
+        }
+
+        // Show spinner if data for this metric has not loaded yet
+        switch (item.metricId) {
+            case 'GWRE':
+                return !pieData || pieData.length === 0 || pieData.every(d => Number(d.value) === 0);
+            case 'RAINFALL':
+                return !analysisResults?.rainfallDistributionData || analysisResults.rainfallDistributionData.length === 0;
+            case 'WATER_QUALITY':
+                return !analysisResults?.qualityData || analysisResults.qualityData.length === 0;
+            case 'WATER_LEVEL':
+                return !districtWaterLevelData || districtWaterLevelData.length === 0;
+            case 'WATER_RESOURCES':
+                return !data?.water_resources && !data?.canalData && (!data?.allDams || data.allDams.length === 0);
+            default:
+                return false;
+        }
+    };
+
     const renderPreviewChart = (item, metric) => {
+        if (isMetricLoading(item)) {
+            return <CardInlineLoader message={`Loading ${metric?.title || 'Data'}...`} color={metric?.color} />;
+        }
+
         switch (item.metricId) {
             case 'GWRE':
                 return <GWREPreview pieData={pieData} />;
@@ -115,6 +144,8 @@ const DashboardGrid = ({ onMetricClick, mapComponent, data, analysisResults }) =
                 }
 
                 const metric = DASHBOARD_METRICS[item.metricId];
+                const cardLoading = isMetricLoading(item);
+
                 return (
                     <div
                         key={item.id}
@@ -126,6 +157,7 @@ const DashboardGrid = ({ onMetricClick, mapComponent, data, analysisResults }) =
                             onClick={onMetricClick}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
+                            isLoading={cardLoading}
                             value={['gwre', 'rainfall', 'water_quality', 'water_level', 'water_resources'].includes(item.id) ? null : getMetricValue(item.id)}
                             trend={null}
                             trendLabel={item.metricId === 'WATER_RESOURCES' ? null : metric.trendLabel}

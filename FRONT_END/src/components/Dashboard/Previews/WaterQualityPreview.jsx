@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import more from 'highcharts/highcharts-more';
+import CardInlineLoader from '../../Common/CardInlineLoader';
 
 // Initialize Highcharts more module for polar/spiderweb charts
 if (typeof Highcharts === 'object' && more) {
@@ -79,7 +80,9 @@ const WaterQualityPreview = ({ analysisResults, metricColor }) => {
         };
     }, [analysisResults?.qualityData]);
 
-    if (!analysisResults?.qualityData || analysisResults.qualityData.length === 0) return null;
+    if (!analysisResults?.qualityData || analysisResults.qualityData.length === 0) {
+        return <CardInlineLoader message="Loading Water Quality data..." color={metricColor || "#2563eb"} />;
+    }
 
     return (
         <div style={{

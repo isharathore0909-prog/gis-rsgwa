@@ -32,6 +32,10 @@ const WaterLevelCharts = ({
     const [isCorrelationLoading, setIsCorrelationLoading] = useState(false);
     const [showTrendLine, setShowTrendLine] = useState(true);
     const [hydrographType, setHydrographType] = useState('average');
+    const filterDistrict = filters.district || filters.district_id;
+    const filterBlock = filters.block || filters.taluka || filters.block_id;
+    const filterGp = filters.gramPanchayat || filters.gp_id;
+    const filterVillage = filters.village || filters.village_id;
 
     // ------------------------------------------------------------------
     // Data fetching – correlation
@@ -56,10 +60,10 @@ const WaterLevelCharts = ({
                     year: '2024',
                     radius_km: 20,
                     limit: 100,
-                    district: filters.district || undefined,
-                    block: filters.block || filters.taluka || undefined,
-                    gp: filters.gramPanchayat || undefined,
-                    village: filters.village || undefined,
+                    district: filterDistrict || undefined,
+                    block: filterBlock || undefined,
+                    gp: filterGp || undefined,
+                    village: filterVillage || undefined,
                 }, signal);
 
                 if (!signal.aborted && res.results) {
@@ -80,7 +84,7 @@ const WaterLevelCharts = ({
 
         fetchCorrelation();
         return () => controller.abort();
-    }, [xMetric, yParam, filters]);
+    }, [xMetric, yParam, filterDistrict, filterBlock, filterGp, filterVillage]);
 
     // ------------------------------------------------------------------
     // Derived data – memoized

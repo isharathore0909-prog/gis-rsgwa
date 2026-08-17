@@ -66,6 +66,26 @@
     transition: opacity 0.3s ease;
 }
 
+.card-loading-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--primary, #0284c7);
+    background: rgba(2, 132, 199, 0.08);
+    padding: 2px 8px;
+    border-radius: 12px;
+    letter-spacing: 0.02em;
+    animation: badgePulse 1.5s infinite ease-in-out;
+}
+
+@keyframes badgePulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+.metric-card.is-loading .expand-hint {
+    opacity: 1;
+}
+
 .metric-card:hover .expand-hint {
     opacity: 1;
 }

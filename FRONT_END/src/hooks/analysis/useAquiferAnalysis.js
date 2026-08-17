@@ -73,7 +73,8 @@ export const useAquiferAnalysis = ({
         aquiferYearData
     } = useAquiferApiStats({
         activeMode,
-        isWellInventory: isWellInventory || isGWRE,
+        requiresYearlyTrends: isWellInventory || isGWRE,
+        requiresDetailedData: isWellInventory,
         globalFilters,
         displayRegion,
         displayBlock,

@@ -17,7 +17,7 @@ if (typeof Highcharts === 'object' && more) {
 const WaterQualityCharts = ({ data, analysisResults, metricColor, isLoading }) => {
     // 1. EC vs TDS Correlation Data
     const ecTdsData = useMemo(() => {
-        return (data?.features || []).map(f => {
+        return (data?.features || []).slice(0, 1000).map(f => {
             const ec = parseFloat(f.properties['EC']);
             const tds = parseFloat(f.properties['TDS']);
             if (!isNaN(ec) && !isNaN(tds)) {
@@ -34,7 +34,7 @@ const WaterQualityCharts = ({ data, analysisResults, metricColor, isLoading }) =
 
     // 2. Hardness Correlation Data
     const hardnessData = useMemo(() => {
-        return (data?.features || []).map(f => {
+        return (data?.features || []).slice(0, 1000).map(f => {
             const calcium = parseFloat(f.properties['Calcium']);
             const magnesium = parseFloat(f.properties['Magnesium']);
             const hardness = parseFloat(f.properties['Hardness']);

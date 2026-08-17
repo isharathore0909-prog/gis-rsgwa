@@ -35,9 +35,6 @@ Highcharts.setOptions({
     accessibility: { enabled: false }
 });
 
-// Removed old static imports and moved lazy imports up
-
-
 function AppContent() {
     const {
         filters, setFilters, clickedLocation, setClickedLocation, viewMode, setViewMode
@@ -84,9 +81,7 @@ function AppContent() {
 
     const waterResourcesLoading = parentWaterResourcesLoading || canalLoading || waterbodyLoading;
 
-    // Only block the map for data it must have before it can render.  Water-quality,
-    // aquifer and GWRE maps are WMS layers, so their supporting API requests must not
-    // keep a full-screen map loader over tiles that are already visible.
+    // Only block the map for data it must have before it can render.
     const mapDataLoading =
         (filters.type === 'Rainfall' && rainfallLoading) ||
         (filters.type === 'Water Resources' && waterResourcesLoading) ||
@@ -105,6 +100,31 @@ function AppContent() {
     });
 
     const [exportTrigger, setExportTrigger] = React.useState(null);
+
+    const loadingStates = useMemo(() => ({
+        GWRE: Boolean(analysisResults?.gwreLoading),
+        gwre: Boolean(analysisResults?.gwreLoading),
+        RAINFALL: Boolean(analysisResults?.rainfallLoading || rainfallLoading),
+        rainfall: Boolean(analysisResults?.rainfallLoading || rainfallLoading),
+        WATER_QUALITY: Boolean(analysisResults?.waterQualityLoading || waterQualityLoading),
+        water_quality: Boolean(analysisResults?.waterQualityLoading || waterQualityLoading),
+        WATER_LEVEL: Boolean(analysisResults?.aquiferLoading || aquiferLoading),
+        water_level: Boolean(analysisResults?.aquiferLoading || aquiferLoading),
+        WATER_RESOURCES: Boolean(waterResourcesLoading || analysisResults?.rechargeLoading),
+        water_resources: Boolean(waterResourcesLoading || analysisResults?.rechargeLoading),
+        recharge: Boolean(rechargeLoading || analysisResults?.rechargeLoading)
+    }), [
+        analysisResults?.gwreLoading,
+        analysisResults?.rainfallLoading,
+        analysisResults?.waterQualityLoading,
+        analysisResults?.aquiferLoading,
+        analysisResults?.rechargeLoading,
+        rainfallLoading,
+        waterQualityLoading,
+        aquiferLoading,
+        waterResourcesLoading,
+        rechargeLoading
+    ]);
 
     const mapComponent = useMemo(() => (
         <Suspense fallback={<LoadingOverlay message="Loading Map..." />}>
@@ -169,6 +189,7 @@ function AppContent() {
                             setClickedLocation={setClickedLocation}
                             setNeighbors={setNeighbors}
                             districtWaterLevelStats={districtWaterLevelStats}
+                            loadingStates={loadingStates}
                         />
                     </div>
                 ) : (

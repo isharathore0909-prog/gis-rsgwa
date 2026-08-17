@@ -1,9 +1,12 @@
 import React from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
+import CardInlineLoader from '../../Common/CardInlineLoader';
 
 const RainfallPreview = ({ analysisResults }) => {
-    if (!analysisResults?.rainfallDistributionData) return null;
+    if (!analysisResults?.rainfallDistributionData || analysisResults.rainfallDistributionData.length === 0) {
+        return <CardInlineLoader message="Loading Rainfall data..." color="#0ea5e9" />;
+    }
 
     return (
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
@@ -95,10 +98,10 @@ const RainfallPreview = ({ analysisResults }) => {
                         },
                         credits: { enabled: false },
                         series: [
-                            { name: 'Excess', data: analysisResults.rainfallDistributionData.map(d => d.statusPercentages.Excess || 0), color: '#bae6fd' },
-                            { name: 'Normal', data: analysisResults.rainfallDistributionData.map(d => d.statusPercentages.Normal || 0), color: '#86efac' },
-                            { name: 'Deficient', data: analysisResults.rainfallDistributionData.map(d => d.statusPercentages.Deficient || 0), color: '#fde047' },
-                            { name: 'Scanty', data: analysisResults.rainfallDistributionData.map(d => d.statusPercentages.Scanty || 0), color: '#ef4444' }
+                            { name: 'Excess', data: analysisResults.rainfallDistributionData.map(d => d.statusPercentages?.Excess || 0), color: '#bae6fd' },
+                            { name: 'Normal', data: analysisResults.rainfallDistributionData.map(d => d.statusPercentages?.Normal || 0), color: '#86efac' },
+                            { name: 'Deficient', data: analysisResults.rainfallDistributionData.map(d => d.statusPercentages?.Deficient || 0), color: '#fde047' },
+                            { name: 'Scanty', data: analysisResults.rainfallDistributionData.map(d => d.statusPercentages?.Scanty || 0), color: '#ef4444' }
                         ]
                     }}
                 />

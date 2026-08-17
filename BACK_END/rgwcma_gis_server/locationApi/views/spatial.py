@@ -96,7 +96,7 @@ class BoundaryCollectionView(APIView):
         return Response(result)
 
 class BoundaryByCodeView(APIView):
-    """Fetch a specific boundary by its unique administrative code."""
+    """Fetch a specific boundary by its unique administrative code or name."""
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
@@ -104,10 +104,11 @@ class BoundaryByCodeView(APIView):
         layer = request.query_params.get('layer', 'district').lower()
         code = request.query_params.get('code')
         obj_id = request.query_params.get('id')
+        name = request.query_params.get('name')
         meta_only = request.query_params.get('meta_only', 'false').lower() == 'true'
         
-        if not code and not obj_id: 
-            return Response({"error": "Code or ID parameter required"}, status=400)
+        if not code and not obj_id and not name: 
+            return Response({"error": "Code, ID, or Name parameter required"}, status=400)
             
         model_map = {'state': State, 'district': District, 'block': Block, 'gp': Grampanchayat, 'village': Village}
         if layer not in model_map: return Response({"error": "Invalid layer"}, status=400)
@@ -121,6 +122,10 @@ class BoundaryByCodeView(APIView):
             obj = model.objects.filter(code=code).first()
         if not obj and code and code.isdigit():
             obj = model.objects.filter(id=code).first()
+        if not obj and name:
+            obj = model.objects.filter(name__iexact=name.strip()).first()
+        if not obj and name:
+            obj = model.objects.filter(name__icontains=name.strip()).first()
         
         if not obj: 
             return Response({"error": f"No {layer} found"}, status=404)

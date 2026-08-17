@@ -32,7 +32,8 @@ const DashboardContainer = memo(({
     setFilters,
     setClickedLocation,
     setNeighbors,
-    districtWaterLevelStats
+    districtWaterLevelStats,
+    loadingStates = {}
 }) => {
     // Initial active metric from URL path
     const getInitialMetric = () => {
@@ -210,6 +211,7 @@ const DashboardContainer = memo(({
                         districtWaterLevelStats
                     }}
                     analysisResults={analysisResults}
+                    loadingStates={loadingStates}
                 />
             ) : (
                 (() => {

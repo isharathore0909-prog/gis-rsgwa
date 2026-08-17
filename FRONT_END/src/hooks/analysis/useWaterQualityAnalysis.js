@@ -79,9 +79,6 @@ export const useWaterQualityAnalysis = ({
         }
 
         const fetchWaterQuality = async () => {
-            if (!rajasthanId) {
-                return;
-            }
             hasAttemptedFetch.current = true;
             setIsFetching(true);
             setWaterQualityError(null);
@@ -143,7 +140,7 @@ export const useWaterQualityAnalysis = ({
 
         fetchWaterQuality();
         return () => controller.abort();
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, neighbor?.well_id, rajasthanId, apiRetryCount]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, neighbor?.well_id, apiRetryCount]);
 
     const blockWaterQualityData = useMemo(() => {
         if (activeMode && neighbor?.type === 'water_quality_well') {

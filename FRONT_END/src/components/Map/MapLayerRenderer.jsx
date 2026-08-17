@@ -127,8 +127,8 @@ const MapLayerRenderer = ({
                 showMicro={filters?.showMicro}
                 showRecharge={showRecharge}
                 rechargeRecords={rechargeRecords}
-                canalFilter={canalFilter}
-                waterbodyFilter={waterbodyFilter}
+                canalFilter={canalFilter || filters}
+                waterbodyFilter={waterbodyFilter || filters}
                 microData={microData}
                 layerColors={layerColors}
                 onStructureClick={(structure) => handleLocationClick({ lat: structure.latitude || structure.lat, lng: structure.longitude || structure.lng }, [structure])}

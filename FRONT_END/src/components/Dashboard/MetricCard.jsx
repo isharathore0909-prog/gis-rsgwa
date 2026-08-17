@@ -2,12 +2,12 @@ import React from 'react';
 import * as Icons from 'lucide-react';
 import './MetricCard.css';
 
-const MetricCard = ({ id, title, icon, color, unit, value, trend, trendLabel, onClick, onMouseEnter, onMouseLeave, children }) => {
+const MetricCard = ({ id, title, icon, color, unit, value, trend, trendLabel, onClick, onMouseEnter, onMouseLeave, isLoading, children }) => {
     const IconComponent = Icons[icon] || Icons.Circle;
 
     return (
         <div
-            className="metric-card"
+            className={`metric-card ${isLoading ? 'is-loading' : ''}`}
             style={{ '--theme-color': color }}
             onClick={() => onClick && onClick(id)}
             onMouseEnter={() => onMouseEnter && onMouseEnter(id)}
@@ -21,7 +21,11 @@ const MetricCard = ({ id, title, icon, color, unit, value, trend, trendLabel, on
                     <h3>{title}</h3>
                 </div>
                 <div className="expand-hint">
-                    <Icons.Expand size={16} />
+                    {isLoading ? (
+                        <span className="card-loading-badge">Loading...</span>
+                    ) : (
+                        <Icons.Expand size={16} />
+                    )}
                 </div>
             </div>
 

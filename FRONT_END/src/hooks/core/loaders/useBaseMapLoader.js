@@ -22,8 +22,21 @@ export const useBaseMapLoader = (initRetry, setInitRetry) => {
 
         const initializeMapBase = async () => {
             try {
-                const localData = await fetchCached('/district.geojson');
-                if (!signal.aborted && localData) {
+                let localData = null;
+                try {
+                    const res = await fetch('/district.geojson', { signal });
+                    if (res.ok) localData = await res.json();
+                } catch (e) {}
+
+                // Fallback to API if static file is empty (0 features)
+                if (!localData || !localData.features || localData.features.length === 0) {
+                    const apiRes = await api.location.getBoundaryCollection({ layer: 'district', meta_only: 'false' }, signal);
+                    if (apiRes && apiRes.features && apiRes.features.length > 0) {
+                        localData = apiRes;
+                    }
+                }
+
+                if (!signal.aborted && localData && localData.features?.length > 0) {
                     const reprojected = reprojectGeoJSON(localData);
                     setRajasthanData(reprojected || localData);
                 }
@@ -34,8 +47,11 @@ export const useBaseMapLoader = (initRetry, setInitRetry) => {
                     if (stateObj && !signal.aborted) setRajasthanId(stateObj.id);
                 }
             } catch (err) {
-                if (err.name === 'AbortError') return;
-                console.error('× Error initializing map base:', err);
+                // The API client normalizes an aborted fetch to "Error: canceled".
+                // A state update can intentionally replace this request, so it is
+                // not an initialization failure and must not schedule a retry.
+                if (signal.aborted || err?.name === 'AbortError' || err?.name === 'CanceledError' || err?.message === 'canceled') return;
+                console.error('Error initializing map base:', err);
                 if (!signal.aborted && !rajasthanId) {
                     const nextWait = Math.min(Math.pow(2, initRetry) * 2000, 30000);
                     setTimeout(() => {
@@ -47,7 +63,7 @@ export const useBaseMapLoader = (initRetry, setInitRetry) => {
 
         initializeMapBase();
         return () => controller.abort();
-    }, [initRetry, rajasthanId, setInitRetry]);
+    }, [initRetry, setInitRetry]);
 
     return { rajasthanData, setRajasthanData, rajasthanId, setRajasthanId };
 };

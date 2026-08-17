@@ -27,8 +27,7 @@ export const useGWREAnalysis = ({
         lastParams.current.type !== globalFilters?.type
     );
 
-    // Initial load block, or actual fetch progress, or synchronous transition catching.
-    // If active but we haven't even attempted to fetch yet (e.g. waiting for rajasthanId), we are loading.
+    // Initial load block, actual fetch progress, or synchronous transition catching.
     const isPendingInitialFetch = activeMode && !hasAttemptedFetch.current;
     const gwreLoading = isFetching || paramsChanged || isPendingInitialFetch;
 
@@ -51,10 +50,6 @@ export const useGWREAnalysis = ({
         }
 
         const fetchGWRE = async () => {
-            if (!rajasthanId) {
-                // Keep showing loading until we have rajasthanId and start fetching
-                return;
-            }
             hasAttemptedFetch.current = true;
             setIsFetching(true);
             try {
@@ -91,7 +86,7 @@ export const useGWREAnalysis = ({
 
         fetchGWRE();
         return () => controller.abort();
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, rajasthanId, apiRetryCount, analysisLevel]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, apiRetryCount, analysisLevel]);
 
     const pieData = useMemo(() => {
         const categories = [

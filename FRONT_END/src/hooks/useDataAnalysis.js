@@ -100,6 +100,7 @@ export const useDataAnalysis = ({
         overallDistribution,
         intersectingStationIds,
         rainfallLoading,
+        distLoading,
         rainfallError
     } = useRainfallAnalysis({
         isRainfall,
@@ -239,6 +240,7 @@ export const useDataAnalysis = ({
         overallDistribution,
         rainfallError,
         rainfallLoading: rainfallLoading || yearlyRainfallLoading,
+        distLoading,
         intersectingStationIds,
         yearlyRainfallData,
 
@@ -253,7 +255,7 @@ export const useDataAnalysis = ({
         aquiferStats, aquiferLoading, spatialStatsLoading, aquiferSpatialStats, aquiferData, aquiferPolygons, waterLevelChartData,
         aquiferSpatialFilterApplied, aquiferTotalArea, aquiferTotalCount,
         aquiferRecords, yearlyTrends, aquiferYearData, nearbyData, nearbyLoading,
-        rainfallStatsData, rainfallSummaryData, rainfallDistributionData, overallDistribution, rainfallError, rainfallLoading, yearlyRainfallLoading, intersectingStationIds, yearlyRainfallData,
+        rainfallStatsData, rainfallSummaryData, rainfallDistributionData, overallDistribution, rainfallError, rainfallLoading, distLoading, yearlyRainfallLoading, intersectingStationIds, yearlyRainfallData,
         rechargeStats, rechargeLoading
     ]);
 };

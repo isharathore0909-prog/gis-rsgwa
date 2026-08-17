@@ -175,7 +175,7 @@ const GWRECharts = ({ analysisResults, isLoading }) => {
             <div className="chart-item">
                 <h3>Top Aquifers</h3>
                 <div style={{ height: '450px', width: '100%', padding: '10px' }}>
-                    <ChartLoader isLoading={isLoading} minHeight="430px">
+                    <ChartLoader isLoading={analysisResults?.aquiferLoading || isLoading} minHeight="430px" message="Loading Aquifer data...">
                         {aquiferChartOptions ? (
                             <HighchartsReact
                                 highcharts={Highcharts}
@@ -205,7 +205,7 @@ const GWRECharts = ({ analysisResults, isLoading }) => {
                         }
                         height="340px"
                         showRainfall={true}
-                        isLoading={isLoading}
+                        isLoading={analysisResults?.aquiferLoading || isLoading}
                     />
                 </div>
             </div>

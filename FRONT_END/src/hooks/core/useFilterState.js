@@ -75,25 +75,9 @@ export const useFilterState = (context, setNeighbors) => {
             setClickedLocation(null);
             if (setNeighbors) setNeighbors([]);
 
-            // Reset administrative filters on layer change to ensure a fresh state-wide overview
-            setFilters(prev => ({
-                ...prev,
-                district: '',
-                districtId: null,
-                districtCode: null,
-                block: '',
-                blockId: null,
-                blockCode: null,
-                gramPanchayat: '',
-                gpId: null,
-                gpCode: null,
-                village: '',
-                vlgId: null
-            }));
-
             prevTypeRef.current = filters?.type;
         }
-    }, [filters?.type, setClickedLocation, setNeighbors, setFilters]);
+    }, [filters?.type, setClickedLocation, setNeighbors]);
 
     // Cleanup effects on filter change
     useEffect(() => {

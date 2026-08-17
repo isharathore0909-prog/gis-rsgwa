@@ -30,8 +30,8 @@ export const useMapCamera = (
                     // Use tighter padding for lower levels (GP/Village) for a deeper zoom
                     const isLowerLevel = !!(filters?.gramPanchayat || filters?.village);
                     map.flyToBounds(bounds, {
-                        paddingTopLeft: [isControlsSidebarCollapsed ? 10 : 330, 20],
-                        paddingBottomRight: [isDataAnalysisSidebarHidden ? 10 : 350, 20],
+                        paddingTopLeft: [isControlsSidebarCollapsed ? 10 : 40, 20],
+                        paddingBottomRight: [isDataAnalysisSidebarHidden ? 10 : 40, 20],
                         duration: 1.0,
                         maxZoom: isLowerLevel ? 16 : 14
                     });
@@ -45,33 +45,36 @@ export const useMapCamera = (
             return false;
         };
 
-        // Priority 1: High-precision Drill-down Boundary
+        // Primary Fly-To Target: GeoServer WFS Boundary Feature (District, Block, GP, or Village)
         if (selectedBoundary) {
             const p = selectedBoundary.properties || selectedBoundary.features?.[0]?.properties || {};
             const bId = selectedBoundary.id || (selectedBoundary.features?.[0]?.id) || p.code || p.name || 'fallback';
-            const targetId = `sb-${bId}-${filters?.district}-${filters?.block}`;
+            const targetId = `wfs-${bId}-${filters?.district}-${filters?.block}-${filters?.gramPanchayat}-${filters?.village}`;
             if (flyToLayer(selectedBoundary, targetId)) return;
         }
 
-        // Priority 2: Selected District (Rough/Static Fallback) - Always prioritized for fast feedback
-        if (selectedDistrictData && filters.district) {
-            const targetId = `sdd-${filters.district}`;
-            if (flyToLayer(selectedDistrictData, targetId)) return;
+        // Some legacy block records have no geometry in the location database.
+        // The static block collection still supplies a usable boundary for a
+        // precise camera fit in that case.
+        if (filters?.block && validatedBlockData?.features?.length) {
+            const selectedName = String(filters.block).trim().toUpperCase();
+            const matchingFeature = validatedBlockData.features.find(feature => {
+                const properties = feature?.properties || {};
+                const name = properties.BLOCK_NAME || properties.block_name || properties.Block || properties.name;
+                return String(name || '').trim().toUpperCase() === selectedName;
+            });
+            if (matchingFeature) {
+                const targetId = `static-block-${filters?.districtId || filters?.district}-${filters?.blockId || filters.block}`;
+                if (flyToLayer(matchingFeature, targetId)) return;
+            }
         }
 
-        // Delay lower priority jumps if we are currently fetching high-precision data
-        if (isLoading) return;
-
-        // Priority 3: Validated Block Boundary (for specific block/district zoom)
-        if (validatedBlockData && filters.block) {
-            const targetId = `vbd-${filters.district}-${filters.block}`;
-            if (flyToLayer(validatedBlockData, targetId)) return;
-        }
-
-        // Priority 4: Dynamic Boundaries collection
-        if (validatedBoundaries) {
-            const bId = validatedBoundaries.id || 'coll';
-            if (flyToLayer(validatedBoundaries, `vb-${bId}`)) return;
+        // If a selected block has no polygon anywhere in the available sources,
+        // retain useful geographic context by fitting its district instead of
+        // leaving the user at the Rajasthan-wide default view.
+        if (filters?.district && selectedDistrictData) {
+            const targetId = `district-fallback-${filters?.districtId || filters.district}`;
+            flyToLayer(selectedDistrictData, targetId);
         }
     }, [
         map,

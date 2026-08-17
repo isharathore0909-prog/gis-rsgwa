@@ -171,7 +171,7 @@ const RainfallCharts = ({ analysisResults, isLoading }) => {
             <div className="chart-item">
                 <h3>Rainfall Distribution</h3>
                 <div className="chart-container" style={{ height: '350px', background: 'white', padding: '10px', borderRadius: '12px', width: '100%' }}>
-                    <ChartLoader isLoading={isLoading} minHeight="330px">
+                    <ChartLoader isLoading={analysisResults?.distLoading || isLoading} minHeight="330px">
                         {(() => {
                             const distData = analysisResults?.rainfallDistributionData || [];
                             if (distData.length === 0) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { reprojectGeoJSON } from '../../../utils/reproject';
+import api from '../../../api';
 
 export const useSecondaryLoader = (filters) => {
     const [canalData, setCanalData] = useState(null);
@@ -9,34 +10,36 @@ export const useSecondaryLoader = (filters) => {
     const [processedBlockData, setProcessedBlockData] = useState(null);
     const originalStaticBlockDataRef = useRef(null);
 
-    // Initial fetch for micro-data and block boundaries
+    // Initial state for block boundary data
     useEffect(() => {
+        setProcessedBlockData({ type: 'FeatureCollection', features: [] });
+    }, []);
+
+    // Dynamically fetch block boundaries when district changes
+    useEffect(() => {
+        if (!filters?.district) return;
         const controller = new AbortController();
         const signal = controller.signal;
 
-        const fetchCached = async (url) => {
-            if (window._staticCache && window._staticCache[url]) return window._staticCache[url];
-            const res = await fetch(url, { signal });
-            if (!res.ok) throw new Error(`Status ${res.status}`);
-            const data = await res.json();
-            if (!window._staticCache) window._staticCache = {};
-            window._staticCache[url] = data;
-            return data;
+        const fetchBlocks = async () => {
+            try {
+                const params = { layer: 'block', meta_only: 'false' };
+                if (filters.districtId) params.parent_id = filters.districtId;
+
+                const res = await api.location.getBoundaryCollection(params, signal);
+                if (res && res.features && !signal.aborted) {
+                    const reprojected = reprojectGeoJSON(res);
+                    setProcessedBlockData(reprojected || res);
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') return;
+                console.error('Error fetching block boundaries:', err);
+            }
         };
 
-        fetchCached('/block_boundary_updated.json').then(data => {
-            if (!signal.aborted) {
-                const reprojected = data._reprojected || reprojectGeoJSON(data);
-                originalStaticBlockDataRef.current = reprojected || data;
-                setProcessedBlockData(reprojected || data);
-            }
-        }).catch(err => {
-            if (err.name === 'AbortError') return;
-            console.warn("Failed to load initial block boundaries:", err);
-        });
-
+        fetchBlocks();
         return () => controller.abort();
-    }, []);
+    }, [filters?.district, filters?.districtId]);
 
     useEffect(() => {
         const controller = new AbortController();

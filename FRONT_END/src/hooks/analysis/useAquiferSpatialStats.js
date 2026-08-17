@@ -30,7 +30,7 @@ export const useAquiferSpatialStats = ({
         const controller = new AbortController();
         const signal = controller.signal;
 
-        if (!activeMode || !rajasthanId) {
+        if (!activeMode) {
             if (!activeMode) {
                 setAquiferSpatialStats(null);
                 setAquiferPolygons(null);
@@ -90,7 +90,7 @@ export const useAquiferSpatialStats = ({
 
         fetchSpatialStats();
         return () => controller.abort();
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, hasAttemptedSpatialFetch, analysisLevel, rajasthanId]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, hasAttemptedSpatialFetch, analysisLevel]);
 
     return {
         aquiferSpatialStats,

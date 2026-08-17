@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../api';
 
 export const useRainfallAnalysis = ({
@@ -36,20 +36,28 @@ export const useRainfallAnalysis = ({
     const isStateOverview = analysisLevel === 'State';
 
     // Construct params for backend
-    const baseParams = {};
-    if (!isStateOverview) {
-        if (displayRegion) baseParams.district = toTitleCase(displayRegion);
-        if (globalFilters?.block_id) baseParams.block_id = globalFilters.block_id;
-        else if (displayBlock) baseParams.block = toTitleCase(displayBlock);
-        if (globalFilters?.gp_id) baseParams.gp_id = globalFilters.gp_id;
-        else if (globalFilters?.gramPanchayat) baseParams.gram_panchayat = globalFilters.gramPanchayat;
-        if (globalFilters?.village_id) baseParams.village_id = globalFilters.village_id;
-        else if (globalFilters?.village) baseParams.village = globalFilters.village;
-    }
+    const baseParams = useMemo(() => {
+        const params = {};
+        if (!isStateOverview) {
+            if (displayRegion) params.district = toTitleCase(displayRegion);
+            if (globalFilters?.block_id) params.block_id = globalFilters.block_id;
+            else if (displayBlock) params.block = toTitleCase(displayBlock);
+            if (globalFilters?.gp_id) params.gp_id = globalFilters.gp_id;
+            else if (globalFilters?.gramPanchayat) params.gram_panchayat = globalFilters.gramPanchayat;
+            if (globalFilters?.village_id) params.village_id = globalFilters.village_id;
+            else if (globalFilters?.village) params.village = globalFilters.village;
+        }
 
-    if (globalFilters?.dataRangeStart) baseParams.start_date = globalFilters.dataRangeStart;
-    if (globalFilters?.dataRangeEnd) baseParams.end_date = globalFilters.dataRangeEnd;
-    if (globalFilters?.timestep) baseParams.timestep = globalFilters.timestep;
+        if (globalFilters?.dataRangeStart) params.start_date = globalFilters.dataRangeStart;
+        if (globalFilters?.dataRangeEnd) params.end_date = globalFilters.dataRangeEnd;
+        if (globalFilters?.timestep) params.timestep = globalFilters.timestep;
+        return params;
+    }, [
+        isStateOverview, displayRegion, displayBlock,
+        globalFilters?.block_id, globalFilters?.gp_id, globalFilters?.gramPanchayat,
+        globalFilters?.village_id, globalFilters?.village,
+        globalFilters?.dataRangeStart, globalFilters?.dataRangeEnd, globalFilters?.timestep
+    ]);
 
     const activeMode = isRainfall || (!globalFilters?.type || globalFilters?.type === '');
 
@@ -87,8 +95,6 @@ export const useRainfallAnalysis = ({
         }
 
         const fetchRainfallStats = async () => {
-            if (!rajasthanId) return;
-
             // Debounce slightly for UI smoothness
             if (hasAttemptedFetch.current) {
                 await new Promise(resolve => setTimeout(resolve, 300));
@@ -140,20 +146,14 @@ export const useRainfallAnalysis = ({
         fetchRainfallStats();
 
         return () => controller.abort();
-    }, [
-        activeMode, baseParams.district, baseParams.block, baseParams.block_id,
-        baseParams.gram_panchayat, baseParams.gp_id,
-        baseParams.village, baseParams.village_id,
-        baseParams.start_date, baseParams.end_date, baseParams.timestep,
-        rajasthanId, apiRetryCount, analysisLevel
-    ]);
+    }, [activeMode, currentParamsKey, apiRetryCount]);
 
     // Fetch sub-unit distribution data using optimized backend endpoint
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
 
-        if (!activeMode || !rajasthanId || !rainfallStatsData) return;
+        if (!activeMode || !rainfallStatsData) return;
 
         const fetchDistribution = async () => {
             setIsDistFetching(true);
@@ -162,7 +162,9 @@ export const useRainfallAnalysis = ({
                     ? api.rainfall.getStationDistribution
                     : api.rainfall.getDistribution;
 
-                const distParams = { ...baseParams, _v: Date.now() };
+                // Keep the request stable so both the browser and backend caches can serve
+                // repeated views of the same geographic selection.
+                const distParams = { ...baseParams };
                 if (rainfallStatsData?.avg_station_total) {
                     distParams.normal = rainfallStatsData.avg_station_total;
                 }
@@ -189,7 +191,10 @@ export const useRainfallAnalysis = ({
 
         fetchDistribution();
         return () => controller.abort();
-    }, [activeMode, rajasthanId, analysisLevel, baseParams.district, baseParams.block, rainfallStatsData]);
+    }, [
+        activeMode, rainfallDataSource, currentParamsKey,
+        rainfallStatsData?.avg_station_total
+    ]);
 
     return {
         rainfallStatsData,
@@ -197,7 +202,8 @@ export const useRainfallAnalysis = ({
         rainfallDistributionData,
         overallDistribution,
         intersectingStationIds,
-        rainfallLoading: parentRainfallLoading || rainfallLoading || isDistFetching,
+        rainfallLoading: parentRainfallLoading || rainfallLoading,
+        distLoading: isDistFetching,
         rainfallError
     };
 };

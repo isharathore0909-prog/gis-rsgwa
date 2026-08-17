@@ -4,7 +4,8 @@ import { notificationService } from '../../services/notificationService';
 
 export const useAquiferApiStats = ({
     activeMode,
-    isWellInventory,
+    requiresYearlyTrends,
+    requiresDetailedData,
     globalFilters,
     displayRegion,
     displayBlock,
@@ -44,9 +45,6 @@ export const useAquiferApiStats = ({
         }
 
         const fetchAquiferData = async () => {
-            if (!rajasthanId) {
-                return;
-            }
             hasAttemptedStatsFetch.current = true;
             setIsFetchingStats(true);
             setError(null);
@@ -67,14 +65,19 @@ export const useAquiferApiStats = ({
                 // 1. Fetch Main Statistics
                 const statsPromise = api.aquifer.getStatistics(params, signal);
 
-                // 2. Fetch Yearly Trends and Detailed Records if needed
+                // Fetch the lightweight trend aggregation for hydrographs. Full well
+                // records and individual year data are only needed by Well Inventory.
                 let extraPromises = [Promise.resolve(null), Promise.resolve([]), Promise.resolve(null)];
-                if (isWellInventory) {
+                if (requiresYearlyTrends) {
                     const yearlyParams = { ...params };
                     extraPromises = [
                         api.aquifer.getYearlyStatistics(yearlyParams, signal).catch(() => null),
-                        api.aquifer.getRecords({ ...params, detailed: 'true' }, signal).catch(() => []),
-                        api.aquifer.getYearData({ ...params }, signal).catch(() => null)
+                        requiresDetailedData
+                            ? api.aquifer.getRecords({ ...params, detailed: 'true' }, signal).catch(() => [])
+                            : Promise.resolve([]),
+                        requiresDetailedData
+                            ? api.aquifer.getYearData({ ...params, limit: 1000 }, signal).catch(() => null)
+                            : Promise.resolve(null)
                     ];
                 }
 
@@ -85,8 +88,10 @@ export const useAquiferApiStats = ({
 
                 if (!signal.aborted) {
                     setAquiferStats(stats);
-                    if (isWellInventory) {
+                    if (requiresYearlyTrends) {
                         setYearlyTrends(trends);
+                    }
+                    if (requiresDetailedData) {
                         setAquiferRecords(records?.results || records || []);
                         setAquiferYearData(yearData);
                     }
@@ -109,7 +114,7 @@ export const useAquiferApiStats = ({
 
         fetchAquiferData();
         return () => controller.abort();
-    }, [activeMode, isWellInventory, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, globalFilters?.year, rajasthanId, apiRetryCount, hasAttemptedStatsFetch]);
+    }, [activeMode, requiresYearlyTrends, requiresDetailedData, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, globalFilters?.year, apiRetryCount, hasAttemptedStatsFetch]);
 
     return {
         aquiferStats,

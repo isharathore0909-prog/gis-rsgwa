@@ -112,6 +112,17 @@ class AquiferAnalysisMixin:
         if not (2015 <= year <= 2024):
              return Response({'error': f'Year {year} not supported. Support range: 2015-2024'}, status=400)
         
+        try:
+            limit = min(max(int(request.query_params.get('limit', 1000)), 1), 2000)
+            offset = max(int(request.query_params.get('offset', 0)), 0)
+        except (ValueError, TypeError):
+            limit, offset = 1000, 0
+
+        cache_key = build_cache_key("aquifer_year_data", request, extra=f"{year}:{offset}:{limit}")
+        cached_res = cache.get(cache_key)
+        if cached_res:
+            return Response(cached_res)
+
         pre_field = f'pre_{year}'
         pst_field = f'pst_{year}'
         
@@ -119,6 +130,7 @@ class AquiferAnalysisMixin:
         queryset = self.filter_queryset(self.get_queryset())
         
         # Use .values() for high performance
+        total_count = queryset.count()
         data = queryset.values(
             'well_id', 'latitude', 'longitude', 'aquifer',
             'village__name', 
@@ -126,7 +138,7 @@ class AquiferAnalysisMixin:
             'village__grampanchayat__block__district__name',
             'village__latitude', 'village__longitude',
             pre_field, pst_field
-        )
+        )[offset:offset + limit]
         
         results = [
             {
@@ -146,7 +158,15 @@ class AquiferAnalysisMixin:
         ]
         
         serializer = YearDataSerializer(results, many=True)
-        return Response({'year': year, 'count': len(results), 'data': serializer.data})
+        response_data = {
+            'year': year,
+            'count': total_count,
+            'offset': offset,
+            'limit': limit,
+            'data': serializer.data
+        }
+        cache.set(cache_key, response_data, 3600)
+        return Response(response_data)
 
     @action(detail=False, methods=['get'])
     def trends(self, request):
