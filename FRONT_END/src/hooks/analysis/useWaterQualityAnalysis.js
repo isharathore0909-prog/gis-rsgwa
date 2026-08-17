@@ -21,22 +21,24 @@ export const useWaterQualityAnalysis = ({
     const [waterQualityError, setWaterQualityError] = useState(null);
     const [apiRetryCount, setApiRetryCount] = useState(0);
 
+    const activeMode = isWaterQuality || (!globalFilters?.type || globalFilters?.type === '');
+
     const lastWQParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village });
     const hasAttemptedFetch = useRef(false);
 
-    const paramsChanged = isWaterQuality && (
+    const paramsChanged = activeMode && (
         lastWQParams.current.displayRegion !== displayRegion ||
         lastWQParams.current.displayBlock !== displayBlock ||
         lastWQParams.current.gp !== globalFilters?.gramPanchayat ||
         lastWQParams.current.v !== globalFilters?.village
     );
 
-    const isPendingInitialFetch = isWaterQuality && !hasAttemptedFetch.current;
+    const isPendingInitialFetch = activeMode && !hasAttemptedFetch.current;
     const waterQualityLoading = isFetching || paramsChanged || isPendingInitialFetch;
 
     // Sync params and clear data on change, loading state is handled deriving
     useEffect(() => {
-        if (isWaterQuality && paramsChanged) {
+        if (activeMode && paramsChanged) {
             setWaterQualityStats(null);
             setWaterQualityAvailability(null);
 
@@ -70,7 +72,7 @@ export const useWaterQualityAnalysis = ({
         const controller = new AbortController();
         const signal = controller.signal;
 
-        if (!isWaterQuality) {
+        if (!activeMode) {
             hasAttemptedFetch.current = false;
             setIsFetching(false);
             return;
@@ -141,10 +143,10 @@ export const useWaterQualityAnalysis = ({
 
         fetchWaterQuality();
         return () => controller.abort();
-    }, [isWaterQuality, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, neighbor?.well_id, rajasthanId, apiRetryCount]);
+    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, neighbor?.well_id, rajasthanId, apiRetryCount]);
 
     const blockWaterQualityData = useMemo(() => {
-        if (isWaterQuality && neighbor?.type === 'water_quality_well') {
+        if (activeMode && neighbor?.type === 'water_quality_well') {
             const wellData = {
                 ...neighbor,
                 block: neighbor.block || displayBlock || displayRegion,
@@ -185,7 +187,7 @@ export const useWaterQualityAnalysis = ({
         }
 
         return { isNoData: true, block: displayBlock || displayRegion || 'Rajasthan' };
-    }, [displayRegion, displayBlock, isWaterQuality, waterQualityStats, neighbor]);
+    }, [displayRegion, displayBlock, activeMode, waterQualityStats, neighbor]);
 
     return {
         waterQualityStats,

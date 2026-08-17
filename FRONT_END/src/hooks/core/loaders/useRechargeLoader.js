@@ -11,6 +11,12 @@ export const useRechargeLoader = (filters) => {
         const controller = new AbortController();
         const signal = controller.signal;
 
+        const isRechargeLayer = filters?.type === 'Recharge Structure' || filters?.type === 'Water Resources';
+        if (!isRechargeLayer) {
+            setRechargeLoading(false);
+            return () => controller.abort();
+        }
+
         const fetchRecharge = async () => {
             const params = {
                 district_id: filters.district_id,

@@ -26,7 +26,7 @@ export const useAquiferAnalysis = ({
         [isRainfall, isWaterQuality, isAquifer, isWellInventory, isGWRE, isRechargeStructure]
     );
 
-    const activeMode = isAquifer || isWellInventory || isDefaultAquiferView || isGWRE;
+    const activeMode = isAquifer || isWellInventory || isGWRE;
 
     const lastAquiferParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village });
     const hasAttemptedStatsFetch = useRef(false);
@@ -73,7 +73,7 @@ export const useAquiferAnalysis = ({
         aquiferYearData
     } = useAquiferApiStats({
         activeMode,
-        isWellInventory,
+        isWellInventory: isWellInventory || isGWRE,
         globalFilters,
         displayRegion,
         displayBlock,

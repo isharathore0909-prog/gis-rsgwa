@@ -88,4 +88,4 @@ const GWREPreview = ({ pieData }) => {
     );
 };
 
-export default GWREPreview;
+export default React.memo(GWREPreview);

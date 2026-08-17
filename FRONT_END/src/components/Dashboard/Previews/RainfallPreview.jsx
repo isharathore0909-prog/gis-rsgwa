@@ -107,4 +107,4 @@ const RainfallPreview = ({ analysisResults }) => {
     );
 };
 
-export default RainfallPreview;
+export default React.memo(RainfallPreview);

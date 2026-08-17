@@ -51,16 +51,18 @@ export const useRainfallAnalysis = ({
     if (globalFilters?.dataRangeEnd) baseParams.end_date = globalFilters.dataRangeEnd;
     if (globalFilters?.timestep) baseParams.timestep = globalFilters.timestep;
 
-    const currentParamsKey = `${JSON.stringify(baseParams)}-${isRainfall}`;
+    const activeMode = isRainfall || (!globalFilters?.type || globalFilters?.type === '');
+
+    const currentParamsKey = `${JSON.stringify(baseParams)}-${activeMode}`;
     const lastParamsRef = useRef(currentParamsKey);
     const hasAttemptedFetch = useRef(false);
 
-    const paramsChanged = isRainfall && lastParamsRef.current !== currentParamsKey;
-    const isPendingInitialFetch = isRainfall && !hasAttemptedFetch.current;
+    const paramsChanged = activeMode && lastParamsRef.current !== currentParamsKey;
+    const isPendingInitialFetch = activeMode && !hasAttemptedFetch.current;
     const rainfallLoading = isFetching || paramsChanged || isPendingInitialFetch;
 
     useEffect(() => {
-        if (isRainfall && paramsChanged) {
+        if (activeMode && paramsChanged) {
             setRainfallStatsData(null);
             setRainfallSummaryData([]);
             setRainfallDistributionData(null);
@@ -74,7 +76,7 @@ export const useRainfallAnalysis = ({
         const controller = new AbortController();
         const signal = controller.signal;
 
-        if (!isRainfall) {
+        if (!activeMode) {
             setRainfallStatsData(null);
             setRainfallSummaryData([]);
             setIntersectingStationIds([]);
@@ -139,7 +141,7 @@ export const useRainfallAnalysis = ({
 
         return () => controller.abort();
     }, [
-        isRainfall, baseParams.district, baseParams.block, baseParams.block_id,
+        activeMode, baseParams.district, baseParams.block, baseParams.block_id,
         baseParams.gram_panchayat, baseParams.gp_id,
         baseParams.village, baseParams.village_id,
         baseParams.start_date, baseParams.end_date, baseParams.timestep,
@@ -151,7 +153,7 @@ export const useRainfallAnalysis = ({
         const controller = new AbortController();
         const signal = controller.signal;
 
-        if (!isRainfall || !rajasthanId || !rainfallStatsData) return;
+        if (!activeMode || !rajasthanId || !rainfallStatsData) return;
 
         const fetchDistribution = async () => {
             setIsDistFetching(true);
@@ -187,7 +189,7 @@ export const useRainfallAnalysis = ({
 
         fetchDistribution();
         return () => controller.abort();
-    }, [isRainfall, rajasthanId, analysisLevel, baseParams.district, baseParams.block, rainfallStatsData]);
+    }, [activeMode, rajasthanId, analysisLevel, baseParams.district, baseParams.block, rainfallStatsData]);
 
     return {
         rainfallStatsData,

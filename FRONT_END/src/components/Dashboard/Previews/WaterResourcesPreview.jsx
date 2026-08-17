@@ -56,4 +56,4 @@ const WaterResourcesPreview = ({ data, analysisResults }) => {
     );
 };
 
-export default WaterResourcesPreview;
+export default React.memo(WaterResourcesPreview);

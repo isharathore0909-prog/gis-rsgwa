@@ -70,27 +70,6 @@ const MapView = memo(({
     }, [filters?.type, filters?.legendFeature, updateFilters]);
     const toggleLegend = useCallback(() => setShowLegend(prev => !prev), []);
 
-    // --- Stability Tracking ---
-    const prevTypeRef = useRef(filters?.type);
-    const [isLayerChanging, setIsLayerChanging] = useState(false);
-    const layerChangeTimeoutRef = useRef(null);
-
-    useEffect(() => {
-        if (filters?.type !== prevTypeRef.current) {
-            setIsLayerChanging(true);
-            prevTypeRef.current = filters?.type;
-            if (layerChangeTimeoutRef.current) clearTimeout(layerChangeTimeoutRef.current);
-            layerChangeTimeoutRef.current = setTimeout(() => setIsLayerChanging(false), 6000);
-        } else if (!isLoading && isLayerChanging) {
-            setIsLayerChanging(false);
-            if (layerChangeTimeoutRef.current) {
-                clearTimeout(layerChangeTimeoutRef.current);
-                layerChangeTimeoutRef.current = null;
-            }
-        }
-        return () => { if (layerChangeTimeoutRef.current) clearTimeout(layerChangeTimeoutRef.current); };
-    }, [filters?.type, isLoading, isLayerChanging]);
-
     // --- Data Fetching ---
     const {
         districtRainfall, piezometerRecords, reprojectedGwreData,
@@ -195,7 +174,7 @@ const MapView = memo(({
             <MapWarning
                 layerType={filters?.type}
                 isRainfallDataEmpty={isRainfallDataEmpty}
-                isLoading={isLoading || vectorLoading || contourLoading || isLayerChanging}
+                isLoading={isLoading}
             />
 
             <MapControls onResetView={handleResetView} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFullscreen={handleFullscreen} onToggleColorPicker={() => setShowColorPicker(!showColorPicker)} showColorPickerBtn={filters?.type === 'Water Resources'} onExport={handleExport} />

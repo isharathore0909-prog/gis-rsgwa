@@ -83,7 +83,7 @@ export const useDataAnalysis = ({
         qualityData,
         blockWaterQualityData
     } = useWaterQualityAnalysis({
-        isWaterQuality: isWaterQuality || isGWRE || isWellInventory || (!isRainfall && !isAquifer && !isWellInventory && !isRechargeStructure && !isWaterResources),
+        isWaterQuality,
         globalFilters,
         displayRegion,
         displayBlock,
@@ -102,7 +102,7 @@ export const useDataAnalysis = ({
         rainfallLoading,
         rainfallError
     } = useRainfallAnalysis({
-        isRainfall: isRainfall || isGWRE || isDashboard,
+        isRainfall,
         globalFilters,
         displayRegion,
         displayBlock,
@@ -146,7 +146,8 @@ export const useDataAnalysis = ({
     // -------------------------------------------------------------------------
 
     // Yearly Rainfall for Hydrographs
-    const { rainfallData: yearlyRainfallData } = useWellRainfall({
+    const { rainfallData: yearlyRainfallData, rainfallLoading: yearlyRainfallLoading } = useWellRainfall({
+        isActive: isRainfall || isWellInventory || isGWRE,
         displayRegion,
         displayBlock,
         globalFilters,
@@ -237,7 +238,7 @@ export const useDataAnalysis = ({
         rainfallDistributionData,
         overallDistribution,
         rainfallError,
-        rainfallLoading,
+        rainfallLoading: rainfallLoading || yearlyRainfallLoading,
         intersectingStationIds,
         yearlyRainfallData,
 
@@ -252,7 +253,7 @@ export const useDataAnalysis = ({
         aquiferStats, aquiferLoading, spatialStatsLoading, aquiferSpatialStats, aquiferData, aquiferPolygons, waterLevelChartData,
         aquiferSpatialFilterApplied, aquiferTotalArea, aquiferTotalCount,
         aquiferRecords, yearlyTrends, aquiferYearData, nearbyData, nearbyLoading,
-        rainfallStatsData, rainfallSummaryData, rainfallDistributionData, overallDistribution, rainfallError, rainfallLoading, intersectingStationIds, yearlyRainfallData,
+        rainfallStatsData, rainfallSummaryData, rainfallDistributionData, overallDistribution, rainfallError, rainfallLoading, yearlyRainfallLoading, intersectingStationIds, yearlyRainfallData,
         rechargeStats, rechargeLoading
     ]);
 };

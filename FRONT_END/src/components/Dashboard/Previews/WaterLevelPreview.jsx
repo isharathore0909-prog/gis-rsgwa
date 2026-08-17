@@ -47,4 +47,4 @@ const WaterLevelPreview = ({ districtWaterLevelData, metricColor }) => {
     );
 };
 
-export default WaterLevelPreview;
+export default React.memo(WaterLevelPreview);

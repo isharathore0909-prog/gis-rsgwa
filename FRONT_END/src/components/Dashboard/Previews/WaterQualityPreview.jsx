@@ -159,4 +159,4 @@ const WaterQualityPreview = ({ analysisResults, metricColor }) => {
     );
 };
 
-export default WaterQualityPreview;
+export default React.memo(WaterQualityPreview);

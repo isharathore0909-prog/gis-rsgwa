@@ -84,6 +84,14 @@ function AppContent() {
 
     const waterResourcesLoading = parentWaterResourcesLoading || canalLoading || waterbodyLoading;
 
+    // Only block the map for data it must have before it can render.  Water-quality,
+    // aquifer and GWRE maps are WMS layers, so their supporting API requests must not
+    // keep a full-screen map loader over tiles that are already visible.
+    const mapDataLoading =
+        (filters.type === 'Rainfall' && rainfallLoading) ||
+        (filters.type === 'Water Resources' && waterResourcesLoading) ||
+        (filters.type === 'Well Inventory' && aquiferLoading);
+
     const {
         analysisResults,
         handleLocationClick
@@ -112,7 +120,7 @@ function AppContent() {
                 rainfallStationRecords={rainfallStationRecords}
                 microData={microData}
                 onAddToTable={handleAddToTable}
-                isLoading={boundariesLoading || rainfallLoading || waterQualityLoading || aquiferLoading || waterResourcesLoading}
+                isLoading={boundariesLoading || mapDataLoading}
                 searchCoordinates={searchCoordinates}
                 selectedWellInventory={selectedWellInventory}
                 onToggleWellInventory={handleToggleWellInventory}
@@ -126,7 +134,7 @@ function AppContent() {
         handleLocationClick, processedBlockData, rajasthanData, currentLevel,
         rainfallPoints, rainfallDataSource, rainfallStations, rainfallStationRecords, microData,
         handleAddToTable, boundariesLoading,
-        rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading,
+        rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading, mapDataLoading,
         searchCoordinates, selectedWellInventory, handleToggleWellInventory,
         aquiferRecords, waterQualityRecords, exportTrigger, handleFiltersApply
     ]);

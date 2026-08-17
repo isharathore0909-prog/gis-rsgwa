@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../../api';
 
-export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, selectedWell, rainfallStations }) => {
+export const useWellRainfall = ({ isActive, displayRegion, displayBlock, globalFilters, selectedWell, rainfallStations }) => {
     const [rainfallData, setRainfallData] = useState({});
     const [rainfallLoading, setRainfallLoading] = useState(false);
     const [overallAverage, setOverallAverage] = useState(null);
@@ -9,6 +9,13 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
+
+        if (!isActive) {
+            setRainfallData({});
+            setOverallAverage(null);
+            setRainfallLoading(false);
+            return () => controller.abort();
+        }
 
         const fetchRainfall = async () => {
             setRainfallLoading(true);
@@ -103,7 +110,14 @@ export const useWellRainfall = ({ displayRegion, displayBlock, globalFilters, se
 
         fetchRainfall();
         return () => controller.abort();
-    }, [selectedWell, displayRegion, displayBlock, globalFilters, rainfallStations]);
+    }, [
+        isActive,
+        selectedWell,
+        displayRegion,
+        displayBlock,
+        globalFilters?.village,
+        globalFilters?.gramPanchayat
+    ]);
 
     return { rainfallData, rainfallLoading, overallAverage };
 };

@@ -10,6 +10,11 @@ export const useWaterQualityLoader = (filters, neighbors) => {
         const controller = new AbortController();
         const signal = controller.signal;
 
+        if (filters?.type !== 'Water Quality') {
+            setWaterQualityLoading(false);
+            return () => controller.abort();
+        }
+
         const fetchWQ = async () => {
             const neighbor = neighbors?.[0];
 

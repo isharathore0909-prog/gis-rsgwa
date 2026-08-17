@@ -19,6 +19,11 @@ export const useRainfallLoader = (filters) => {
         const controller = new AbortController();
         const signal = controller.signal;
 
+        if (filters?.type !== 'Rainfall') {
+            setRainfallLoading(false);
+            return () => controller.abort();
+        }
+
         const fetchStationRainfall = async () => {
             const params = {
                 limit: 10000,

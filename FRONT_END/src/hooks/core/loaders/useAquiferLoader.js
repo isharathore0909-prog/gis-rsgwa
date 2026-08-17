@@ -11,6 +11,12 @@ export const useAquiferLoader = (filters) => {
         const controller = new AbortController();
         const signal = controller.signal;
 
+        const isAquiferLayer = filters?.type === 'Aquifer' || filters?.type === 'Well Inventory';
+        if (!isAquiferLayer) {
+            setAquiferLoading(false);
+            return () => controller.abort();
+        }
+
         const fetchAquifer = async () => {
             if (!filters.district && filters.type === 'Aquifer') {
                 setAquiferRecords([]);

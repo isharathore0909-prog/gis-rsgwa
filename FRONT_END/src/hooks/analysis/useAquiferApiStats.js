@@ -69,7 +69,7 @@ export const useAquiferApiStats = ({
 
                 // 2. Fetch Yearly Trends and Detailed Records if needed
                 let extraPromises = [Promise.resolve(null), Promise.resolve([]), Promise.resolve(null)];
-                if (isWellInventory || true) { // Force fetching for dashboard support
+                if (isWellInventory) {
                     const yearlyParams = { ...params };
                     extraPromises = [
                         api.aquifer.getYearlyStatistics(yearlyParams, signal).catch(() => null),
@@ -85,7 +85,7 @@ export const useAquiferApiStats = ({
 
                 if (!signal.aborted) {
                     setAquiferStats(stats);
-                    if (isWellInventory || true) {
+                    if (isWellInventory) {
                         setYearlyTrends(trends);
                         setAquiferRecords(records?.results || records || []);
                         setAquiferYearData(yearData);
