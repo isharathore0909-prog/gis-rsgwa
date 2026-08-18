@@ -2,44 +2,68 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 
 const AppContext = createContext();
 
+const URL_SLUGS = {
+    'gwre': 'Ground Water Resource Estimation',
+    'rainfall': 'Rainfall',
+    'water-quality': 'Water Quality',
+    'water_quality': 'Water Quality',
+    'water-level': 'Well Inventory',
+    'water_level': 'Well Inventory',
+    'well-inventory': 'Well Inventory',
+    'water-resources': 'Water Resources',
+    'water_resources': 'Water Resources',
+    'recharge-structure': 'Recharge Structure',
+    'aquifer': 'Aquifer'
+};
+
+const getInitialTypeFromUrl = () => {
+    if (typeof window === 'undefined') return '';
+    const path = window.location.pathname.replace(/^\//, '').toLowerCase();
+    return URL_SLUGS[path] || '';
+};
+
 export const AppContextProvider = ({ children }) => {
     // 1. Core State
     const [fontSize, setFontSize] = useState('normal');
     const [theme, setTheme] = useState('light');
 
     // 2. Global Filters (Lifted from useAppLogic)
-    const [filters, setFilters] = useState({
-        type: '',
-        source: 'Rajasthan GW',
-        district: '',
-        districtId: null,
-        districtCode: null,
-        block: '',
-        blockId: null,
-        blockCode: null,
-        gramPanchayat: '',
-        gpId: null,
-        gpCode: null,
-        village: '',
-        timestep: 'Monthly',
-        dataRangeStart: '',
-        dataRangeEnd: '',
-        stationType: 'All',
-        showRaingaugeStations: false,
-        showPiezometers: false,
-        showDams: false,
-        showCanals: false,
-        showWaterbodies: false,
-        showMicro: false,
-        showRecharge: false,
-        showEC: false,
-
-        showNitrate: false,
-        showFluoride: false,
-        showTDS: false,
-        showPH: false,
-        showMarkers: true,
-        legendFeature: 'Category'
+    const [filters, setFilters] = useState(() => {
+        const initialType = getInitialTypeFromUrl();
+        const isWR = initialType === 'Water Resources';
+        const isWQ = initialType === 'Water Quality';
+        return {
+            type: initialType,
+            source: 'Rajasthan GW',
+            district: '',
+            districtId: null,
+            districtCode: null,
+            block: '',
+            blockId: null,
+            blockCode: null,
+            gramPanchayat: '',
+            gpId: null,
+            gpCode: null,
+            village: '',
+            timestep: 'Monthly',
+            dataRangeStart: '',
+            dataRangeEnd: '',
+            stationType: 'All',
+            showRaingaugeStations: false,
+            showPiezometers: false,
+            showDams: isWR,
+            showCanals: false,
+            showWaterbodies: false,
+            showMicro: false,
+            showRecharge: false,
+            showEC: isWQ,
+            showNitrate: false,
+            showFluoride: false,
+            showTDS: false,
+            showPH: false,
+            showMarkers: isWR || isWQ,
+            legendFeature: isWR ? 'Category' : (isWQ ? 'status' : (initialType === 'Rainfall' ? 'avg_rainfall' : 'Category'))
+        };
     });
 
     // 3. Global Layers Visibility
@@ -67,32 +91,33 @@ export const AppContextProvider = ({ children }) => {
         'Recharge Structure': 'recharge-structure',
         'Water Quality': 'water-quality',
         'Water Resources': 'water-resources',
-        'Well Inventory': 'well-inventory',
+        'Well Inventory': 'water-level',
     }), []);
 
-    const SLUG_TO_TYPE = useMemo(() =>
-        Object.fromEntries(Object.entries(TYPE_SLUGS).map(([type, slug]) => [slug, type])),
-        [TYPE_SLUGS]);
+    const SLUG_TO_TYPE = useMemo(() => URL_SLUGS, []);
 
     // Update URL when filters.type changes
     useEffect(() => {
-        const currentPath = window.location.pathname.replace(/^\//, '');
+        const currentPath = window.location.pathname.replace(/^\//, '').toLowerCase();
         const targetSlug = TYPE_SLUGS[filters.type] || '';
 
-        if (targetSlug && currentPath !== targetSlug) {
+        // Avoid re-pushing if already at a valid alias (e.g. well-inventory or water_level)
+        const isCurrentPathMatchingType = URL_SLUGS[currentPath] === filters.type;
+
+        if (targetSlug && !isCurrentPathMatchingType && currentPath !== targetSlug) {
             window.history.pushState(null, '', `/${targetSlug}`);
-        } else if (!targetSlug && currentPath !== '' && currentPath !== 'index.html') {
-            // Optional: reset to root if no type selected
-            // window.history.pushState(null, '', '/');
+        } else if (!targetSlug && currentPath !== '' && currentPath !== 'index.html' && URL_SLUGS[currentPath]) {
+            // Reset to root if type was cleared while on a metric URL
+            window.history.pushState(null, '', '/');
         }
     }, [filters.type, TYPE_SLUGS]);
 
     // Handle initial load and back/forward browser buttons
     useEffect(() => {
         const handleLocationChange = () => {
-            const path = window.location.pathname.replace(/^\//, '');
+            const path = window.location.pathname.replace(/^\//, '').toLowerCase();
             const targetType = SLUG_TO_TYPE[path] || '';
-            if (targetType && filters.type !== targetType) {
+            if (filters.type !== targetType) {
                 const isWR = targetType === 'Water Resources';
                 const isWQ = targetType === 'Water Quality';
                 setFilters(prev => ({
@@ -112,13 +137,10 @@ export const AppContextProvider = ({ children }) => {
             }
         };
 
-        // Parse initial URL
-        handleLocationChange();
-
         // Listen for popstate
         window.addEventListener('popstate', handleLocationChange);
         return () => window.removeEventListener('popstate', handleLocationChange);
-    }, [SLUG_TO_TYPE]); // Only run once on mount (filters.type is updated inside)
+    }, [SLUG_TO_TYPE, filters.type]);
 
     // Helpers
     const updateFilters = useCallback((newFilters) => {
