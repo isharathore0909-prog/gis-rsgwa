@@ -2,51 +2,72 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import api from '../../api';
 import { GWRE_COLORS } from '../../constants/mapConstants';
 
+/**
+ * useGWREAnalysis
+ *
+ * mode: 'idle'    — stop in-flight requests; retain existing state
+ * mode: 'preview' — fetch stats + features (gwreFeatures needed by RajasthanOverviewMap)
+ * mode: 'detail'  — same as preview (no extra GWRE-specific detail requests yet)
+ *
+ * Data is cleared only when the filter signature changes, not on mode transitions.
+ */
 export const useGWREAnalysis = ({
+    // Legacy boolean kept for callers that haven't migrated yet
     isGWRE,
+    // Explicit mode takes priority when provided
+    mode: modeProp,
     globalFilters,
     displayRegion,
     displayBlock,
     rajasthanId,
     analysisLevel
 }) => {
+    // Resolve effective mode: if caller passes explicit mode use it,
+    // otherwise fall back to the old boolean (detail when true, idle when false).
+    const mode = modeProp ?? (isGWRE ? 'detail' : 'idle');
+
     const [gwreStats, setGwreStats] = useState(null);
     const [isFetching, setIsFetching] = useState(false);
     const [apiRetryCount, setApiRetryCount] = useState(0);
 
-    const activeMode = isGWRE || !globalFilters?.type || globalFilters?.type === 'Ground Water Resource Estimation';
-
-    // Keep track of previous parameters to conditionally display loading state synchronously
-    const lastParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, type: globalFilters?.type });
+    // ── Filter signature ────────────────────────────────────────────────────
+    // Data is cleared ONLY when these values change, not when mode changes.
+    const filterSig = JSON.stringify({
+        district_id: globalFilters?.district_id,
+        block_id: globalFilters?.block_id,
+        gp_id: globalFilters?.gp_id,
+        village_id: globalFilters?.village_id,
+        region: displayRegion,
+        block: displayBlock,
+        gp: globalFilters?.gramPanchayat,
+        village: globalFilters?.village,
+    });
+    const lastFilterSig = useRef(filterSig);
     const hasAttemptedFetch = useRef(false);
 
-    const paramsChanged = activeMode && (
-        lastParams.current.displayRegion !== displayRegion ||
-        lastParams.current.displayBlock !== displayBlock ||
-        lastParams.current.gp !== globalFilters?.gramPanchayat ||
-        lastParams.current.type !== globalFilters?.type
-    );
+    // Clear state when filter signature changes
+    useEffect(() => {
+        if (filterSig !== lastFilterSig.current) {
+            lastFilterSig.current = filterSig;
+            hasAttemptedFetch.current = false;
+            setGwreStats(null);
+            // gwreFeatures cleared via the features fetch effect below
+        }
+    }, [filterSig]);
 
-    // Initial load block, actual fetch progress, or synchronous transition catching.
-    const isPendingInitialFetch = activeMode && !hasAttemptedFetch.current;
-    const gwreLoading = isFetching || paramsChanged || isPendingInitialFetch;
+    const shouldFetch = mode === 'preview' || mode === 'detail';
+    const isPendingInitialFetch = shouldFetch && !hasAttemptedFetch.current;
+    const gwreLoading = isFetching || isPendingInitialFetch;
 
-
+    // ── Stats fetch — fires in preview and detail ───────────────────────────
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
 
-        lastParams.current = {
-            displayRegion,
-            displayBlock,
-            gp: globalFilters?.gramPanchayat,
-            type: globalFilters?.type
-        };
-
-        if (!activeMode) {
+        if (!shouldFetch) {
+            // idle — stop spinner but do not clear data
             setIsFetching(false);
-            hasAttemptedFetch.current = false;
-            return;
+            return () => controller.abort();
         }
 
         const fetchGWRE = async () => {
@@ -86,7 +107,7 @@ export const useGWREAnalysis = ({
 
         fetchGWRE();
         return () => controller.abort();
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.type, apiRetryCount, analysisLevel]);
+    }, [shouldFetch, filterSig, apiRetryCount, analysisLevel]);
 
     const pieData = useMemo(() => {
         const categories = [
@@ -131,14 +152,15 @@ export const useGWREAnalysis = ({
 
     const [gwreFeatures, setGwreFeatures] = useState(null);
 
-    // Fetch GWRE Features for Attribute Table
+    // ── Features fetch — preview-tier (RajasthanOverviewMap needs this on dashboard home)
+    // Fires in both preview and detail modes.
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
 
-        if (!activeMode) {
-            setGwreFeatures(null);
-            return;
+        if (!shouldFetch) {
+            // idle — stop in-flight request; do NOT clear gwreFeatures
+            return () => controller.abort();
         }
 
         const fetchFeatures = async () => {
@@ -157,52 +179,35 @@ export const useGWREAnalysis = ({
                     : await api.spatialLayer.getLayers(params, signal);
 
                 if (!signal.aborted) {
-                    // Normalize data to standard GeoJSON FeatureCollection
                     let normalizedFeatures = [];
-
                     if (data?.features) {
-                        // Already a FeatureCollection
                         normalizedFeatures = data.features;
                     } else if (data?.results) {
-                        // Paginated response
                         normalizedFeatures = data.results.map(item => ({
                             type: 'Feature',
                             id: item.id,
                             geometry: item.geometry,
-                            properties: {
-                                ...item.properties,
-                                name: item.name
-                            }
+                            properties: { ...item.properties, name: item.name }
                         }));
                     } else if (Array.isArray(data)) {
-                        // Direct array response
                         normalizedFeatures = data.map(item => ({
                             type: 'Feature',
                             id: item.id,
                             geometry: item.geometry,
-                            properties: {
-                                ...item.properties,
-                                name: item.name
-                            }
+                            properties: { ...item.properties, name: item.name }
                         }));
                     }
-
-                    setGwreFeatures({
-                        type: 'FeatureCollection',
-                        features: normalizedFeatures
-                    });
+                    setGwreFeatures({ type: 'FeatureCollection', features: normalizedFeatures });
                 }
             } catch (err) {
                 if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message === 'canceled') return;
-                if (!signal.aborted) {
-                    console.error('Failed to fetch GWRE features:', err);
-                }
+                if (!signal.aborted) console.error('Failed to fetch GWRE features:', err);
             }
         };
 
         fetchFeatures();
         return () => controller.abort();
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, analysisLevel]);
+    }, [shouldFetch, filterSig, analysisLevel]);
 
     return {
         gwreStats,

@@ -6,8 +6,20 @@ import {
 } from '../../data/blockWaterQualityData';
 import { notificationService } from '../../services/notificationService';
 
+/**
+ * useWaterQualityAnalysis
+ *
+ * mode: 'idle'    — stop in-flight requests; retain existing state
+ * mode: 'preview' — fetch statistics only (qualityData radar chart for preview card)
+ * mode: 'detail'  — preview + availability statistics
+ *
+ * Data is cleared only when the filter signature changes, not on mode transitions.
+ */
 export const useWaterQualityAnalysis = ({
+    // Legacy boolean kept for callers that haven't migrated yet
     isWaterQuality,
+    // Explicit mode takes priority when provided
+    mode: modeProp,
     globalFilters,
     displayRegion,
     displayBlock,
@@ -15,38 +27,162 @@ export const useWaterQualityAnalysis = ({
     rajasthanId,
     analysisLevel
 }) => {
+    // Resolve effective mode
+    const mode = modeProp ?? (isWaterQuality ? 'detail' : 'idle');
+
+    // ── State ────────────────────────────────────────────────────────────────
+    // Preview-tier
     const [waterQualityStats, setWaterQualityStats] = useState(null);
+    // Detail-tier
     const [waterQualityAvailability, setWaterQualityAvailability] = useState(null);
+
     const [isFetching, setIsFetching] = useState(false);
     const [waterQualityError, setWaterQualityError] = useState(null);
     const [apiRetryCount, setApiRetryCount] = useState(0);
 
-    const activeMode = isWaterQuality || (!globalFilters?.type || globalFilters?.type === '');
-
-    const lastWQParams = useRef({ displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village });
+    // ── Filter signature ─────────────────────────────────────────────────────
+    // Data is cleared ONLY when these values change, not when mode changes.
+    const filterSig = JSON.stringify({
+        district_id: globalFilters?.district_id,
+        block_id: globalFilters?.block_id,
+        gp_id: globalFilters?.gp_id,
+        village_id: globalFilters?.village_id,
+        region: displayRegion,
+        block: displayBlock,
+        gp: globalFilters?.gramPanchayat,
+        village: globalFilters?.village,
+        wellId: neighbor?.type === 'water_quality_well' ? neighbor?.well_id : undefined,
+    });
+    const lastFilterSig = useRef(filterSig);
     const hasAttemptedFetch = useRef(false);
 
-    const paramsChanged = activeMode && (
-        lastWQParams.current.displayRegion !== displayRegion ||
-        lastWQParams.current.displayBlock !== displayBlock ||
-        lastWQParams.current.gp !== globalFilters?.gramPanchayat ||
-        lastWQParams.current.v !== globalFilters?.village
-    );
-
-    const isPendingInitialFetch = activeMode && !hasAttemptedFetch.current;
-    const waterQualityLoading = isFetching || paramsChanged || isPendingInitialFetch;
-
-    // Sync params and clear data on change, loading state is handled deriving
+    // Clear ALL state when filter signature changes
     useEffect(() => {
-        if (activeMode && paramsChanged) {
+        if (filterSig !== lastFilterSig.current) {
+            lastFilterSig.current = filterSig;
+            hasAttemptedFetch.current = false;
             setWaterQualityStats(null);
             setWaterQualityAvailability(null);
-
-            lastWQParams.current = { displayRegion, displayBlock, gp: globalFilters?.gramPanchayat, v: globalFilters?.village };
-            hasAttemptedFetch.current = false;
+            setWaterQualityError(null);
         }
-    }, [isWaterQuality, paramsChanged, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village]);
+    }, [filterSig]);
 
+    // Clear detail-tier when mode drops out of detail (but filter sig unchanged)
+    const prevMode = useRef(mode);
+    useEffect(() => {
+        if (prevMode.current === 'detail' && mode !== 'detail') {
+            setWaterQualityAvailability(null);
+        }
+        prevMode.current = mode;
+    }, [mode]);
+
+    const shouldFetchPreview = mode === 'preview' || mode === 'detail';
+    const shouldFetchDetail  = mode === 'detail';
+
+    const isPendingInitialFetch = shouldFetchPreview && !hasAttemptedFetch.current;
+    const waterQualityLoading = isFetching || isPendingInitialFetch;
+
+    // ── Build params helper ──────────────────────────────────────────────────
+    const buildParams = () => {
+        const params = {};
+        if (globalFilters?.district_id) params.district_id = globalFilters.district_id;
+        else if (analysisLevel !== 'State' && displayRegion) params.district = displayRegion;
+
+        if (globalFilters?.block_id) params.block_id = globalFilters.block_id;
+        else if (displayBlock) params.block = displayBlock;
+
+        if (globalFilters?.gp_id) params.gp_id = globalFilters.gp_id;
+        else if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
+
+        if (globalFilters?.village_id) params.village_id = globalFilters.village_id;
+        else if (globalFilters?.village) params.village_name = globalFilters.village;
+
+        if (neighbor?.type === 'water_quality_well' && neighbor.well_id) {
+            params.well_id = neighbor.well_id;
+        }
+        return params;
+    };
+
+    // ── Effect 1: Statistics — fires in preview and detail ───────────────────
+    useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
+
+        if (!shouldFetchPreview) {
+            // idle — stop spinner, do NOT clear data
+            setIsFetching(false);
+            return () => controller.abort();
+        }
+
+        const fetchStats = async () => {
+            hasAttemptedFetch.current = true;
+            setIsFetching(true);
+            setWaterQualityError(null);
+            try {
+                const params = buildParams();
+                const stats = await api.waterQuality.getStatistics(params, signal);
+
+                if (!signal.aborted) {
+                    setWaterQualityStats(prev => {
+                        if (JSON.stringify(prev) === JSON.stringify(stats)) return prev;
+                        return stats;
+                    });
+                }
+            } catch (error) {
+                if (error.name === 'AbortError' || error.name === 'CanceledError') return;
+                if (!signal.aborted) {
+                    console.error('Error fetching water quality stats:', error);
+                    if (apiRetryCount < 3 && (!error.response || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error'))) {
+                        const delay = 5000 * (apiRetryCount + 1);
+                        setTimeout(() => {
+                            if (!signal.aborted) setApiRetryCount(prev => prev + 1);
+                        }, delay);
+                    } else {
+                        setWaterQualityError(error.message);
+                        setWaterQualityStats(null);
+                        notificationService.error(`Water Quality API Error: ${error.message}`);
+                    }
+                }
+            } finally {
+                if (!signal.aborted) setIsFetching(false);
+            }
+        };
+
+        fetchStats();
+        return () => controller.abort();
+    }, [shouldFetchPreview, filterSig, apiRetryCount]);
+
+    // ── Effect 2: Availability — detail only ─────────────────────────────────
+    useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
+
+        if (!shouldFetchDetail) {
+            // preview or idle — cancel in-flight; data cleared by mode tracker above
+            return () => controller.abort();
+        }
+
+        const fetchAvailability = async () => {
+            try {
+                const params = buildParams();
+                const availability = await api.waterQuality.getAvailabilityStatistics(params, signal).catch(() => null);
+                if (!signal.aborted) {
+                    setWaterQualityAvailability(prev => {
+                        if (JSON.stringify(prev) === JSON.stringify(availability)) return prev;
+                        return availability || null;
+                    });
+                }
+            } catch (error) {
+                if (error.name === 'AbortError' || error.name === 'CanceledError') return;
+                if (!signal.aborted) console.error('Error fetching water quality availability:', error);
+            }
+        };
+
+        fetchAvailability();
+        return () => controller.abort();
+    }, [shouldFetchDetail, filterSig]);
+
+    // ── Derived data ─────────────────────────────────────────────────────────
     const qualityData = useMemo(() => {
         if (waterQualityStats?.summary) {
             const s = waterQualityStats.summary;
@@ -68,82 +204,9 @@ export const useWaterQualityAnalysis = ({
         return [];
     }, [displayRegion, waterQualityStats]);
 
-    useEffect(() => {
-        const controller = new AbortController();
-        const signal = controller.signal;
-
-        if (!activeMode) {
-            hasAttemptedFetch.current = false;
-            setIsFetching(false);
-            return;
-        }
-
-        const fetchWaterQuality = async () => {
-            hasAttemptedFetch.current = true;
-            setIsFetching(true);
-            setWaterQualityError(null);
-            try {
-                const params = {};
-                if (globalFilters?.district_id) params.district_id = globalFilters.district_id;
-                else if (analysisLevel !== 'State' && displayRegion) params.district = displayRegion;
-
-                if (globalFilters?.block_id) params.block_id = globalFilters.block_id;
-                else if (displayBlock) params.block = displayBlock;
-
-                if (globalFilters?.gp_id) params.gp_id = globalFilters.gp_id;
-                else if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
-
-                if (globalFilters?.village_id) params.village_id = globalFilters.village_id;
-                else if (globalFilters?.village) params.village_name = globalFilters.village;
-
-                if (neighbor?.type === 'water_quality_well' && neighbor.well_id) {
-                    params.well_id = neighbor.well_id;
-                }
-
-                const [stats, availability] = await Promise.all([
-                    api.waterQuality.getStatistics(params, signal),
-                    api.waterQuality.getAvailabilityStatistics(params, signal).catch(() => null)
-                ]);
-
-                if (!signal.aborted) {
-                    setWaterQualityStats(prev => {
-                        if (JSON.stringify(prev) === JSON.stringify(stats)) return prev;
-                        return stats;
-                    });
-                    setWaterQualityAvailability(prev => {
-                        if (JSON.stringify(prev) === JSON.stringify(availability)) return prev;
-                        return availability || null;
-                    });
-                }
-            } catch (error) {
-                if (error.name === 'AbortError' || error.name === 'CanceledError') return;
-                if (!signal.aborted) {
-                    console.error('Error fetching water quality data:', error);
-                    // If backend returned connection error, retry after a delay
-                    if (apiRetryCount < 3 && (!error.response || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error'))) {
-                        const delay = 5000 * (apiRetryCount + 1);
-                        setTimeout(() => {
-                            if (!signal.aborted) setApiRetryCount(prev => prev + 1);
-                        }, delay);
-                    } else {
-                        setWaterQualityError(error.message);
-                        setWaterQualityStats(null);
-                        notificationService.error(`Water Quality API Error: ${error.message}`);
-                    }
-                }
-            } finally {
-                if (!signal.aborted) {
-                    setIsFetching(false);
-                }
-            }
-        };
-
-        fetchWaterQuality();
-        return () => controller.abort();
-    }, [activeMode, displayRegion, displayBlock, globalFilters?.gramPanchayat, globalFilters?.village, neighbor?.well_id, apiRetryCount]);
-
     const blockWaterQualityData = useMemo(() => {
-        if (activeMode && neighbor?.type === 'water_quality_well') {
+        const isActive = shouldFetchPreview;
+        if (isActive && neighbor?.type === 'water_quality_well') {
             const wellData = {
                 ...neighbor,
                 block: neighbor.block || displayBlock || displayRegion,
@@ -184,7 +247,7 @@ export const useWaterQualityAnalysis = ({
         }
 
         return { isNoData: true, block: displayBlock || displayRegion || 'Rajasthan' };
-    }, [displayRegion, displayBlock, activeMode, waterQualityStats, neighbor]);
+    }, [displayRegion, displayBlock, shouldFetchPreview, waterQualityStats, neighbor]);
 
     return {
         waterQualityStats,

@@ -5,7 +5,6 @@ import L from 'leaflet';
 import './MapView.css';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../../constants/mapConstants';
 
-import { useMapDataFetch } from '../../hooks/data/useMapDataFetch';
 import { useMapExport } from '../../hooks/ui/useMapExport';
 import { useMapResize } from '../../hooks/ui/useMapResize';
 import { useLegendData, useFeatureOptions, useMapView } from '../../hooks';
@@ -34,7 +33,7 @@ const MapView = memo(({
     rainfallStationRecords = [], initialShowLegend, onAddToTable, onFiltersApply,
     microData, selectedWellInventory = [], onToggleWellInventory,
     isDataAnalysisSidebarHidden, isLoading, searchCoordinates, exportTrigger,
-    aquiferRecords = [], waterQualityRecords = []
+    aquiferRecords = [], waterQualityRecords = [], mapData
 }) => {
     const { filters, updateFilters, basemap, isControlsSidebarCollapsed, setMap, showColorPicker, setShowColorPicker } = useAppContext();
 
@@ -70,16 +69,13 @@ const MapView = memo(({
     }, [filters?.type, filters?.legendFeature, updateFilters]);
     const toggleLegend = useCallback(() => setShowLegend(prev => !prev), []);
 
-    // --- Data Fetching ---
+    // Shared data is fetched once by AppContent so map rendering does not
+    // duplicate network requests and GIS processing.
     const {
         districtRainfall, piezometerRecords, reprojectedGwreData,
         raingaugeStations, damMarkers, validatedBlockData,
         selectedBoundary, selectedDistrictData, wfsBoundary
-    } = useMapDataFetch({
-        filters, rainfallPoints, blockBoundaryData, rajasthanData,
-        dynamicBoundaries: null, rainfallStations, rainfallStationRecords,
-        legendFeature, isLoading
-    });
+    } = mapData;
 
     const blockGeoJsonRef = useRef(null);
 

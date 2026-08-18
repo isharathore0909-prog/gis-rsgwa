@@ -48,6 +48,26 @@ function AppContent() {
         }
     }, []); // Only run on mount to set initial view
 
+    // ── activeMetricId — single state owner ─────────────────────────────────
+    // Derive the open metric from filters.type, which AppContext already
+    // initialises from the URL path on mount and keeps in sync on popstate.
+    const TYPE_TO_METRIC = {
+        'Ground Water Resource Estimation': 'gwre',
+        'Rainfall': 'rainfall',
+        'Water Quality': 'water_quality',
+        'Well Inventory': 'water_level',
+        'Water Resources': 'water_resources',
+        'Aquifer': 'water_level',
+        'Recharge Structure': 'water_resources'
+    };
+    const [activeMetricId, setActiveMetricId] = React.useState(
+        () => TYPE_TO_METRIC[filters.type] || null
+    );
+    // Keep activeMetricId in sync when filters.type changes (URL nav, popstate)
+    React.useEffect(() => {
+        setActiveMetricId(TYPE_TO_METRIC[filters.type] || null);
+    }, [filters.type]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const isWaterResourcesActive = filters.type === 'Water Resources';
 
     const { stats: canalStats, features: canalFeatures } = useSpatialLayerStats(viewMode === 'dashboard', 'canal', filters, isWaterResourcesActive);
@@ -70,14 +90,13 @@ function AppContent() {
         currentLevel,
     } = useBoundaryHierarchy(filters);
 
-    const {
-        canalLoading, waterbodyLoading,
-        damMarkers
-    } = useMapDataFetch({
+    const mapData = useMapDataFetch({
         filters, rainfallPoints, blockBoundaryData: processedBlockData, rajasthanData,
         dynamicBoundaries: null, rainfallStations, rainfallStationRecords,
         legendFeature: filters.legendFeature || 'Category', isLoading: parentWaterResourcesLoading
     });
+
+    const { canalLoading, waterbodyLoading, damMarkers } = mapData;
 
     const waterResourcesLoading = parentWaterResourcesLoading || canalLoading || waterbodyLoading;
 
@@ -96,7 +115,8 @@ function AppContent() {
         rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading,
         rajasthanId, waterQualityRecords, aquiferRecords, selectedDams,
         microData, tableSelection,
-        setClickedLocation, setNeighbors
+        setClickedLocation, setNeighbors,
+        activeMetricId
     });
 
     const [exportTrigger, setExportTrigger] = React.useState(null);
@@ -146,6 +166,7 @@ function AppContent() {
                 onToggleWellInventory={handleToggleWellInventory}
                 aquiferRecords={aquiferRecords}
                 waterQualityRecords={waterQualityRecords}
+                mapData={mapData}
                 exportTrigger={exportTrigger}
                 onFiltersApply={handleFiltersApply}
             />
@@ -156,7 +177,7 @@ function AppContent() {
         handleAddToTable, boundariesLoading,
         rainfallLoading, waterQualityLoading, aquiferLoading, waterResourcesLoading, mapDataLoading,
         searchCoordinates, selectedWellInventory, handleToggleWellInventory,
-        aquiferRecords, waterQualityRecords, exportTrigger, handleFiltersApply
+        aquiferRecords, waterQualityRecords, mapData, exportTrigger, handleFiltersApply
     ]);
 
     return (
@@ -190,6 +211,8 @@ function AppContent() {
                             setNeighbors={setNeighbors}
                             districtWaterLevelStats={districtWaterLevelStats}
                             loadingStates={loadingStates}
+                            activeMetricId={activeMetricId}
+                            onMetricChange={setActiveMetricId}
                         />
                     </div>
                 ) : (

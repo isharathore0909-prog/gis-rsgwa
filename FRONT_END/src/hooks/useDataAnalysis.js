@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 
 // Specialized hooks
 import { useWaterQualityAnalysis } from './analysis/useWaterQualityAnalysis';
@@ -10,7 +10,7 @@ import { useWellRainfall } from './data/WellInventory/useWellRainfall';
 
 // ---------------------------------------------------------------------------
 // useDataAnalysis Hook
-// 
+//
 // Centralizes data fetching and processing for the DataAnalysisSidebar
 // by composing specialized sub-hooks.
 // ---------------------------------------------------------------------------
@@ -29,9 +29,26 @@ export const useDataAnalysis = ({
     parentWaterQualityLoading = false,
     parentAquiferLoading = false,
     parentRechargeLoading = false,
-    rajasthanId // Backend readiness signal
+    activeMetricId, // NEW: drives detail-mode activation
+    rajasthanId     // Backend readiness signal
 }) => {
-    const isDashboard = !globalFilters?.type || globalFilters?.type === '';
+    // ---------------------------------------------------------------------------
+    // Derive a fetch mode for each analysis hook based on activeMetricId.
+    //
+    // 'preview' — dashboard home (no active metric): lightweight stats for cards
+    // 'detail'  — user has opened this specific metric: full chart data
+    // 'idle'    — a different metric is active: stop fetching, retain cached state
+    // ---------------------------------------------------------------------------
+    const isDashboard = !activeMetricId;
+
+    const gwreMode = isDashboard ? 'preview'
+        : (activeMetricId === 'gwre' ? 'detail' : 'idle');
+    const rainfallMode = isDashboard ? 'preview'
+        : (activeMetricId === 'rainfall' ? 'detail' : 'idle');
+    const wqMode = isDashboard ? 'preview'
+        : (activeMetricId === 'water_quality' ? 'detail' : 'idle');
+    const rechargeMode = isDashboard ? 'preview'
+        : (activeMetricId === 'water_resources' ? 'detail' : 'idle');
 
     // -------------------------------------------------------------------------
     // 1. Basic Derived Flags & Location Info
@@ -48,11 +65,11 @@ export const useDataAnalysis = ({
     const filterBlock = globalFilters?.block || globalFilters?.taluka;
     const neighbor = neighbors && neighbors.length > 0 ? neighbors[0] : null;
 
-    // Neighbors can be either administrative units (polygons) or point features (wells). 
+    // Neighbors can be either administrative units (polygons) or point features (wells).
     // We must distinguish between them to prevent well IDs from overriding regional filters.
     const isPointFeature = neighbor?.type === 'well_inventory_well' || neighbor?.type === 'water_quality_well' || neighbor?.type === 'piezometer';
 
-    // Only derive region/block from neighbor if it's NOT a point feature 
+    // Only derive region/block from neighbor if it's NOT a point feature
     // (i.e. if it's a district/block polygon clicked on the map)
     const neighborDistrict = !isPointFeature ? (neighbor?.district || neighbor?.DISTRICT) : null;
     const neighborBlock = !isPointFeature ? (neighbor?.block || neighbor?.BLOCK_NAME || neighbor?.id) : null;
@@ -83,7 +100,7 @@ export const useDataAnalysis = ({
         qualityData,
         blockWaterQualityData
     } = useWaterQualityAnalysis({
-        isWaterQuality,
+        mode: wqMode,
         globalFilters,
         displayRegion,
         displayBlock,
@@ -103,7 +120,7 @@ export const useDataAnalysis = ({
         distLoading,
         rainfallError
     } = useRainfallAnalysis({
-        isRainfall,
+        mode: rainfallMode,
         globalFilters,
         displayRegion,
         displayBlock,
@@ -119,7 +136,7 @@ export const useDataAnalysis = ({
         analysisLevel
     });
 
-    // Aquifer
+    // Aquifer — unchanged; activeMode = isAquifer || isWellInventory || isGWRE already correct
     const {
         aquiferStats,
         aquiferLoading,
@@ -164,7 +181,7 @@ export const useDataAnalysis = ({
         pieData,
         totalBlocks
     } = useGWREAnalysis({
-        isGWRE,
+        mode: gwreMode,
         globalFilters,
         displayRegion,
         displayBlock,
@@ -177,7 +194,7 @@ export const useDataAnalysis = ({
         rechargeStats,
         rechargeLoading
     } = useRechargeAnalysis({
-        isRechargeStructure: isRechargeStructure || isDashboard,
+        mode: rechargeMode,
         analysisLevel,
         analysisName,
         globalFilters,

@@ -26,7 +26,8 @@ export const useAppAnalysis = ({
     microData,
     tableSelection,
     setClickedLocation,
-    setNeighbors
+    setNeighbors,
+    activeMetricId
 }) => {
     const { setFilters } = useAppContext();
 
@@ -45,6 +46,7 @@ export const useAppAnalysis = ({
         parentWaterQualityLoading: waterQualityLoading,
         parentAquiferLoading: aquiferLoading,
         parentRechargeLoading: waterResourcesLoading,
+        activeMetricId,
         rajasthanId
     });
 

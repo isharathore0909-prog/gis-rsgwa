@@ -180,7 +180,20 @@ WSGI_APPLICATION = 'rgwcma_gis_server.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Database Selection Logic
-USE_POSTGRES = os.getenv('USE_POSTGRES', 'False').lower() == 'true'
+# PostGIS is the standard runtime database.  SQLite remains available only when
+# explicitly requested for isolated local development.
+_use_postgres_setting = os.getenv('USE_POSTGRES')
+USE_POSTGRES = (
+    True if _use_postgres_setting is None
+    else _use_postgres_setting.lower() in ('1', 'true', 'yes')
+)
+
+# A deployed GIS instance must never silently run against SQLite because a
+# missing environment variable would otherwise change both spatial-query
+# behaviour and concurrency characteristics.
+if os.getenv('DJANGO_ENV', '').lower() in ('production', 'staging') and not USE_POSTGRES:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('USE_POSTGRES must be enabled outside local development.')
 
 if USE_POSTGRES:
     DATABASES = {

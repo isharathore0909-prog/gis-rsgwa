@@ -1,8 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../../api';
 
+/**
+ * useRechargeAnalysis
+ *
+ * mode: 'idle'    — stop in-flight requests; retain existing state
+ * mode: 'preview' — fetch recharge statistics (total_count for WaterResourcesPreview)
+ * mode: 'detail'  — same as preview (recharge stats endpoint is already lightweight)
+ *
+ * Data is cleared only when the filter signature changes, not on mode transitions.
+ */
 export const useRechargeAnalysis = ({
+    // Legacy boolean kept for callers that haven't migrated yet
     isRechargeStructure,
+    // Explicit mode takes priority when provided
+    mode: modeProp,
     analysisLevel,
     analysisName,
     globalFilters,
@@ -10,11 +22,16 @@ export const useRechargeAnalysis = ({
     displayBlock,
     rajasthanId
 }) => {
+    // Resolve effective mode
+    const mode = modeProp ?? (isRechargeStructure ? 'detail' : 'idle');
+
     const [rechargeStats, setRechargeStats] = useState(null);
     const [isFetching, setIsFetching] = useState(false);
     const [apiRetryCount, setApiRetryCount] = useState(0);
 
-    const currentParamsKey = JSON.stringify({
+    // ── Filter signature ─────────────────────────────────────────────────────
+    // Data is cleared ONLY when these values change, not when mode changes.
+    const filterSig = JSON.stringify({
         state: rajasthanId,
         dist_id: globalFilters?.district_id,
         dist: displayRegion,
@@ -23,33 +40,30 @@ export const useRechargeAnalysis = ({
         gp_id: globalFilters?.gp_id,
         gp: globalFilters?.gramPanchayat
     });
-
-    const lastParams = useRef(currentParamsKey);
+    const lastFilterSig = useRef(filterSig);
     const hasAttemptedFetch = useRef(false);
 
-    const paramsChanged = isRechargeStructure && lastParams.current !== currentParamsKey;
-    const isPendingInitialFetch = isRechargeStructure && !hasAttemptedFetch.current;
+    const shouldFetch = mode === 'preview' || mode === 'detail';
+    const isPendingInitialFetch = shouldFetch && !hasAttemptedFetch.current;
+    const rechargeLoading = isFetching || isPendingInitialFetch;
 
-    const rechargeLoading = isFetching || paramsChanged || isPendingInitialFetch;
-
+    // Clear state when filter signature changes
     useEffect(() => {
-        if (isRechargeStructure && paramsChanged) {
-            setRechargeStats(null);
+        if (filterSig !== lastFilterSig.current) {
+            lastFilterSig.current = filterSig;
             hasAttemptedFetch.current = false;
-            lastParams.current = currentParamsKey;
+            setRechargeStats(null);
         }
-    }, [isRechargeStructure, paramsChanged, currentParamsKey]);
+    }, [filterSig]);
 
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
 
-        // If not the active section, clear stats and stop loading
-        if (!isRechargeStructure) {
-            setRechargeStats(null);
-            hasAttemptedFetch.current = false;
+        if (!shouldFetch) {
+            // idle — stop spinner, do NOT clear data
             setIsFetching(false);
-            return;
+            return () => controller.abort();
         }
 
         const fetchRechargeStats = async () => {
@@ -65,7 +79,7 @@ export const useRechargeAnalysis = ({
             if (globalFilters?.gp_id) params.gp_id = globalFilters.gp_id;
             else if (globalFilters?.gramPanchayat) params.grampanchayat = globalFilters.gramPanchayat;
 
-            // Wait for rajasthanId before we consider this a valid fetch attempt for the whole state 
+            // Wait for rajasthanId before we consider this a valid fetch attempt for the whole state
             if (!rajasthanId && Object.keys(params).length === 0) return;
 
             hasAttemptedFetch.current = true;
@@ -100,17 +114,8 @@ export const useRechargeAnalysis = ({
         fetchRechargeStats();
         return () => controller.abort();
     }, [
-        isRechargeStructure,
-        analysisLevel,
-        analysisName,
-        displayRegion,
-        displayBlock,
-        globalFilters?.gramPanchayat,
-        globalFilters?.village,
-        globalFilters?.district_id,
-        globalFilters?.block_id,
-        globalFilters?.gp_id,
-        globalFilters?.village_id,
+        shouldFetch,
+        filterSig,
         rajasthanId,
         apiRetryCount
     ]);

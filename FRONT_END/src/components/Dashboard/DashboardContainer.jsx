@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo, Suspense, lazy } from 'react';
+import React, { useMemo, memo, Suspense, lazy } from 'react';
 import DashboardGrid from './DashboardGrid';
 const MetricDetailView = lazy(() => import('./MetricDetailView'));
 import { DASHBOARD_METRICS } from '../../config/dashboardConfig';
@@ -33,38 +33,14 @@ const DashboardContainer = memo(({
     setClickedLocation,
     setNeighbors,
     districtWaterLevelStats,
-    loadingStates = {}
+    loadingStates = {},
+    // Lifted from DashboardContainer — single owner is App.jsx
+    activeMetricId,
+    onMetricChange
 }) => {
-    // Initial active metric from URL path
-    const getInitialMetric = () => {
-        const path = window.location.pathname.replace('/', '').toLowerCase();
-        const pathMap = {
-            'gwre': 'gwre',
-            'rainfall': 'rainfall',
-            'water-quality': 'water_quality',
-            'water-level': 'water_level',
-            'water-resources': 'water_resources',
-            'well-inventory': 'water_level',
-            'water_quality': 'water_quality',
-            'water_level': 'water_level',
-            'water_resources': 'water_resources'
-        };
-        return pathMap[path] ? pathMap[path] : null;
-    };
-
-    const [activeMetricId, setActiveMetricId] = useState(getInitialMetric());
-
-    // Sync with browser back/forward buttons
-    React.useEffect(() => {
-        const handlePopState = () => {
-            setActiveMetricId(getInitialMetric());
-        };
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, []);
 
     const handleMetricClick = (id) => {
-        setActiveMetricId(id);
+        if (onMetricChange) onMetricChange(id);
 
         const slugMap = {
             'gwre': 'gwre',
@@ -109,7 +85,7 @@ const DashboardContainer = memo(({
     };
 
     const handleBackToDashboard = () => {
-        setActiveMetricId(null);
+        if (onMetricChange) onMetricChange(null);
         // Clear URL path
         window.history.pushState(null, '', '/');
         // Reset all spatial filters and type to return to default data
